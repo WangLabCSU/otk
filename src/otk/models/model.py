@@ -164,23 +164,23 @@ class MultiInputTransformerModel(nn.Module):
         input_dim = config['model']['architecture']['layers'][0]['input_dim']
         
         # Embedding dimension (must be divisible by nhead)
-        d_model = 128  # Increased for better representation
+        d_model = 256  # Increased for better representation
         
         # Linear layer to map gene features to d_model
         self.gene_embedding = nn.Linear(input_dim, d_model)
         
         # Amplicon classification embedding
-        # Assuming 4 possible classes: Circular, Non-circular, etc.
-        self.amplicon_embedding = nn.Embedding(4, 32)
+        # Including nofocal class
+        self.amplicon_embedding = nn.Embedding(4, 64)  # Increased embedding size
         
         # Layer normalization for better training stability
-        self.layer_norm = nn.LayerNorm(d_model + 32)  # Combine gene and amplicon features
+        self.layer_norm = nn.LayerNorm(d_model + 64)  # Combine gene and amplicon features
         
         # Transformer encoder layer with improved parameters
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=d_model + 32,
+            d_model=d_model + 64,
             nhead=8,  # Increased for better attention
-            dim_feedforward=512,  # Increased for better capacity
+            dim_feedforward=1024,  # Increased for better capacity
             dropout=0.3,  # Increased for better regularization
             activation='gelu'  # GELU for better performance
         )
@@ -188,30 +188,34 @@ class MultiInputTransformerModel(nn.Module):
         # Transformer encoder with more layers
         self.transformer_encoder = nn.TransformerEncoder(
             encoder_layer,
-            num_layers=3  # Increased for deeper representation
+            num_layers=4  # Increased for deeper representation
         )
         
-        # Improved gene-level prediction head
+        # Improved gene-level prediction head with residual connection
         self.gene_level_head = nn.Sequential(
-            nn.Linear(d_model + 32, 128),
+            nn.Linear(d_model + 64, 256),
             nn.GELU(),
+            nn.BatchNorm1d(256),  # Added batch normalization
             nn.Dropout(0.3),
-            nn.Linear(128, 64),
+            nn.Linear(256, 128),
             nn.GELU(),
+            nn.BatchNorm1d(128),  # Added batch normalization
             nn.Dropout(0.3),
-            nn.Linear(64, 1),
+            nn.Linear(128, 1),
             nn.Sigmoid()
         )
         
-        # Improved sample-level prediction head
+        # Improved sample-level prediction head with residual connection
         self.sample_level_head = nn.Sequential(
-            nn.Linear(d_model + 32, 128),
+            nn.Linear(d_model + 64, 256),
             nn.GELU(),
+            nn.BatchNorm1d(256),  # Added batch normalization
             nn.Dropout(0.3),
-            nn.Linear(128, 64),
+            nn.Linear(256, 128),
             nn.GELU(),
+            nn.BatchNorm1d(128),  # Added batch normalization
             nn.Dropout(0.3),
-            nn.Linear(64, 3),  # 3 classes: nofocal, noncircular, circular
+            nn.Linear(128, 3),  # 3 classes: nofocal, noncircular, circular
             nn.Softmax(dim=1)
         )
     

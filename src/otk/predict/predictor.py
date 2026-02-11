@@ -8,14 +8,18 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler
 
 class Prediction_Dataset(Dataset):
-    def __init__(self, features):
+    def __init__(self, features, amplicon_class=None):
         self.features = torch.tensor(features, dtype=torch.float32)
+        self.amplicon_class = amplicon_class
     
     def __len__(self):
         return len(self.features)
     
     def __getitem__(self, idx):
-        return self.features[idx]
+        if self.amplicon_class is not None:
+            return self.features[idx], torch.tensor(self.amplicon_class[idx], dtype=torch.long)
+        else:
+            return self.features[idx]
 
 class Predictor:
     def __init__(self, model_path, gpu=-1):
@@ -53,8 +57,16 @@ class Predictor:
     
     def _build_model(self, config):
         """Build the model based on configuration"""
-        from otk.models.model import MLP
-        return MLP({'model': config['model']})
+        from otk.models.model import MLP, TransformerModel, MultiInputTransformerModel
+        model_type = config['model']['architecture']['type']
+        if model_type == 'MLP':
+            return MLP({'model': config['model']})
+        elif model_type == 'Transformer':
+            return TransformerModel({'model': config['model']})
+        elif model_type == 'MultiInputTransformer':
+            return MultiInputTransformerModel({'model': config['model']})
+        else:
+            raise ValueError(f"Unsupported model type: {model_type}")
     
     def load_data(self, data_path):
         """Load data for prediction"""
@@ -88,7 +100,14 @@ class Predictor:
         if self.config['data']['gene_id'] in df.columns:
             gene_info = df[self.config['data']['gene_id']]
         
-        return features, sample_info, gene_info
+        # Handle amplicon data if available
+        amplicon_class = None
+        if 'amplicon_class' in df.columns:
+            # Create amplicon mapping if needed
+            amplicon_mapping = {'nofocal': 0, 'Non-circular': 1, 'Circular': 2, 'Unknown': 3}
+            amplicon_class = df['amplicon_class'].map(lambda x: amplicon_mapping.get(x, 3)).values
+        
+        return features, sample_info, gene_info, amplicon_class
     
     def normalize(self, features):
         """Normalize features"""
@@ -99,9 +118,9 @@ class Predictor:
         features_scaled = self.scaler.fit_transform(features)
         return features_scaled
     
-    def create_dataloader(self, features):
+    def create_dataloader(self, features, amplicon_class=None):
         """Create DataLoader for prediction"""
-        dataset = Prediction_Dataset(features)
+        dataset = Prediction_Dataset(features, amplicon_class)
         batch_size = self.config['prediction']['batch_size']
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
         print(f"Created DataLoader with batch size: {batch_size}")
@@ -109,16 +128,38 @@ class Predictor:
     
     def predict(self, dataloader):
         """Make predictions"""
-        predictions = []
+        gene_predictions = []
+        sample_predictions = []
         
         with torch.no_grad():
             for batch in tqdm(dataloader, desc="Predicting"):
-                inputs = batch.to(self.device)
-                outputs = self.model(inputs)
-                predictions.extend(outputs.cpu().detach().numpy())
+                if isinstance(batch, tuple):
+                    # Multi-input case (e.g., MultiInputTransformer)
+                    inputs, amplicon_class = batch
+                    inputs = inputs.to(self.device)
+                    amplicon_class = amplicon_class.to(self.device)
+                    gene_output, sample_output = self.model(inputs, amplicon_class)
+                    gene_predictions.extend(gene_output.cpu().detach().numpy())
+                    sample_predictions.extend(sample_output.cpu().detach().numpy())
+                else:
+                    # Single-input case (e.g., MLP)
+                    inputs = batch.to(self.device)
+                    outputs = self.model(inputs)
+                    if isinstance(outputs, tuple):
+                        # Transformer models return both gene and sample predictions
+                        gene_output, sample_output = outputs
+                        gene_predictions.extend(gene_output.cpu().detach().numpy())
+                        sample_predictions.extend(sample_output.cpu().detach().numpy())
+                    else:
+                        # MLP returns only gene predictions
+                        gene_predictions.extend(outputs.cpu().detach().numpy())
         
-        predictions = np.array(predictions)
-        return predictions
+        gene_predictions = np.array(gene_predictions)
+        if sample_predictions:
+            sample_predictions = np.array(sample_predictions)
+            return gene_predictions, sample_predictions
+        else:
+            return gene_predictions
     
     def postprocess(self, predictions, sample_info=None, gene_info=None):
         """Postprocess predictions"""
@@ -131,10 +172,29 @@ class Predictor:
         if gene_info is not None:
             results[self.config['data']['gene_id']] = gene_info
         
-        # Add prediction probability and binary prediction
-        threshold = self.config['prediction']['threshold']
-        results['prediction_prob'] = predictions.flatten()
-        results['prediction'] = (predictions.flatten() > threshold).astype(int)
+        # Handle different prediction formats
+        if isinstance(predictions, tuple):
+            # Case with both gene and sample predictions
+            gene_predictions, sample_predictions = predictions
+            
+            # Add gene-level predictions
+            threshold = self.config['prediction']['threshold']
+            results['prediction_prob'] = gene_predictions.flatten()
+            results['prediction'] = (gene_predictions.flatten() > threshold).astype(int)
+            
+            # Add sample-level predictions
+            sample_classes = ['nofocal', 'noncircular', 'circular']
+            results['sample_level_prediction'] = np.argmax(sample_predictions, axis=1)
+            results['sample_level_prediction_label'] = results['sample_level_prediction'].map(lambda x: sample_classes[x])
+            
+            # Add probability for each sample class
+            for i, cls in enumerate(sample_classes):
+                results[f'{cls}_prob'] = sample_predictions[:, i]
+        else:
+            # Case with only gene predictions
+            threshold = self.config['prediction']['threshold']
+            results['prediction_prob'] = predictions.flatten()
+            results['prediction'] = (predictions.flatten() > threshold).astype(int)
         
         return results
     
@@ -144,13 +204,13 @@ class Predictor:
         df = self.load_data(data_path)
         
         # Preprocess data
-        features, sample_info, gene_info = self.preprocess(df)
+        features, sample_info, gene_info, amplicon_class = self.preprocess(df)
         
         # Normalize features
         features_scaled = self.normalize(features)
         
         # Create dataloader
-        dataloader = self.create_dataloader(features_scaled)
+        dataloader = self.create_dataloader(features_scaled, amplicon_class)
         
         # Make predictions
         predictions = self.predict(dataloader)
@@ -175,16 +235,33 @@ class Predictor:
     
     def _calculate_sample_level_predictions(self, results):
         """Calculate sample-level predictions"""
-        # Group by sample and calculate the maximum prediction probability
-        sample_grouped = results.groupby(self.config['data']['sample_id']).agg({
-            'prediction_prob': 'max',
-            'prediction': 'max'
-        }).reset_index()
-        
-        # Add sample-level classification
-        sample_grouped['focal_amplification_type'] = sample_grouped['prediction'].apply(
-            lambda x: 'circular' if x == 1 else 'noncircular'
-        )
+        # Group by sample
+        if 'sample_level_prediction_label' in results.columns:
+            # Use the most common sample-level prediction label
+            sample_grouped = results.groupby(self.config['data']['sample_id']).agg({
+                'sample_level_prediction_label': lambda x: x.value_counts().idxmax(),
+                'prediction_prob': 'max',
+                'prediction': 'max',
+                'nofocal_prob': 'mean',
+                'noncircular_prob': 'mean',
+                'circular_prob': 'mean'
+            }).reset_index()
+            
+            # Rename columns for clarity
+            sample_grouped.rename(columns={
+                'sample_level_prediction_label': 'focal_amplification_type'
+            }, inplace=True)
+        else:
+            # Fallback to original method
+            sample_grouped = results.groupby(self.config['data']['sample_id']).agg({
+                'prediction_prob': 'max',
+                'prediction': 'max'
+            }).reset_index()
+            
+            # Add sample-level classification
+            sample_grouped['focal_amplification_type'] = sample_grouped['prediction'].apply(
+                lambda x: 'circular' if x == 1 else 'noncircular'
+            )
         
         return sample_grouped
 

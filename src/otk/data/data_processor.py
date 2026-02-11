@@ -89,6 +89,9 @@ class DataProcessor:
         if amplicon_df is not None:
             # Create amplicon classification to index mapping
             amplicon_classes = amplicon_df['amplicon_classification'].unique()
+            # Add 'nofocal' to the mapping if not present
+            if 'nofocal' not in amplicon_classes:
+                amplicon_classes = list(amplicon_classes) + ['nofocal']
             amplicon_mapping = {cls: i for i, cls in enumerate(amplicon_classes)}
             print(f"Created amplicon classification mapping: {amplicon_mapping}")
             
@@ -96,6 +99,13 @@ class DataProcessor:
             # For each sample, get the most common amplicon classification
             sample_classification = amplicon_df.groupby('sample_barcode')['amplicon_classification'].agg(lambda x: x.value_counts().idxmax()).to_dict()
             print(f"Created sample classification mapping for {len(sample_classification)} samples")
+            
+            # Add nofocal classification for samples not in amplicon_df
+            all_samples = df['sample'].unique()
+            missing_samples = [sample for sample in all_samples if sample not in sample_classification]
+            for sample in missing_samples:
+                sample_classification[sample] = 'nofocal'
+            print(f"Added nofocal classification for {len(missing_samples)} missing samples")
             
             # Create gene-level amplicon classification mapping
             gene_amplicon_mapping = {}
@@ -105,7 +115,8 @@ class DataProcessor:
             print(f"Created gene amplicon mapping for {len(gene_amplicon_mapping)} gene-sample pairs")
             
             # Add amplicon classification to each gene-sample pair
-            df['amplicon_class'] = df.apply(lambda row: gene_amplicon_mapping.get((row['gene_id'], row['sample']), 'Unknown'), axis=1)
+            # For pairs not in gene_amplicon_mapping, set to 'nofocal'
+            df['amplicon_class'] = df.apply(lambda row: gene_amplicon_mapping.get((row['gene_id'], row['sample']), 'nofocal'), axis=1)
             print(f"Added amplicon classification to dataframe")
         
         return features, target, samples, genes, sample_classification, amplicon_mapping
