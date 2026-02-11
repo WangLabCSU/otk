@@ -8,9 +8,45 @@ import os
 import time
 from tqdm import tqdm
 import yaml
+import logging
+import datetime
 
 from otk.data.data_processor import DataProcessor
 from otk.models.model import ECDNA_Model
+
+# Set up logging
+log_dir = 'logs'
+os.makedirs(log_dir, exist_ok=True)
+
+# Create a unique log file name based on timestamp
+log_timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+log_file = os.path.join(log_dir, f'training_{log_timestamp}.log')
+
+# Create logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+# Clear existing handlers
+logger.handlers = []
+
+# Create formatters
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+# Create console handler
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
+
+# Create file handler
+file_handler = logging.FileHandler(log_file)
+file_handler.setLevel(logging.INFO)
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
+
+# Ensure logs are flushed immediately
+for handler in logger.handlers:
+    handler.flush = lambda: None
 
 class Trainer:
     def __init__(self, config_path, output_dir, gpu=0):
@@ -89,14 +125,17 @@ class Trainer:
         else:
             return None
     
-    def train_epoch(self, train_loader):
+    def train_epoch(self, train_loader, epoch):
         """Train for one epoch"""
         self.model.train()
         total_loss = 0
         all_preds = []
         all_labels = []
+        all_sample_preds = []
         
-        for batch in tqdm(train_loader, desc="Training"):
+        start_time = time.time()
+        
+        for batch_idx, batch in enumerate(tqdm(train_loader, desc=f"Training Epoch {epoch}")):
             inputs, labels = batch
             inputs = inputs.to(self.device)
             labels = labels.to(self.device)
@@ -106,7 +145,18 @@ class Trainer:
             
             # Forward pass
             outputs = self.model(inputs)
-            loss = self.loss_fn(outputs, labels.unsqueeze(1))
+            
+            # Handle different model outputs
+            if isinstance(outputs, tuple):
+                # Transformer model with multiple outputs
+                gene_outputs, sample_outputs = outputs
+                loss = self.loss_fn(gene_outputs, labels.unsqueeze(1))
+                # For sample-level prediction, we would need sample-level labels
+                # This is a placeholder for now
+            else:
+                # MLP model with single output
+                gene_outputs = outputs
+                loss = self.loss_fn(gene_outputs, labels.unsqueeze(1))
             
             # Backward pass and optimize
             loss.backward()
@@ -116,12 +166,26 @@ class Trainer:
             total_loss += loss.item() * inputs.size(0)
             
             # Collect predictions and labels
-            all_preds.extend(outputs.cpu().detach().numpy())
+            all_preds.extend(gene_outputs.cpu().detach().numpy())
             all_labels.extend(labels.cpu().numpy())
+            
+            # Log batch progress every 50 batches for better real-time feedback
+            if (batch_idx + 1) % 50 == 0:
+                batch_loss = loss.item()
+                current_lr = self.optimizer.param_groups[0]['lr']
+                logger.info(f"Epoch {epoch}, Batch {batch_idx + 1}/{len(train_loader)}, Loss: {batch_loss:.4f}, LR: {current_lr:.6f}")
         
         # Calculate metrics
         epoch_loss = total_loss / len(train_loader.dataset)
         epoch_metrics = self._calculate_metrics(np.array(all_preds), np.array(all_labels))
+        
+        # Log epoch results
+        epoch_time = time.time() - start_time
+        current_lr = self.optimizer.param_groups[0]['lr']
+        logger.info(f"Epoch {epoch} completed in {epoch_time:.2f} seconds")
+        logger.info(f"Train Loss: {epoch_loss:.4f}, LR: {current_lr:.6f}")
+        for metric, value in epoch_metrics.items():
+            logger.info(f"Train {metric}: {value:.4f}")
         
         return epoch_loss, epoch_metrics
     
@@ -131,27 +195,46 @@ class Trainer:
         total_loss = 0
         all_preds = []
         all_labels = []
+        all_sample_preds = []
+        
+        start_time = time.time()
         
         with torch.no_grad():
-            for batch in tqdm(val_loader, desc="Validation"):
+            for batch_idx, batch in enumerate(tqdm(val_loader, desc="Validation")):
                 inputs, labels = batch
                 inputs = inputs.to(self.device)
                 labels = labels.to(self.device)
                 
                 # Forward pass
                 outputs = self.model(inputs)
-                loss = self.loss_fn(outputs, labels.unsqueeze(1))
+                
+                # Handle different model outputs
+                if isinstance(outputs, tuple):
+                    # Transformer model with multiple outputs
+                    gene_outputs, sample_outputs = outputs
+                    loss = self.loss_fn(gene_outputs, labels.unsqueeze(1))
+                else:
+                    # MLP model with single output
+                    gene_outputs = outputs
+                    loss = self.loss_fn(gene_outputs, labels.unsqueeze(1))
                 
                 # Accumulate loss
                 total_loss += loss.item() * inputs.size(0)
                 
                 # Collect predictions and labels
-                all_preds.extend(outputs.cpu().detach().numpy())
+                all_preds.extend(gene_outputs.cpu().detach().numpy())
                 all_labels.extend(labels.cpu().numpy())
         
         # Calculate metrics
         val_loss = total_loss / len(val_loader.dataset)
         val_metrics = self._calculate_metrics(np.array(all_preds), np.array(all_labels))
+        
+        # Log validation results
+        val_time = time.time() - start_time
+        logger.info(f"Validation completed in {val_time:.2f} seconds")
+        logger.info(f"Val Loss: {val_loss:.4f}")
+        for metric, value in val_metrics.items():
+            logger.info(f"Val {metric}: {value:.4f}")
         
         return val_loss, val_metrics
     
@@ -188,10 +271,14 @@ class Trainer:
     def train(self):
         """Train the model"""
         # Process data
+        logger.info("Starting data processing...")
+        start_time = time.time()
         data_dict = self.data_processor.process()
         train_loader = data_dict['train_loader']
         val_loader = data_dict['val_loader']
         test_loader = data_dict['test_loader']
+        data_processing_time = time.time() - start_time
+        logger.info(f"Data processing completed in {data_processing_time:.2f} seconds")
         
         # Initialize training variables
         best_val_auPRC = 0
@@ -202,24 +289,31 @@ class Trainer:
         
         # Create output directory if it doesn't exist
         os.makedirs(self.output_dir, exist_ok=True)
+        logger.info(f"Output directory created: {self.output_dir}")
+        
+        # Save configuration
+        config_save_path = os.path.join(self.output_dir, 'config.yml')
+        with open(config_save_path, 'w') as f:
+            yaml.dump(self.config, f)
+        logger.info(f"Configuration saved to {config_save_path}")
         
         # Training loop
-        for epoch in range(self.config['training']['epochs']):
-            print(f"\nEpoch {epoch+1}/{self.config['training']['epochs']}")
+        total_training_start = time.time()
+        logger.info(f"Starting training for {self.config['training']['epochs']} epochs")
+        for epoch in range(1, self.config['training']['epochs'] + 1):
+            logger.info(f"\n=== Epoch {epoch}/{self.config['training']['epochs']} ===")
             
             # Train for one epoch
-            train_loss, train_metrics = self.train_epoch(train_loader)
+            train_loss, train_metrics = self.train_epoch(train_loader, epoch)
             
             # Validate
             val_loss, val_metrics = self.validate(val_loader)
             
-            # Print metrics
-            print(f"Train Loss: {train_loss:.4f}, Train auPRC: {train_metrics['auPRC']:.4f}")
-            print(f"Val Loss: {val_loss:.4f}, Val auPRC: {val_metrics['auPRC']:.4f}")
-            
             # Update learning rate scheduler
             if self.scheduler:
                 self.scheduler.step(val_metrics['auPRC'])
+                current_lr = self.optimizer.param_groups[0]['lr']
+                logger.info(f"Learning rate updated to: {current_lr:.6f}")
             
             # Early stopping
             if val_metrics['auPRC'] > best_val_auPRC + min_delta:
@@ -227,28 +321,63 @@ class Trainer:
                 epochs_no_improve = 0
                 # Save best model
                 self.ecdna_model.save(best_model_path)
-                print(f"New best model saved with auPRC: {best_val_auPRC:.4f}")
+                logger.info(f"New best model saved with auPRC: {best_val_auPRC:.4f} at {best_model_path}")
             else:
                 epochs_no_improve += 1
+                logger.info(f"No improvement in validation auPRC for {epochs_no_improve} epochs")
                 if epochs_no_improve >= patience:
-                    print(f"Early stopping triggered after {epoch+1} epochs")
+                    logger.info(f"Early stopping triggered after {epoch} epochs")
                     break
         
+        total_training_time = time.time() - total_training_start
+        logger.info(f"Total training time: {total_training_time:.2f} seconds")
+        
         # Load best model
+        logger.info(f"Loading best model from {best_model_path}")
         self.ecdna_model = ECDNA_Model.load(best_model_path)
         self.model = self.ecdna_model.get_model().to(self.device)
+        logger.info("Best model loaded successfully")
         
         # Evaluate on test set
-        print("\nEvaluating on test set...")
+        logger.info("Evaluating on test set...")
+        test_start_time = time.time()
         test_loss, test_metrics = self.validate(test_loader)
-        print(f"Test Loss: {test_loss:.4f}")
-        print("Test Metrics:")
+        test_time = time.time() - test_start_time
+        logger.info(f"Test evaluation completed in {test_time:.2f} seconds")
+        logger.info(f"Test Loss: {test_loss:.4f}")
+        logger.info("Test Metrics:")
         for metric, value in test_metrics.items():
-            print(f"{metric}: {value:.4f}")
+            logger.info(f"{metric}: {value:.4f}")
         
         # Save test metrics
-        with open(os.path.join(self.output_dir, 'test_metrics.yml'), 'w') as f:
+        test_metrics_path = os.path.join(self.output_dir, 'test_metrics.yml')
+        with open(test_metrics_path, 'w') as f:
             yaml.dump(test_metrics, f)
+        logger.info(f"Test metrics saved to {test_metrics_path}")
+        
+        # Save training summary
+        training_summary = {
+            'best_val_auPRC': best_val_auPRC,
+            'test_metrics': test_metrics,
+            'epochs_trained': epoch,
+            'early_stopped': epochs_no_improve >= patience,
+            'total_training_time': total_training_time,
+            'data_processing_time': data_processing_time,
+            'test_evaluation_time': test_time
+        }
+        summary_path = os.path.join(self.output_dir, 'training_summary.yml')
+        with open(summary_path, 'w') as f:
+            yaml.dump(training_summary, f)
+        logger.info(f"Training summary saved to {summary_path}")
+        
+        # Save log file path to summary
+        log_info = {
+            'log_file': log_file
+        }
+        log_info_path = os.path.join(self.output_dir, 'log_info.yml')
+        with open(log_info_path, 'w') as f:
+            yaml.dump(log_info, f)
+        logger.info(f"Log information saved to {log_info_path}")
         
         return best_val_auPRC, test_metrics
 

@@ -2,20 +2,9 @@
 model:
   name: "ecDNA_Predictor"
   architecture:
-    type: "MLP"
+    type: "Transformer"
     layers:
-      - input_dim: 58  # Number of features
-      - hidden_dim: 128
-        activation: "relu"
-        dropout: 0.2
-      - hidden_dim: 64
-        activation: "relu"
-        dropout: 0.2
-      - hidden_dim: 32
-        activation: "relu"
-        dropout: 0.1
-      - output_dim: 1
-        activation: "sigmoid"
+      - input_dim: 57  # Number of features
   loss_function:
     type: "BCEWithLogitsLoss"
     weight: [0.01, 0.99]  # Class weights for imbalanced data
@@ -33,7 +22,7 @@ model:
 # Training configuration
 training:
   batch_size: 1024
-  epochs: 100
+  epochs: 10
   validation_split: 0.1
   test_split: 0.2
   seed: 2026

@@ -2,6 +2,11 @@ import torch
 import torch.nn as nn
 import yaml
 import os
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 class MLP(nn.Module):
     def __init__(self, config):
@@ -59,6 +64,84 @@ class MLP(nn.Module):
             x = layer(x)
         return x
 
+class TransformerModel(nn.Module):
+    def __init__(self, config):
+        super(TransformerModel, self).__init__()
+        self.config = config
+        
+        # Get input dimension
+        input_dim = config['model']['architecture']['layers'][0]['input_dim']
+        
+        # Embedding dimension (must be divisible by nhead)
+        d_model = 64  # Choose a value divisible by nhead=4
+        
+        # Linear layer to map input to d_model
+        self.embedding = nn.Linear(input_dim, d_model)
+        
+        # Transformer encoder layer
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=4,
+            dim_feedforward=256,
+            dropout=0.2,
+            activation='relu'
+        )
+        
+        # Transformer encoder
+        self.transformer_encoder = nn.TransformerEncoder(
+            encoder_layer,
+            num_layers=2
+        )
+        
+        # Gene-level prediction head
+        self.gene_level_head = nn.Sequential(
+            nn.Linear(d_model, 64),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(64, 1),
+            nn.Sigmoid()
+        )
+        
+        # Sample-level prediction head
+        self.sample_level_head = nn.Sequential(
+            nn.Linear(d_model, 64),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(64, 3),  # 3 classes: nofocal, noncircular, circular
+            nn.Softmax(dim=1)
+        )
+    
+    def forward(self, x):
+        # Handle missing values by replacing NaNs with 0
+        x = torch.nan_to_num(x, nan=0.0)
+        
+        # Map input to d_model
+        x = self.embedding(x)
+        
+        # For transformer encoder, we need to add a sequence dimension
+        # Since each sample is a single sequence, we add a sequence length of 1
+        x = x.unsqueeze(1)
+        
+        # Transformer expects sequence first
+        x = x.transpose(0, 1)
+        
+        # Pass through transformer encoder
+        x = self.transformer_encoder(x)
+        
+        # Back to batch first
+        x = x.transpose(0, 1)
+        
+        # Remove sequence dimension
+        x = x.squeeze(1)
+        
+        # Gene-level prediction
+        gene_level_output = self.gene_level_head(x)
+        
+        # Sample-level prediction
+        sample_level_output = self.sample_level_head(x)
+        
+        return gene_level_output, sample_level_output
+
 class ECDNA_Model:
     def __init__(self, config_path):
         with open(config_path, 'r') as f:
@@ -70,6 +153,8 @@ class ECDNA_Model:
         model_type = self.config['model']['architecture']['type']
         if model_type == 'MLP':
             model = MLP(self.config)
+        elif model_type == 'Transformer':
+            model = TransformerModel(self.config)
         else:
             raise ValueError(f"Unsupported model type: {model_type}")
         return model
