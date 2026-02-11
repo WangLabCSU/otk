@@ -87,7 +87,8 @@ class TransformerModel(nn.Module):
             nhead=8,  # Increased for better attention
             dim_feedforward=512,  # Increased for better capacity
             dropout=0.3,  # Increased for better regularization
-            activation='gelu'  # GELU for better performance
+            activation='gelu',  # GELU for better performance
+            batch_first=True  # Set batch_first=True for better performance
         )
         
         # Transformer encoder with more layers
@@ -134,14 +135,8 @@ class TransformerModel(nn.Module):
         # Since each sample is a single sequence, we add a sequence length of 1
         x = x.unsqueeze(1)
         
-        # Transformer expects sequence first
-        x = x.transpose(0, 1)
-        
-        # Pass through transformer encoder
+        # Pass through transformer encoder (batch_first=True)
         x = self.transformer_encoder(x)
-        
-        # Back to batch first
-        x = x.transpose(0, 1)
         
         # Remove sequence dimension
         x = x.squeeze(1)
@@ -182,7 +177,8 @@ class MultiInputTransformerModel(nn.Module):
             nhead=8,  # Increased for better attention
             dim_feedforward=1024,  # Increased for better capacity
             dropout=0.3,  # Increased for better regularization
-            activation='gelu'  # GELU for better performance
+            activation='gelu',  # GELU for better performance
+            batch_first=True  # Set batch_first=True for better performance
         )
         
         # Transformer encoder with more layers

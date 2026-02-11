@@ -1,0 +1,109 @@
+data:
+  amplicon_path: ../otk/data/gcap_modeling_sample_amplicons.csv.gz
+  features:
+  - segVal
+  - minor_cn
+  - intersect_ratio
+  - purity
+  - ploidy
+  - AScore
+  - pLOH
+  - cna_burden
+  - CN1
+  - CN2
+  - CN3
+  - CN4
+  - CN5
+  - CN6
+  - CN7
+  - CN8
+  - CN9
+  - CN10
+  - CN11
+  - CN12
+  - CN13
+  - CN14
+  - CN15
+  - CN16
+  - CN17
+  - CN18
+  - CN19
+  - age
+  - gender
+  - type_BLCA
+  - type_BRCA
+  - type_CESC
+  - type_COAD
+  - type_DLBC
+  - type_ESCA
+  - type_GBM
+  - type_HNSC
+  - type_KICH
+  - type_KIRC
+  - type_KIRP
+  - type_LGG
+  - type_LIHC
+  - type_LUAD
+  - type_LUSC
+  - type_OV
+  - type_PRAD
+  - type_READ
+  - type_SARC
+  - type_SKCM
+  - type_STAD
+  - type_THCA
+  - type_UCEC
+  - type_UVM
+  - freq_Linear
+  - freq_BFB
+  - freq_Circular
+  - freq_HR
+  gene_id: gene_id
+  missing_value_strategy:
+    age: mean
+  path: ../data/gcap_modeling_data.csv.gz
+  sample_id: sample
+  target: y
+model:
+  architecture:
+    layers:
+    - input_dim: 57
+    type: MultiInputTransformer
+  loss_function:
+    alpha: 2.0
+    bce_weight: 0.5
+    focal_weight: 0.5
+    gamma: 3.0
+    type: CombinedLoss
+    weight:
+    - 0.01
+    - 0.99
+  metrics:
+  - auPRC
+  - AUC
+  - F1
+  - Precision
+  - Recall
+  name: ecDNA_Predictor
+  optimizer:
+    lr: 0.0001
+    type: Adam
+    weight_decay: 0.01
+prediction:
+  batch_size: 1024
+  output_format: csv
+  threshold: 0.5
+training:
+  batch_size: 2048
+  early_stopping:
+    min_delta: 0.001
+    patience: 10
+  epochs: 10
+  learning_rate_scheduler:
+    factor: 0.5
+    min_lr: 1.0e-05
+    patience: 5
+    type: ReduceLROnPlateau
+  seed: 2026
+  test_split: 0.2
+  validation_split: 0.1

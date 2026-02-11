@@ -29,7 +29,10 @@ def load_base_config():
 
 def save_config(config, path):
     """Save configuration to file"""
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    # Ensure the directory exists
+    dir_path = os.path.dirname(path)
+    if dir_path:
+        os.makedirs(dir_path, exist_ok=True)
     with open(path, 'w') as f:
         yaml.dump(config, f)
 
@@ -38,6 +41,9 @@ def run_hyperparameter_optimization():
     base_config = load_base_config()
     best_score = 0.0
     best_params = {}
+    
+    # Store results for all combinations
+    results_list = []
     
     # Generate all combinations of hyperparameters
     import itertools
@@ -64,20 +70,32 @@ def run_hyperparameter_optimization():
         save_config(config, temp_config_path)
         
         try:
-            # Create trainer
-            trainer = Trainer(temp_config_path)
+            # Create trainer with output directory
+            output_dir = f'output_hyperopt/{i}'
+            trainer = Trainer(temp_config_path, output_dir=output_dir)
             
             # Run training for fewer epochs for optimization
             config['training']['epochs'] = 5
             trainer.config = config
             
             # Start training
-            output_dir = f'output_hyperopt/{i}'
-            metrics = trainer.train(output_dir=output_dir)
+            metrics = trainer.train()
             
-            # Get validation auPRC
+            # Get validation metrics
             val_auprc = metrics.get('validation_auPRC', 0.0)
+            val_auc = metrics.get('validation_AUC', 0.0)
+            val_f1 = metrics.get('validation_F1', 0.0)
+            
             print(f"Validation auPRC: {val_auprc}")
+            print(f"Validation AUC: {val_auc}")
+            print(f"Validation F1: {val_f1}")
+            
+            # Store results
+            result = param_dict.copy()
+            result['validation_auPRC'] = val_auprc
+            result['validation_AUC'] = val_auc
+            result['validation_F1'] = val_f1
+            results_list.append(result)
             
             # Update best score
             if val_auprc > best_score:
@@ -87,13 +105,32 @@ def run_hyperparameter_optimization():
                 
         except Exception as e:
             print(f"Error running combination: {e}")
+            # Store error result
+            result = param_dict.copy()
+            result['validation_auPRC'] = 0.0
+            result['validation_AUC'] = 0.0
+            result['validation_F1'] = 0.0
+            result['error'] = str(e)
+            results_list.append(result)
         finally:
             # Clean up
             if os.path.exists(temp_config_path):
                 os.remove(temp_config_path)
     
-    # Print results
-    print("\n===== Hyperparameter Optimization Results =====")
+    # Save results to CSV
+    import pandas as pd
+    results_df = pd.DataFrame(results_list)
+    results_csv_path = 'hyperparameter_optimization_results.csv'
+    results_df.to_csv(results_csv_path, index=False)
+    print(f"\nResults saved to {results_csv_path}")
+    
+    # Print top 5 results
+    print("\n===== Top 5 Hyperparameter Combinations =====")
+    top_results = results_df.nlargest(5, 'validation_auPRC')
+    print(top_results)
+    
+    # Print best results
+    print("\n===== Best Hyperparameter Combination =====")
     print(f"Best validation auPRC: {best_score}")
     print(f"Best hyperparameters: {best_params}")
     

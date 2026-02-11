@@ -183,6 +183,7 @@ class Predictor:
             results['prediction'] = (gene_predictions.flatten() > threshold).astype(int)
             
             # Add sample-level predictions
+            # 确保sample_classes列表顺序与模型的输出类别顺序一致
             sample_classes = ['nofocal', 'noncircular', 'circular']
             results['sample_level_prediction'] = np.argmax(sample_predictions, axis=1)
             results['sample_level_prediction_label'] = results['sample_level_prediction'].map(lambda x: sample_classes[x])

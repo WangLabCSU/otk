@@ -87,13 +87,16 @@ class DataProcessor:
         sample_classification = None
         amplicon_mapping = None
         if amplicon_df is not None:
-            # Create amplicon classification to index mapping
-            amplicon_classes = amplicon_df['amplicon_classification'].unique()
-            # Add 'nofocal' to the mapping if not present
-            if 'nofocal' not in amplicon_classes:
-                amplicon_classes = list(amplicon_classes) + ['nofocal']
-            amplicon_mapping = {cls: i for i, cls in enumerate(amplicon_classes)}
-            print(f"Created amplicon classification mapping: {amplicon_mapping}")
+            # Create simplified amplicon classification mapping
+            # Merge Linear, Heavily-rearranged, BFB into noncircular
+            amplicon_mapping = {
+                'Circular': 2,      # circular扩增
+                'Linear': 1,        # 合并为noncircular
+                'Heavily-rearranged': 1,  # 合并为noncircular
+                'BFB': 1,           # 合并为noncircular
+                'nofocal': 0        # nofocal（无扩增）
+            }
+            print(f"Created simplified amplicon classification mapping: {amplicon_mapping}")
             
             # Create sample-level classification mapping
             # For each sample, get the most common amplicon classification
@@ -118,6 +121,23 @@ class DataProcessor:
             # For pairs not in gene_amplicon_mapping, set to 'nofocal'
             df['amplicon_class'] = df.apply(lambda row: gene_amplicon_mapping.get((row['gene_id'], row['sample']), 'nofocal'), axis=1)
             print(f"Added amplicon classification to dataframe")
+            
+            # Verify amplicon_class values
+            print(f"Unique amplicon classes: {df['amplicon_class'].unique()}")
+            
+            # Create a mapping from original amplicon class to simplified class
+            class_mapping = {
+                'Circular': 'circular',
+                'Linear': 'noncircular',
+                'Heavily-rearranged': 'noncircular',
+                'BFB': 'noncircular',
+                'nofocal': 'nofocal'
+            }
+            
+            # Add simplified amplicon class for easier interpretation
+            df['amplicon_class_simplified'] = df['amplicon_class'].map(class_mapping)
+            print(f"Added simplified amplicon class to dataframe")
+            print(f"Unique simplified amplicon classes: {df['amplicon_class_simplified'].unique()}")
         
         return features, target, samples, genes, sample_classification, amplicon_mapping
     
@@ -256,7 +276,11 @@ class DataProcessor:
         # Split data
         if 'amplicon_class' in df.columns:
             # Add amplicon class to split data
-            amplicon_class = df['amplicon_class'].map(lambda x: amplicon_mapping.get(x, len(amplicon_mapping)) if amplicon_mapping else 0)
+            # Use simplified mapping and ensure values are within 0-2 range
+            amplicon_class = df['amplicon_class'].map(lambda x: min(amplicon_mapping.get(x, 0), 2) if amplicon_mapping else 0)
+            # Verify amplicon_class values
+            print(f"Unique amplicon class indices: {amplicon_class.unique()}")
+            print(f"Amplicon mapping: {amplicon_mapping}")
             X_train, y_train, X_val, y_val, X_test, y_test, amplicon_train, amplicon_val, amplicon_test = self.split_data(features, target, samples, sample_classification, amplicon_class)
         else:
             X_train, y_train, X_val, y_val, X_test, y_test = self.split_data(features, target, samples, sample_classification)
