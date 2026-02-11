@@ -79,22 +79,22 @@ def run_hyperparameter_optimization():
             trainer.config = config
             
             # Start training
-            metrics = trainer.train()
+            best_val_auPRC, test_metrics = trainer.train()
             
-            # Get validation metrics
-            val_auprc = metrics.get('validation_auPRC', 0.0)
-            val_auc = metrics.get('validation_AUC', 0.0)
-            val_f1 = metrics.get('validation_F1', 0.0)
+            # Get validation metrics from test_metrics
+            val_auprc = best_val_auPRC
+            val_auc = test_metrics.get('AUC', 0.0)
+            val_f1 = test_metrics.get('F1', 0.0)
             
             print(f"Validation auPRC: {val_auprc}")
-            print(f"Validation AUC: {val_auc}")
-            print(f"Validation F1: {val_f1}")
+            print(f"Test AUC: {val_auc}")
+            print(f"Test F1: {val_f1}")
             
             # Store results
             result = param_dict.copy()
             result['validation_auPRC'] = val_auprc
-            result['validation_AUC'] = val_auc
-            result['validation_F1'] = val_f1
+            result['test_AUC'] = val_auc
+            result['test_F1'] = val_f1
             results_list.append(result)
             
             # Update best score
