@@ -28,7 +28,7 @@ otk (ecDNA Analysis Toolkit) is a deep learning-based tool for analyzing extrach
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/yourusername/otk.git
+git clone https://github.com/WangLabCSU/otk.git
 cd otk
 ```
 
