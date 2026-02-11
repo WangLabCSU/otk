@@ -139,9 +139,6 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
-# Test output
-models/
-
 # IDE
 .vscode/
 .idea/
@@ -157,3 +154,10 @@ models/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Test output
+models/
+out/
+out_*
+output_*
+logs/
