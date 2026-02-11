@@ -3,6 +3,8 @@ import torch.nn as nn
 import yaml
 import os
 import logging
+from otk.models.baseline_model import BaselineModel, ECDNA_Baseline_Model
+from otk.models.improved_model import ImprovedModel
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -86,7 +88,7 @@ class TransformerModel(nn.Module):
             d_model=d_model,
             nhead=8,  # Increased for better attention
             dim_feedforward=512,  # Increased for better capacity
-            dropout=0.3,  # Increased for better regularization
+            dropout=0.4,  # Increased for better regularization
             activation='gelu',  # GELU for better performance
             batch_first=True  # Set batch_first=True for better performance
         )
@@ -101,25 +103,16 @@ class TransformerModel(nn.Module):
         self.gene_level_head = nn.Sequential(
             nn.Linear(d_model, 128),
             nn.GELU(),
-            nn.Dropout(0.3),
+            nn.Dropout(0.4),
             nn.Linear(128, 64),
             nn.GELU(),
-            nn.Dropout(0.3),
+            nn.Dropout(0.4),
             nn.Linear(64, 1),
             nn.Sigmoid()
         )
         
-        # Improved sample-level prediction head
-        self.sample_level_head = nn.Sequential(
-            nn.Linear(d_model, 128),
-            nn.GELU(),
-            nn.Dropout(0.3),
-            nn.Linear(128, 64),
-            nn.GELU(),
-            nn.Dropout(0.3),
-            nn.Linear(64, 3),  # 3 classes: nofocal, noncircular, circular
-            nn.Softmax(dim=1)
-        )
+        # Removed sample-level prediction head
+        # Sample-level classification will be done based on gene-level predictions and rules
     
     def forward(self, x):
         # Handle missing values by replacing NaNs with 0
@@ -144,10 +137,8 @@ class TransformerModel(nn.Module):
         # Gene-level prediction
         gene_level_output = self.gene_level_head(x)
         
-        # Sample-level prediction
-        sample_level_output = self.sample_level_head(x)
-        
-        return gene_level_output, sample_level_output
+        # Only return gene-level prediction
+        return gene_level_output
 
 class MultiInputTransformerModel(nn.Module):
     """Multi-input Transformer model with amplicon classification support"""
@@ -176,7 +167,7 @@ class MultiInputTransformerModel(nn.Module):
             d_model=d_model + 64,
             nhead=8,  # Increased for better attention
             dim_feedforward=1024,  # Increased for better capacity
-            dropout=0.3,  # Increased for better regularization
+            dropout=0.4,  # Increased for better regularization
             activation='gelu',  # GELU for better performance
             batch_first=True  # Set batch_first=True for better performance
         )
@@ -192,28 +183,17 @@ class MultiInputTransformerModel(nn.Module):
             nn.Linear(d_model + 64, 256),
             nn.GELU(),
             nn.BatchNorm1d(256),  # Added batch normalization
-            nn.Dropout(0.3),
+            nn.Dropout(0.4),
             nn.Linear(256, 128),
             nn.GELU(),
             nn.BatchNorm1d(128),  # Added batch normalization
-            nn.Dropout(0.3),
+            nn.Dropout(0.4),
             nn.Linear(128, 1),
             nn.Sigmoid()
         )
         
-        # Improved sample-level prediction head with residual connection
-        self.sample_level_head = nn.Sequential(
-            nn.Linear(d_model + 64, 256),
-            nn.GELU(),
-            nn.BatchNorm1d(256),  # Added batch normalization
-            nn.Dropout(0.3),
-            nn.Linear(256, 128),
-            nn.GELU(),
-            nn.BatchNorm1d(128),  # Added batch normalization
-            nn.Dropout(0.3),
-            nn.Linear(128, 3),  # 3 classes: nofocal, noncircular, circular
-            nn.Softmax(dim=1)
-        )
+        # Removed sample-level prediction head
+        # Sample-level classification will be done based on gene-level predictions and rules
     
     def forward(self, x, amplicon_class=None):
         # Handle missing values by replacing NaNs with 0
@@ -238,14 +218,8 @@ class MultiInputTransformerModel(nn.Module):
         # Since each sample is a single sequence, we add a sequence length of 1
         x = x.unsqueeze(1)
         
-        # Transformer expects sequence first
-        x = x.transpose(0, 1)
-        
-        # Pass through transformer encoder
+        # Pass through transformer encoder (batch_first=True)
         x = self.transformer_encoder(x)
-        
-        # Back to batch first
-        x = x.transpose(0, 1)
         
         # Remove sequence dimension
         x = x.squeeze(1)
@@ -253,10 +227,8 @@ class MultiInputTransformerModel(nn.Module):
         # Gene-level prediction
         gene_level_output = self.gene_level_head(x)
         
-        # Sample-level prediction
-        sample_level_output = self.sample_level_head(x)
-        
-        return gene_level_output, sample_level_output
+        # Only return gene-level prediction
+        return gene_level_output
 
 class ECDNA_Model:
     def __init__(self, config_path):
@@ -273,6 +245,10 @@ class ECDNA_Model:
             model = TransformerModel(self.config)
         elif model_type == 'MultiInputTransformer':
             model = MultiInputTransformerModel(self.config)
+        elif model_type == 'Baseline':
+            model = BaselineModel(self.config)
+        elif model_type == 'Improved':
+            model = ImprovedModel(self.config)
         else:
             raise ValueError(f"Unsupported model type: {model_type}")
         return model

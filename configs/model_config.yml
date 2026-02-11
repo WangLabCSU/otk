@@ -34,15 +34,12 @@ training:
     patience: 10
     min_delta: 0.001
   learning_rate_scheduler:
-    type: "ReduceLROnPlateau"
-    factor: 0.5
-    patience: 5
+    type: "CosineAnnealingLR"
     min_lr: 0.00001
 
 # Data configuration
 data:
   path: "../data/gcap_modeling_data.csv.gz"
-  amplicon_path: "../otk/data/gcap_modeling_sample_amplicons.csv.gz"
   features:
     - "segVal"
     - "minor_cn"

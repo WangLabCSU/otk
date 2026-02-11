@@ -8,27 +8,18 @@ import yaml
 import os
 
 class ECDNA_Dataset(Dataset):
-    def __init__(self, features, targets, amplicon_classes=None):
+    def __init__(self, features, targets):
         self.features = torch.tensor(features, dtype=torch.float32)
         # Convert pandas Series to numpy array if needed
         if hasattr(targets, 'values'):
             targets = targets.values
         self.targets = torch.tensor(targets, dtype=torch.float32)
-        self.amplicon_classes = None
-        if amplicon_classes is not None:
-            # Convert pandas Series to numpy array if needed
-            if hasattr(amplicon_classes, 'values'):
-                amplicon_classes = amplicon_classes.values
-            self.amplicon_classes = torch.tensor(amplicon_classes, dtype=torch.long)
     
     def __len__(self):
         return len(self.features)
     
     def __getitem__(self, idx):
-        if self.amplicon_classes is not None:
-            return self.features[idx], self.targets[idx], self.amplicon_classes[idx]
-        else:
-            return self.features[idx], self.targets[idx]
+        return self.features[idx], self.targets[idx]
 
 class DataProcessor:
     def __init__(self, config_path):
@@ -40,6 +31,16 @@ class DataProcessor:
     
     def load_data(self, data_path=None):
         """Load data from CSV file"""
+        # Use preprocessed sorted data if available
+        sorted_data_path = os.path.join(os.path.dirname(__file__), 'sorted_modeling_data.csv.gz')
+        
+        if os.path.exists(sorted_data_path):
+            print(f"Loading preprocessed sorted data from {sorted_data_path}")
+            df = pd.read_csv(sorted_data_path)
+            print(f"Preprocessed data loaded successfully with shape: {df.shape}")
+            return df
+        
+        # Fallback to original data path if preprocessed data not available
         if data_path is None:
             data_path = self.data_config['path']
         
@@ -51,24 +52,15 @@ class DataProcessor:
         df = pd.read_csv(data_path)
         print(f"Data loaded successfully with shape: {df.shape}")
         
-        # Load amplicon data if available
-        amplicon_path = self.data_config.get('amplicon_path', None)
-        if amplicon_path:
-            if not os.path.isabs(amplicon_path):
-                amplicon_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), amplicon_path)
-            print(f"Loading amplicon data from {amplicon_path}")
-            amplicon_df = pd.read_csv(amplicon_path)
-            print(f"Amplicon data loaded successfully with shape: {amplicon_df.shape}")
-            return df, amplicon_df
-        
         return df
     
-    def preprocess(self, df, amplicon_df=None):
+    def preprocess(self, df):
         """Preprocess data including missing value handling"""
         # Handle missing values
         if 'age' in df.columns:
             if df['age'].isnull().sum() > 0:
-                strategy = self.data_config['missing_value_strategy'].get('age', 'mean')
+                # Use 'mean' as default if missing_value_strategy is not defined
+                strategy = self.data_config.get('missing_value_strategy', {}).get('age', 'mean')
                 if strategy == 'mean':
                     df['age'] = df['age'].fillna(df['age'].mean())
                 elif strategy == 'median':
@@ -83,124 +75,62 @@ class DataProcessor:
         samples = df[self.data_config['sample_id']]
         genes = df[self.data_config['gene_id']]
         
-        # Process amplicon data if available
-        sample_classification = None
-        amplicon_mapping = None
-        if amplicon_df is not None:
-            # Create simplified amplicon classification mapping
-            # Merge Linear, Heavily-rearranged, BFB into noncircular
-            amplicon_mapping = {
-                'Circular': 2,      # circular扩增
-                'Linear': 1,        # 合并为noncircular
-                'Heavily-rearranged': 1,  # 合并为noncircular
-                'BFB': 1,           # 合并为noncircular
-                'nofocal': 0        # nofocal（无扩增）
-            }
-            print(f"Created simplified amplicon classification mapping: {amplicon_mapping}")
-            
-            # Create sample-level classification mapping
-            # For each sample, get the most common amplicon classification
-            sample_classification = amplicon_df.groupby('sample_barcode')['amplicon_classification'].agg(lambda x: x.value_counts().idxmax()).to_dict()
-            print(f"Created sample classification mapping for {len(sample_classification)} samples")
-            
-            # Add nofocal classification for samples not in amplicon_df
-            all_samples = df['sample'].unique()
-            missing_samples = [sample for sample in all_samples if sample not in sample_classification]
-            for sample in missing_samples:
-                sample_classification[sample] = 'nofocal'
-            print(f"Added nofocal classification for {len(missing_samples)} missing samples")
-            
-            # Create gene-level amplicon classification mapping
-            gene_amplicon_mapping = {}
-            for _, row in amplicon_df.iterrows():
-                key = (row['gene_id'], row['sample_barcode'])
-                gene_amplicon_mapping[key] = row['amplicon_classification']
-            print(f"Created gene amplicon mapping for {len(gene_amplicon_mapping)} gene-sample pairs")
-            
-            # Add amplicon classification to each gene-sample pair
-            # For pairs not in gene_amplicon_mapping, set to 'nofocal'
-            df['amplicon_class'] = df.apply(lambda row: gene_amplicon_mapping.get((row['gene_id'], row['sample']), 'nofocal'), axis=1)
-            print(f"Added amplicon classification to dataframe")
-            
-            # Verify amplicon_class values
-            print(f"Unique amplicon classes: {df['amplicon_class'].unique()}")
-            
-            # Create a mapping from original amplicon class to simplified class
-            class_mapping = {
-                'Circular': 'circular',
-                'Linear': 'noncircular',
-                'Heavily-rearranged': 'noncircular',
-                'BFB': 'noncircular',
-                'nofocal': 'nofocal'
-            }
-            
-            # Add simplified amplicon class for easier interpretation
-            df['amplicon_class_simplified'] = df['amplicon_class'].map(class_mapping)
-            print(f"Added simplified amplicon class to dataframe")
-            print(f"Unique simplified amplicon classes: {df['amplicon_class_simplified'].unique()}")
-        
-        return features, target, samples, genes, sample_classification, amplicon_mapping
+        return features, target, samples, genes
     
-    def split_data(self, features, target, samples, sample_classification=None, amplicon_class=None):
+    def split_data(self, features, target, samples):
         """Split data into train, validation, and test sets by sample"""
         # Get unique samples
         unique_samples = samples.unique()
         print(f"Number of unique samples: {len(unique_samples)}")
         
-        # Set random seed for reproducibility
-        np.random.seed(self.training_config['seed'])
+        # Load precomputed sample y sum if available
+        sample_y_sum_path = os.path.join(os.path.dirname(__file__), 'sample_y_sum.csv')
         
-        # Split samples into train, validation, and test with balanced distribution
-        if sample_classification is not None:
-            # Create a list of samples with their classification
-            sample_list = []
-            for sample in unique_samples:
-                if sample in sample_classification:
-                    sample_list.append((sample, sample_classification[sample]))
-                else:
-                    sample_list.append((sample, 'Unknown'))
-            
-            # Convert to DataFrame for stratified split
-            sample_df = pd.DataFrame(sample_list, columns=['sample', 'classification'])
-            
-            # Use stratified split to ensure balanced distribution of classifications
-            from sklearn.model_selection import train_test_split as stratified_split
-            
-            # First split into train and temp
-            train_samples, temp_samples = stratified_split(
-                sample_df['sample'], 
-                test_size=self.training_config['validation_split'] + self.training_config['test_split'],
-                stratify=sample_df['classification'],
-                random_state=self.training_config['seed']
-            )
-            
-            # Then split temp into validation and test
-            temp_df = sample_df[sample_df['sample'].isin(temp_samples)]
-            validation_samples, test_samples = stratified_split(
-                temp_df['sample'], 
-                test_size=self.training_config['test_split'] / (self.training_config['validation_split'] + self.training_config['test_split']),
-                stratify=temp_df['classification'],
-                random_state=self.training_config['seed']
-            )
+        if os.path.exists(sample_y_sum_path):
+            print(f"Loading precomputed sample y sum from {sample_y_sum_path}")
+            sample_y_sum_df = pd.read_csv(sample_y_sum_path)
+            sample_y_sum = dict(zip(sample_y_sum_df['sample'], sample_y_sum_df['y_sum']))
+            print(f"Loaded y sum for {len(sample_y_sum)} samples")
         else:
-            # Use random split if no classification data available
-            train_samples, temp_samples = train_test_split(
-                unique_samples, 
-                test_size=self.training_config['validation_split'] + self.training_config['test_split'],
-                random_state=self.training_config['seed']
-            )
-            
-            validation_samples, test_samples = train_test_split(
-                temp_samples, 
-                test_size=self.training_config['test_split'] / (self.training_config['validation_split'] + self.training_config['test_split']),
-                random_state=self.training_config['seed']
-            )
+            # Calculate sum of y for each sample
+            print("Calculating sum of y for each sample...")
+            sample_y_sum = {}
+            for sample in unique_samples:
+                sample_mask = samples == sample
+                sample_y_sum[sample] = target[sample_mask].sum()
         
-        print(f"Train samples: {len(train_samples)}, Validation samples: {len(validation_samples)}, Test samples: {len(test_samples)}")
+        # Sort samples by y sum
+        sorted_samples = sorted(unique_samples, key=lambda x: sample_y_sum[x])
+        print(f"Sorted samples by y sum: {len(sorted_samples)} samples")
+        
+        # Calculate split indices for even distribution
+        total_samples = len(sorted_samples)
+        val_split = self.training_config['validation_split']
+        test_split = self.training_config['test_split']
+        
+        test_size = int(total_samples * test_split)
+        val_size = int(total_samples * val_split)
+        train_size = total_samples - val_size - test_size
+        
+        # Use equidistant sampling to ensure even distribution
+        train_indices = np.linspace(0, total_samples-1, train_size, dtype=int)
+        remaining_indices = list(set(range(total_samples)) - set(train_indices))
+        remaining_indices.sort()
+        
+        val_indices = np.linspace(0, len(remaining_indices)-1, val_size, dtype=int)
+        val_indices = [remaining_indices[i] for i in val_indices]
+        test_indices = list(set(remaining_indices) - set(val_indices))
+        
+        # Get samples for each split
+        train_samples = [sorted_samples[i] for i in train_indices]
+        val_samples = [sorted_samples[i] for i in val_indices]
+        test_samples = [sorted_samples[i] for i in test_indices]
+        
+        print(f"Train samples: {len(train_samples)}, Validation samples: {len(val_samples)}, Test samples: {len(test_samples)}")
         
         # Create masks for each split
         train_mask = samples.isin(train_samples)
-        validation_mask = samples.isin(validation_samples)
+        validation_mask = samples.isin(val_samples)
         test_mask = samples.isin(test_samples)
         
         # Split data
@@ -211,18 +141,10 @@ class DataProcessor:
         X_test = features[test_mask]
         y_test = target[test_mask]
         
-        # Split amplicon class if provided
-        if amplicon_class is not None:
-            amplicon_train = amplicon_class[train_mask]
-            amplicon_val = amplicon_class[validation_mask]
-            amplicon_test = amplicon_class[test_mask]
-            print(f"Train amplicon shape: {amplicon_train.shape}, Validation amplicon shape: {amplicon_val.shape}, Test amplicon shape: {amplicon_test.shape}")
-            return X_train, y_train, X_val, y_val, X_test, y_test, amplicon_train, amplicon_val, amplicon_test
-        
         # Print class distribution for each split
-        print(f"Train set shape: {X_train.shape}, Positive samples: {y_train.sum()}")
-        print(f"Validation set shape: {X_val.shape}, Positive samples: {y_val.sum()}")
-        print(f"Test set shape: {X_test.shape}, Positive samples: {y_test.sum()}")
+        print(f"Train set shape: {X_train.shape}, Positive samples: {y_train.sum()}, Positive rate: {y_train.sum()/len(y_train):.4f}")
+        print(f"Validation set shape: {X_val.shape}, Positive samples: {y_val.sum()}, Positive rate: {y_val.sum()/len(y_val):.4f}")
+        print(f"Test set shape: {X_test.shape}, Positive samples: {y_test.sum()}, Positive rate: {y_test.sum()/len(y_test):.4f}")
         return X_train, y_train, X_val, y_val, X_test, y_test
     
     def normalize(self, X_train, X_val, X_test):
@@ -233,11 +155,11 @@ class DataProcessor:
         X_test_scaled = self.scaler.transform(X_test)
         return X_train_scaled, X_val_scaled, X_test_scaled
     
-    def create_dataloaders(self, X_train, y_train, X_val, y_val, X_test, y_test, amplicon_train=None, amplicon_val=None, amplicon_test=None):
+    def create_dataloaders(self, X_train, y_train, X_val, y_val, X_test, y_test):
         """Create DataLoaders for training, validation, and test sets"""
-        train_dataset = ECDNA_Dataset(X_train, y_train, amplicon_train)
-        val_dataset = ECDNA_Dataset(X_val, y_val, amplicon_val)
-        test_dataset = ECDNA_Dataset(X_test, y_test, amplicon_test)
+        train_dataset = ECDNA_Dataset(X_train, y_train)
+        val_dataset = ECDNA_Dataset(X_val, y_val)
+        test_dataset = ECDNA_Dataset(X_test, y_test)
         
         train_loader = DataLoader(
             train_dataset, 
@@ -263,36 +185,20 @@ class DataProcessor:
     def process(self, data_path=None):
         """End-to-end data processing pipeline"""
         # Load data
-        load_result = self.load_data(data_path)
-        if isinstance(load_result, tuple):
-            df, amplicon_df = load_result
-        else:
-            df = load_result
-            amplicon_df = None
+        df = self.load_data(data_path)
         
         # Preprocess data
-        features, target, samples, genes, sample_classification, amplicon_mapping = self.preprocess(df, amplicon_df)
+        features, target, samples, genes = self.preprocess(df)
         
         # Split data
-        if 'amplicon_class' in df.columns:
-            # Add amplicon class to split data
-            # Use simplified mapping and ensure values are within 0-2 range
-            amplicon_class = df['amplicon_class'].map(lambda x: min(amplicon_mapping.get(x, 0), 2) if amplicon_mapping else 0)
-            # Verify amplicon_class values
-            print(f"Unique amplicon class indices: {amplicon_class.unique()}")
-            print(f"Amplicon mapping: {amplicon_mapping}")
-            X_train, y_train, X_val, y_val, X_test, y_test, amplicon_train, amplicon_val, amplicon_test = self.split_data(features, target, samples, sample_classification, amplicon_class)
-        else:
-            X_train, y_train, X_val, y_val, X_test, y_test = self.split_data(features, target, samples, sample_classification)
-            amplicon_train, amplicon_val, amplicon_test = None, None, None
+        X_train, y_train, X_val, y_val, X_test, y_test = self.split_data(features, target, samples)
         
         # Normalize data
         X_train_scaled, X_val_scaled, X_test_scaled = self.normalize(X_train, X_val, X_test)
         
         # Create dataloaders
         train_loader, val_loader, test_loader = self.create_dataloaders(
-            X_train_scaled, y_train, X_val_scaled, y_val, X_test_scaled, y_test, 
-            amplicon_train, amplicon_val, amplicon_test
+            X_train_scaled, y_train, X_val_scaled, y_val, X_test_scaled, y_test
         )
         
         return {
@@ -302,7 +208,5 @@ class DataProcessor:
             'scaler': self.scaler,
             'X_test': X_test_scaled,
             'y_test': y_test,
-            'genes': genes,
-            'sample_classification': sample_classification,
-            'amplicon_mapping': amplicon_mapping
+            'genes': genes
         }

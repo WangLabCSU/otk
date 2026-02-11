@@ -175,6 +175,11 @@ class Trainer:
             patience = self.config['training']['learning_rate_scheduler']['patience']
             min_lr = self.config['training']['learning_rate_scheduler']['min_lr']
             return ReduceLROnPlateau(self.optimizer, mode='max', factor=factor, patience=patience, min_lr=min_lr)
+        elif scheduler_type == 'CosineAnnealingLR':
+            # Use cosine annealing learning rate scheduler for better training stability
+            T_max = self.config['training']['epochs']
+            eta_min = self.config['training']['learning_rate_scheduler'].get('min_lr', 0.00001)
+            return torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=T_max, eta_min=eta_min)
         else:
             return None
     
@@ -184,40 +189,23 @@ class Trainer:
         total_loss = 0
         all_preds = []
         all_labels = []
-        all_sample_preds = []
         
         start_time = time.time()
         
         for batch_idx, batch in enumerate(tqdm(train_loader, desc=f"Training Epoch {epoch}")):
-            # Handle different batch formats
-            if len(batch) == 3:
-                inputs, labels, amplicon_class = batch
-                inputs = inputs.to(self.device)
-                labels = labels.to(self.device)
-                amplicon_class = amplicon_class.to(self.device)
-                # Forward pass with amplicon class
-                outputs = self.model(inputs, amplicon_class)
-            else:
-                inputs, labels = batch
-                inputs = inputs.to(self.device)
-                labels = labels.to(self.device)
-                # Forward pass without amplicon class
-                outputs = self.model(inputs)
+            inputs, labels = batch
+            inputs = inputs.to(self.device)
+            labels = labels.to(self.device)
+            
+            # Forward pass
+            outputs = self.model(inputs)
             
             # Zero the parameter gradients
             self.optimizer.zero_grad()
             
-            # Handle different model outputs
-            if isinstance(outputs, tuple):
-                # Transformer model with multiple outputs
-                gene_outputs, sample_outputs = outputs
-                loss = self.loss_fn(gene_outputs, labels.unsqueeze(1))
-                # For sample-level prediction, we would need sample-level labels
-                # This is a placeholder for now
-            else:
-                # MLP model with single output
-                gene_outputs = outputs
-                loss = self.loss_fn(gene_outputs, labels.unsqueeze(1))
+            # Calculate loss
+            gene_outputs = outputs
+            loss = self.loss_fn(gene_outputs, labels.unsqueeze(1))
             
             # Backward pass and optimize
             loss.backward()
@@ -256,36 +244,21 @@ class Trainer:
         total_loss = 0
         all_preds = []
         all_labels = []
-        all_sample_preds = []
         
         start_time = time.time()
         
         with torch.no_grad():
             for batch_idx, batch in enumerate(tqdm(val_loader, desc="Validation")):
-                # Handle different batch formats
-                if len(batch) == 3:
-                    inputs, labels, amplicon_class = batch
-                    inputs = inputs.to(self.device)
-                    labels = labels.to(self.device)
-                    amplicon_class = amplicon_class.to(self.device)
-                    # Forward pass with amplicon class
-                    outputs = self.model(inputs, amplicon_class)
-                else:
-                    inputs, labels = batch
-                    inputs = inputs.to(self.device)
-                    labels = labels.to(self.device)
-                    # Forward pass without amplicon class
-                    outputs = self.model(inputs)
+                inputs, labels = batch
+                inputs = inputs.to(self.device)
+                labels = labels.to(self.device)
                 
-                # Handle different model outputs
-                if isinstance(outputs, tuple):
-                    # Transformer model with multiple outputs
-                    gene_outputs, sample_outputs = outputs
-                    loss = self.loss_fn(gene_outputs, labels.unsqueeze(1))
-                else:
-                    # MLP model with single output
-                    gene_outputs = outputs
-                    loss = self.loss_fn(gene_outputs, labels.unsqueeze(1))
+                # Forward pass
+                outputs = self.model(inputs)
+                
+                # Calculate loss
+                gene_outputs = outputs
+                loss = self.loss_fn(gene_outputs, labels.unsqueeze(1))
                 
                 # Accumulate loss
                 total_loss += loss.item() * inputs.size(0)
@@ -309,31 +282,70 @@ class Trainer:
     
     def _calculate_metrics(self, preds, labels):
         """Calculate metrics"""
+        import numpy as np
         metrics = {}
         
-        # Binarize predictions for classification metrics
-        binary_preds = (preds > 0.5).astype(int)
+        # Ensure preds is 1D array
+        if preds.ndim > 1:
+            preds = preds.ravel()
+        
+        # Find optimal threshold based on F1 score
+        thresholds = np.linspace(0, 1, 100)
+        f1_scores = []
+        for threshold in thresholds:
+            binary_preds = (preds > threshold).astype(int)
+            f1 = f1_score(labels, binary_preds, zero_division=0)
+            f1_scores.append(f1)
+        
+        # Get optimal threshold
+        optimal_threshold = thresholds[np.argmax(f1_scores)]
+        # Convert to Python float to avoid YAML serialization issues
+        metrics['optimal_threshold'] = float(optimal_threshold)
+        
+        # Binarize predictions with optimal threshold
+        binary_preds = (preds > optimal_threshold).astype(int)
+        
+        # Debug: Print prediction statistics
+        if len(preds) > 0:
+            print(f"Prediction stats: min={preds.min()}, max={preds.max()}, mean={preds.mean()}, std={preds.std()}")
+            print(f"Binary prediction stats: sum={binary_preds.sum()}, count={len(binary_preds)}")
+            print(f"Label stats: sum={labels.sum()}, count={len(labels)}")
+            print(f"Optimal threshold: {optimal_threshold}")
         
         # Calculate auPRC
         try:
             metrics['auPRC'] = average_precision_score(labels, preds)
-        except:
+        except Exception as e:
+            print(f"Error calculating auPRC: {e}")
             metrics['auPRC'] = 0.0
         
         # Calculate AUC
         try:
             metrics['AUC'] = roc_auc_score(labels, preds)
-        except:
+        except Exception as e:
+            print(f"Error calculating AUC: {e}")
             metrics['AUC'] = 0.0
         
         # Calculate F1 score
-        metrics['F1'] = f1_score(labels, binary_preds, zero_division=0)
+        try:
+            metrics['F1'] = f1_score(labels, binary_preds, zero_division=0)
+        except Exception as e:
+            print(f"Error calculating F1: {e}")
+            metrics['F1'] = 0.0
         
         # Calculate precision
-        metrics['Precision'] = precision_score(labels, binary_preds, zero_division=0)
+        try:
+            metrics['Precision'] = precision_score(labels, binary_preds, zero_division=0)
+        except Exception as e:
+            print(f"Error calculating Precision: {e}")
+            metrics['Precision'] = 0.0
         
         # Calculate recall
-        metrics['Recall'] = recall_score(labels, binary_preds, zero_division=0)
+        try:
+            metrics['Recall'] = recall_score(labels, binary_preds, zero_division=0)
+        except Exception as e:
+            print(f"Error calculating Recall: {e}")
+            metrics['Recall'] = 0.0
         
         return metrics
     
@@ -377,7 +389,13 @@ class Trainer:
             
             # Update learning rate scheduler
             if self.scheduler:
-                self.scheduler.step(val_metrics['auPRC'])
+                # 根据调度器类型决定是否传递参数
+                scheduler_type = self.config['training']['learning_rate_scheduler']['type']
+                if scheduler_type == 'ReduceLROnPlateau':
+                    self.scheduler.step(val_metrics['auPRC'])
+                else:
+                    # 对于其他调度器（如CosineAnnealingLR），不需要传递参数
+                    self.scheduler.step()
                 current_lr = self.optimizer.param_groups[0]['lr']
                 logger.info(f"Learning rate updated to: {current_lr:.6f}")
             

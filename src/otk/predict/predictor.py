@@ -8,18 +8,14 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler
 
 class Prediction_Dataset(Dataset):
-    def __init__(self, features, amplicon_class=None):
+    def __init__(self, features):
         self.features = torch.tensor(features, dtype=torch.float32)
-        self.amplicon_class = amplicon_class
     
     def __len__(self):
         return len(self.features)
     
     def __getitem__(self, idx):
-        if self.amplicon_class is not None:
-            return self.features[idx], torch.tensor(self.amplicon_class[idx], dtype=torch.long)
-        else:
-            return self.features[idx]
+        return self.features[idx]
 
 class Predictor:
     def __init__(self, model_path, gpu=-1):
@@ -41,7 +37,42 @@ class Predictor:
         checkpoint = torch.load(model_path)
         self.config = checkpoint['config']
         
+        # Load precomputed gene frequencies
+        self.gene_freqs = self._load_gene_frequencies()
+        
+        # Define cancer type mapping for one-hot encoding
+        self.cancer_types = [
+            'BLCA', 'BRCA', 'CESC', 'COAD', 'DLBC', 'ESCA', 'GBM', 'HNSC',
+            'KICH', 'KIRC', 'KIRP', 'LGG', 'LIHC', 'LUAD', 'LUSC', 'OV',
+            'PRAD', 'READ', 'SARC', 'SKCM', 'STAD', 'THCA', 'UCEC', 'UVM'
+        ]
+        
         self.scaler = None
+    
+    def _load_gene_frequencies(self):
+        """Load precomputed gene level frequencies"""
+        # Determine the path to gene frequencies file
+        import os
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        gene_freq_path = os.path.join(script_dir, '..', 'data', 'gene_frequencies.csv')
+        
+        if os.path.exists(gene_freq_path):
+            print(f"Loading gene frequencies from {gene_freq_path}")
+            gene_freqs = pd.read_csv(gene_freq_path)
+            # Create a dictionary for quick lookup
+            gene_freq_dict = {}
+            for _, row in gene_freqs.iterrows():
+                gene_freq_dict[row['gene_id']] = {
+                    'freq_Linear': row['freq_Linear'],
+                    'freq_BFB': row['freq_BFB'],
+                    'freq_Circular': row['freq_Circular'],
+                    'freq_HR': row['freq_HR']
+                }
+            print(f"Loaded frequencies for {len(gene_freq_dict)} genes")
+            return gene_freq_dict
+        else:
+            print(f"Warning: Gene frequencies file not found at {gene_freq_path}")
+            return {}
     
     def _load_model(self):
         """Load the model from a saved file"""
@@ -89,6 +120,26 @@ class Predictor:
                     df['age'] = df['age'].fillna(df['age'].mode()[0])
                 print(f"Handled missing values in 'age' column using {strategy} strategy")
         
+        # Add gene level frequency features
+        if 'gene_id' in df.columns:
+            print("Adding gene level frequency features...")
+            for gene_freq_col in ['freq_Linear', 'freq_BFB', 'freq_Circular', 'freq_HR']:
+                df[gene_freq_col] = df['gene_id'].apply(lambda x: self.gene_freqs.get(x, {}).get(gene_freq_col, 0) if self.gene_freqs else 0)
+            print("Gene frequency features added successfully")
+        else:
+            print("Warning: 'gene_id' column not found, cannot add gene frequency features")
+        
+        # Handle cancer type conversion
+        if 'type' in df.columns:
+            print("Processing cancer type...")
+            # Convert cancer type to one-hot encoding
+            for cancer_type in self.cancer_types:
+                col_name = f'type_{cancer_type}'
+                df[col_name] = df['type'].apply(lambda x: 1 if str(x).strip() == cancer_type else 0)
+            print("Cancer type one-hot encoding completed")
+        else:
+            print("Warning: 'type' column not found, cannot process cancer type")
+        
         # Select features
         features = df[self.config['data']['features']]
         
@@ -100,14 +151,7 @@ class Predictor:
         if self.config['data']['gene_id'] in df.columns:
             gene_info = df[self.config['data']['gene_id']]
         
-        # Handle amplicon data if available
-        amplicon_class = None
-        if 'amplicon_class' in df.columns:
-            # Create amplicon mapping if needed
-            amplicon_mapping = {'nofocal': 0, 'Non-circular': 1, 'Circular': 2, 'Unknown': 3}
-            amplicon_class = df['amplicon_class'].map(lambda x: amplicon_mapping.get(x, 3)).values
-        
-        return features, sample_info, gene_info, amplicon_class
+        return features, sample_info, gene_info
     
     def normalize(self, features):
         """Normalize features"""
@@ -118,9 +162,9 @@ class Predictor:
         features_scaled = self.scaler.fit_transform(features)
         return features_scaled
     
-    def create_dataloader(self, features, amplicon_class=None):
+    def create_dataloader(self, features):
         """Create DataLoader for prediction"""
-        dataset = Prediction_Dataset(features, amplicon_class)
+        dataset = Prediction_Dataset(features)
         batch_size = self.config['prediction']['batch_size']
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
         print(f"Created DataLoader with batch size: {batch_size}")
@@ -129,37 +173,18 @@ class Predictor:
     def predict(self, dataloader):
         """Make predictions"""
         gene_predictions = []
-        sample_predictions = []
         
         with torch.no_grad():
             for batch in tqdm(dataloader, desc="Predicting"):
-                if isinstance(batch, tuple):
-                    # Multi-input case (e.g., MultiInputTransformer)
-                    inputs, amplicon_class = batch
-                    inputs = inputs.to(self.device)
-                    amplicon_class = amplicon_class.to(self.device)
-                    gene_output, sample_output = self.model(inputs, amplicon_class)
-                    gene_predictions.extend(gene_output.cpu().detach().numpy())
-                    sample_predictions.extend(sample_output.cpu().detach().numpy())
-                else:
-                    # Single-input case (e.g., MLP)
-                    inputs = batch.to(self.device)
-                    outputs = self.model(inputs)
-                    if isinstance(outputs, tuple):
-                        # Transformer models return both gene and sample predictions
-                        gene_output, sample_output = outputs
-                        gene_predictions.extend(gene_output.cpu().detach().numpy())
-                        sample_predictions.extend(sample_output.cpu().detach().numpy())
-                    else:
-                        # MLP returns only gene predictions
-                        gene_predictions.extend(outputs.cpu().detach().numpy())
+                # Single-input case
+                inputs = batch.to(self.device)
+                outputs = self.model(inputs)
+                
+                # Get gene predictions
+                gene_predictions.extend(outputs.cpu().detach().numpy())
         
         gene_predictions = np.array(gene_predictions)
-        if sample_predictions:
-            sample_predictions = np.array(sample_predictions)
-            return gene_predictions, sample_predictions
-        else:
-            return gene_predictions
+        return gene_predictions
     
     def postprocess(self, predictions, sample_info=None, gene_info=None):
         """Postprocess predictions"""
@@ -172,30 +197,43 @@ class Predictor:
         if gene_info is not None:
             results[self.config['data']['gene_id']] = gene_info
         
-        # Handle different prediction formats
-        if isinstance(predictions, tuple):
-            # Case with both gene and sample predictions
-            gene_predictions, sample_predictions = predictions
+        # Add gene-level predictions
+        threshold = self.config['prediction']['threshold']
+        results['prediction_prob'] = predictions.flatten()
+        results['prediction'] = (predictions.flatten() > threshold).astype(int)
+        
+        # Add sample-level classification based on rules
+        # 1. If segVal > ploidy + 2, sample is at least noncircular
+        # 2. If there's any ecDNA cargo gene, sample is circular
+        # 3. If neither, sample is nofocal
+        
+        # Group by sample to calculate sample-level classification
+        sample_id_col = self.config['data']['sample_id']
+        sample_groups = results.groupby(sample_id_col)
+        sample_classifications = {}
+        
+        for sample, group in sample_groups:
+            # Check if any gene is predicted as ecDNA cargo
+            has_ecdna_cargo = any(group['prediction'] == 1)
             
-            # Add gene-level predictions
-            threshold = self.config['prediction']['threshold']
-            results['prediction_prob'] = gene_predictions.flatten()
-            results['prediction'] = (gene_predictions.flatten() > threshold).astype(int)
+            # For now, we'll assume segVal > ploidy + 2 is False by default
+            # In practice, we would need to load this information from the data
+            has_segval_threshold = False
             
-            # Add sample-level predictions
-            # 确保sample_classes列表顺序与模型的输出类别顺序一致
-            sample_classes = ['nofocal', 'noncircular', 'circular']
-            results['sample_level_prediction'] = np.argmax(sample_predictions, axis=1)
-            results['sample_level_prediction_label'] = results['sample_level_prediction'].map(lambda x: sample_classes[x])
-            
-            # Add probability for each sample class
-            for i, cls in enumerate(sample_classes):
-                results[f'{cls}_prob'] = sample_predictions[:, i]
-        else:
-            # Case with only gene predictions
-            threshold = self.config['prediction']['threshold']
-            results['prediction_prob'] = predictions.flatten()
-            results['prediction'] = (predictions.flatten() > threshold).astype(int)
+            # Apply sample classification rules
+            if has_ecdna_cargo:
+                sample_classifications[sample] = 'circular'
+            elif has_segval_threshold:
+                sample_classifications[sample] = 'noncircular'
+            else:
+                sample_classifications[sample] = 'nofocal'
+        
+        # Add sample-level classification to results
+        results['sample_level_prediction_label'] = results[sample_id_col].map(sample_classifications)
+        
+        # Map sample classification to numerical values
+        class_mapping = {'nofocal': 0, 'noncircular': 1, 'circular': 2}
+        results['sample_level_prediction'] = results['sample_level_prediction_label'].map(class_mapping)
         
         return results
     
@@ -205,13 +243,13 @@ class Predictor:
         df = self.load_data(data_path)
         
         # Preprocess data
-        features, sample_info, gene_info, amplicon_class = self.preprocess(df)
+        features, sample_info, gene_info = self.preprocess(df)
         
         # Normalize features
         features_scaled = self.normalize(features)
         
         # Create dataloader
-        dataloader = self.create_dataloader(features_scaled, amplicon_class)
+        dataloader = self.create_dataloader(features_scaled)
         
         # Make predictions
         predictions = self.predict(dataloader)
