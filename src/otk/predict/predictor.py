@@ -88,7 +88,7 @@ class Predictor:
     
     def _build_model(self, config):
         """Build the model based on configuration"""
-        from otk.models.model import MLP, TransformerModel, MultiInputTransformerModel
+        from otk.models.model import MLP, TransformerModel, MultiInputTransformerModel, BaselineModel, ImprovedModel
         model_type = config['model']['architecture']['type']
         if model_type == 'MLP':
             return MLP({'model': config['model']})
@@ -96,6 +96,10 @@ class Predictor:
             return TransformerModel({'model': config['model']})
         elif model_type == 'MultiInputTransformer':
             return MultiInputTransformerModel({'model': config['model']})
+        elif model_type == 'Baseline':
+            return BaselineModel(config)
+        elif model_type == 'Improved':
+            return ImprovedModel(config)
         else:
             raise ValueError(f"Unsupported model type: {model_type}")
     
@@ -165,7 +169,7 @@ class Predictor:
     def create_dataloader(self, features):
         """Create DataLoader for prediction"""
         dataset = Prediction_Dataset(features)
-        batch_size = self.config['prediction']['batch_size']
+        batch_size = self.config.get('prediction', {}).get('batch_size', 32)
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
         print(f"Created DataLoader with batch size: {batch_size}")
         return dataloader
@@ -198,7 +202,7 @@ class Predictor:
             results[self.config['data']['gene_id']] = gene_info
         
         # Add gene-level predictions
-        threshold = self.config['prediction']['threshold']
+        threshold = self.config.get('prediction', {}).get('threshold', 0.5)
         results['prediction_prob'] = predictions.flatten()
         results['prediction'] = (predictions.flatten() > threshold).astype(int)
         
@@ -263,46 +267,13 @@ class Predictor:
         results.to_csv(output_path, index=False)
         print(f"Predictions saved to {output_path}")
         
-        # Calculate sample-level predictions (optional)
-        if sample_info is not None:
-            sample_level_results = self._calculate_sample_level_predictions(results)
-            sample_output_path = os.path.join(output_dir, 'sample_level_predictions.csv')
-            sample_level_results.to_csv(sample_output_path, index=False)
-            print(f"Sample-level predictions saved to {sample_output_path}")
+        # Sample-level predictions are already included in the main results file
+        # No need for separate calculation as rules-based classification is already applied
+        print(f"Sample-level predictions included in main results file")
         
         return results
     
-    def _calculate_sample_level_predictions(self, results):
-        """Calculate sample-level predictions"""
-        # Group by sample
-        if 'sample_level_prediction_label' in results.columns:
-            # Use the most common sample-level prediction label
-            sample_grouped = results.groupby(self.config['data']['sample_id']).agg({
-                'sample_level_prediction_label': lambda x: x.value_counts().idxmax(),
-                'prediction_prob': 'max',
-                'prediction': 'max',
-                'nofocal_prob': 'mean',
-                'noncircular_prob': 'mean',
-                'circular_prob': 'mean'
-            }).reset_index()
-            
-            # Rename columns for clarity
-            sample_grouped.rename(columns={
-                'sample_level_prediction_label': 'focal_amplification_type'
-            }, inplace=True)
-        else:
-            # Fallback to original method
-            sample_grouped = results.groupby(self.config['data']['sample_id']).agg({
-                'prediction_prob': 'max',
-                'prediction': 'max'
-            }).reset_index()
-            
-            # Add sample-level classification
-            sample_grouped['focal_amplification_type'] = sample_grouped['prediction'].apply(
-                lambda x: 'circular' if x == 1 else 'noncircular'
-            )
-        
-        return sample_grouped
+
 
 def predict(model_path, input_path, output_dir, gpu=-1):
     """Run prediction using the trained model"""
