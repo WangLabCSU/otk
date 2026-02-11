@@ -154,6 +154,110 @@ class TransformerModel(nn.Module):
         
         return gene_level_output, sample_level_output
 
+class MultiInputTransformerModel(nn.Module):
+    """Multi-input Transformer model with amplicon classification support"""
+    def __init__(self, config):
+        super(MultiInputTransformerModel, self).__init__()
+        self.config = config
+        
+        # Get input dimension
+        input_dim = config['model']['architecture']['layers'][0]['input_dim']
+        
+        # Embedding dimension (must be divisible by nhead)
+        d_model = 128  # Increased for better representation
+        
+        # Linear layer to map gene features to d_model
+        self.gene_embedding = nn.Linear(input_dim, d_model)
+        
+        # Amplicon classification embedding
+        # Assuming 4 possible classes: Circular, Non-circular, etc.
+        self.amplicon_embedding = nn.Embedding(4, 32)
+        
+        # Layer normalization for better training stability
+        self.layer_norm = nn.LayerNorm(d_model + 32)  # Combine gene and amplicon features
+        
+        # Transformer encoder layer with improved parameters
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model + 32,
+            nhead=8,  # Increased for better attention
+            dim_feedforward=512,  # Increased for better capacity
+            dropout=0.3,  # Increased for better regularization
+            activation='gelu'  # GELU for better performance
+        )
+        
+        # Transformer encoder with more layers
+        self.transformer_encoder = nn.TransformerEncoder(
+            encoder_layer,
+            num_layers=3  # Increased for deeper representation
+        )
+        
+        # Improved gene-level prediction head
+        self.gene_level_head = nn.Sequential(
+            nn.Linear(d_model + 32, 128),
+            nn.GELU(),
+            nn.Dropout(0.3),
+            nn.Linear(128, 64),
+            nn.GELU(),
+            nn.Dropout(0.3),
+            nn.Linear(64, 1),
+            nn.Sigmoid()
+        )
+        
+        # Improved sample-level prediction head
+        self.sample_level_head = nn.Sequential(
+            nn.Linear(d_model + 32, 128),
+            nn.GELU(),
+            nn.Dropout(0.3),
+            nn.Linear(128, 64),
+            nn.GELU(),
+            nn.Dropout(0.3),
+            nn.Linear(64, 3),  # 3 classes: nofocal, noncircular, circular
+            nn.Softmax(dim=1)
+        )
+    
+    def forward(self, x, amplicon_class=None):
+        # Handle missing values by replacing NaNs with 0
+        x = torch.nan_to_num(x, nan=0.0)
+        
+        # Map gene features to d_model
+        gene_embed = self.gene_embedding(x)
+        
+        # Add amplicon embedding if provided
+        if amplicon_class is not None:
+            amplicon_embed = self.amplicon_embedding(amplicon_class)
+            # Combine gene and amplicon features
+            x = torch.cat([gene_embed, amplicon_embed], dim=1)
+        else:
+            # If no amplicon class provided, use gene features only
+            x = gene_embed
+        
+        # Apply layer normalization
+        x = self.layer_norm(x)
+        
+        # For transformer encoder, we need to add a sequence dimension
+        # Since each sample is a single sequence, we add a sequence length of 1
+        x = x.unsqueeze(1)
+        
+        # Transformer expects sequence first
+        x = x.transpose(0, 1)
+        
+        # Pass through transformer encoder
+        x = self.transformer_encoder(x)
+        
+        # Back to batch first
+        x = x.transpose(0, 1)
+        
+        # Remove sequence dimension
+        x = x.squeeze(1)
+        
+        # Gene-level prediction
+        gene_level_output = self.gene_level_head(x)
+        
+        # Sample-level prediction
+        sample_level_output = self.sample_level_head(x)
+        
+        return gene_level_output, sample_level_output
+
 class ECDNA_Model:
     def __init__(self, config_path):
         with open(config_path, 'r') as f:
@@ -167,6 +271,8 @@ class ECDNA_Model:
             model = MLP(self.config)
         elif model_type == 'Transformer':
             model = TransformerModel(self.config)
+        elif model_type == 'MultiInputTransformer':
+            model = MultiInputTransformerModel(self.config)
         else:
             raise ValueError(f"Unsupported model type: {model_type}")
         return model

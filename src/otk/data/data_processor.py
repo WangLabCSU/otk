@@ -8,18 +8,27 @@ import yaml
 import os
 
 class ECDNA_Dataset(Dataset):
-    def __init__(self, features, targets):
+    def __init__(self, features, targets, amplicon_classes=None):
         self.features = torch.tensor(features, dtype=torch.float32)
         # Convert pandas Series to numpy array if needed
         if hasattr(targets, 'values'):
             targets = targets.values
         self.targets = torch.tensor(targets, dtype=torch.float32)
+        self.amplicon_classes = None
+        if amplicon_classes is not None:
+            # Convert pandas Series to numpy array if needed
+            if hasattr(amplicon_classes, 'values'):
+                amplicon_classes = amplicon_classes.values
+            self.amplicon_classes = torch.tensor(amplicon_classes, dtype=torch.long)
     
     def __len__(self):
         return len(self.features)
     
     def __getitem__(self, idx):
-        return self.features[idx], self.targets[idx]
+        if self.amplicon_classes is not None:
+            return self.features[idx], self.targets[idx], self.amplicon_classes[idx]
+        else:
+            return self.features[idx], self.targets[idx]
 
 class DataProcessor:
     def __init__(self, config_path):
@@ -76,15 +85,32 @@ class DataProcessor:
         
         # Process amplicon data if available
         sample_classification = None
+        amplicon_mapping = None
         if amplicon_df is not None:
+            # Create amplicon classification to index mapping
+            amplicon_classes = amplicon_df['amplicon_classification'].unique()
+            amplicon_mapping = {cls: i for i, cls in enumerate(amplicon_classes)}
+            print(f"Created amplicon classification mapping: {amplicon_mapping}")
+            
             # Create sample-level classification mapping
             # For each sample, get the most common amplicon classification
             sample_classification = amplicon_df.groupby('sample_barcode')['amplicon_classification'].agg(lambda x: x.value_counts().idxmax()).to_dict()
             print(f"Created sample classification mapping for {len(sample_classification)} samples")
+            
+            # Create gene-level amplicon classification mapping
+            gene_amplicon_mapping = {}
+            for _, row in amplicon_df.iterrows():
+                key = (row['gene_id'], row['sample_barcode'])
+                gene_amplicon_mapping[key] = row['amplicon_classification']
+            print(f"Created gene amplicon mapping for {len(gene_amplicon_mapping)} gene-sample pairs")
+            
+            # Add amplicon classification to each gene-sample pair
+            df['amplicon_class'] = df.apply(lambda row: gene_amplicon_mapping.get((row['gene_id'], row['sample']), 'Unknown'), axis=1)
+            print(f"Added amplicon classification to dataframe")
         
-        return features, target, samples, genes, sample_classification
+        return features, target, samples, genes, sample_classification, amplicon_mapping
     
-    def split_data(self, features, target, samples, sample_classification=None):
+    def split_data(self, features, target, samples, sample_classification=None, amplicon_class=None):
         """Split data into train, validation, and test sets by sample"""
         # Get unique samples
         unique_samples = samples.unique()
@@ -154,11 +180,18 @@ class DataProcessor:
         X_test = features[test_mask]
         y_test = target[test_mask]
         
+        # Split amplicon class if provided
+        if amplicon_class is not None:
+            amplicon_train = amplicon_class[train_mask]
+            amplicon_val = amplicon_class[validation_mask]
+            amplicon_test = amplicon_class[test_mask]
+            print(f"Train amplicon shape: {amplicon_train.shape}, Validation amplicon shape: {amplicon_val.shape}, Test amplicon shape: {amplicon_test.shape}")
+            return X_train, y_train, X_val, y_val, X_test, y_test, amplicon_train, amplicon_val, amplicon_test
+        
         # Print class distribution for each split
         print(f"Train set shape: {X_train.shape}, Positive samples: {y_train.sum()}")
         print(f"Validation set shape: {X_val.shape}, Positive samples: {y_val.sum()}")
         print(f"Test set shape: {X_test.shape}, Positive samples: {y_test.sum()}")
-        
         return X_train, y_train, X_val, y_val, X_test, y_test
     
     def normalize(self, X_train, X_val, X_test):
@@ -169,11 +202,11 @@ class DataProcessor:
         X_test_scaled = self.scaler.transform(X_test)
         return X_train_scaled, X_val_scaled, X_test_scaled
     
-    def create_dataloaders(self, X_train, y_train, X_val, y_val, X_test, y_test):
+    def create_dataloaders(self, X_train, y_train, X_val, y_val, X_test, y_test, amplicon_train=None, amplicon_val=None, amplicon_test=None):
         """Create DataLoaders for training, validation, and test sets"""
-        train_dataset = ECDNA_Dataset(X_train, y_train)
-        val_dataset = ECDNA_Dataset(X_val, y_val)
-        test_dataset = ECDNA_Dataset(X_test, y_test)
+        train_dataset = ECDNA_Dataset(X_train, y_train, amplicon_train)
+        val_dataset = ECDNA_Dataset(X_val, y_val, amplicon_val)
+        test_dataset = ECDNA_Dataset(X_test, y_test, amplicon_test)
         
         train_loader = DataLoader(
             train_dataset, 
@@ -207,17 +240,24 @@ class DataProcessor:
             amplicon_df = None
         
         # Preprocess data
-        features, target, samples, genes, sample_classification = self.preprocess(df, amplicon_df)
+        features, target, samples, genes, sample_classification, amplicon_mapping = self.preprocess(df, amplicon_df)
         
         # Split data
-        X_train, y_train, X_val, y_val, X_test, y_test = self.split_data(features, target, samples, sample_classification)
+        if 'amplicon_class' in df.columns:
+            # Add amplicon class to split data
+            amplicon_class = df['amplicon_class'].map(lambda x: amplicon_mapping.get(x, len(amplicon_mapping)) if amplicon_mapping else 0)
+            X_train, y_train, X_val, y_val, X_test, y_test, amplicon_train, amplicon_val, amplicon_test = self.split_data(features, target, samples, sample_classification, amplicon_class)
+        else:
+            X_train, y_train, X_val, y_val, X_test, y_test = self.split_data(features, target, samples, sample_classification)
+            amplicon_train, amplicon_val, amplicon_test = None, None, None
         
         # Normalize data
         X_train_scaled, X_val_scaled, X_test_scaled = self.normalize(X_train, X_val, X_test)
         
         # Create dataloaders
         train_loader, val_loader, test_loader = self.create_dataloaders(
-            X_train_scaled, y_train, X_val_scaled, y_val, X_test_scaled, y_test
+            X_train_scaled, y_train, X_val_scaled, y_val, X_test_scaled, y_test, 
+            amplicon_train, amplicon_val, amplicon_test
         )
         
         return {
@@ -228,5 +268,6 @@ class DataProcessor:
             'X_test': X_test_scaled,
             'y_test': y_test,
             'genes': genes,
-            'sample_classification': sample_classification
+            'sample_classification': sample_classification,
+            'amplicon_mapping': amplicon_mapping
         }

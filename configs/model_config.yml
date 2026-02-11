@@ -2,12 +2,16 @@
 model:
   name: "ecDNA_Predictor"
   architecture:
-    type: "Transformer"
+    type: "MultiInputTransformer"
     layers:
       - input_dim: 57  # Number of features
   loss_function:
-    type: "BCEWithLogitsLoss"
+    type: "CombinedLoss"
     weight: [0.01, 0.99]  # Class weights for imbalanced data
+    bce_weight: 0.5
+    focal_weight: 0.5
+    alpha: 1.0
+    gamma: 2.0  # Focus on hard examples
   optimizer:
     type: "Adam"
     lr: 0.001

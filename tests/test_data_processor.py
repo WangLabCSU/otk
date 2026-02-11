@@ -122,12 +122,14 @@ prediction:
     def test_preprocess(self):
         """Test preprocessing data"""
         df = self.processor.load_data(self.data_file.name)
-        features, target, samples, genes = self.processor.preprocess(df)
+        features, target, samples, genes, sample_classification, amplicon_mapping = self.processor.preprocess(df)
         
         self.assertEqual(features.shape, (8, 3))
         self.assertEqual(target.shape, (8,))
         self.assertEqual(samples.shape, (8,))
         self.assertEqual(genes.shape, (8,))
+        self.assertEqual(sample_classification, None)
+        self.assertEqual(amplicon_mapping, None)
         
         # Check if missing values are handled
         self.assertFalse(features['age'].isnull().any())
@@ -135,8 +137,8 @@ prediction:
     def test_split_data(self):
         """Test splitting data"""
         df = self.processor.load_data(self.data_file.name)
-        features, target, samples, genes = self.processor.preprocess(df)
-        X_train, y_train, X_val, y_val, X_test, y_test = self.processor.split_data(features, target, samples)
+        features, target, samples, genes, sample_classification, amplicon_mapping = self.processor.preprocess(df)
+        X_train, y_train, X_val, y_val, X_test, y_test = self.processor.split_data(features, target, samples, sample_classification)
         
         # Check if all splits have data
         self.assertTrue(len(X_train) > 0)
@@ -146,8 +148,8 @@ prediction:
     def test_normalize(self):
         """Test normalizing data"""
         df = self.processor.load_data(self.data_file.name)
-        features, target, samples, genes = self.processor.preprocess(df)
-        X_train, y_train, X_val, y_val, X_test, y_test = self.processor.split_data(features, target, samples)
+        features, target, samples, genes, sample_classification, amplicon_mapping = self.processor.preprocess(df)
+        X_train, y_train, X_val, y_val, X_test, y_test = self.processor.split_data(features, target, samples, sample_classification)
         X_train_scaled, X_val_scaled, X_test_scaled = self.processor.normalize(X_train, X_val, X_test)
         
         # Check if data is normalized (mean close to 0, std close to 1)
@@ -157,8 +159,8 @@ prediction:
     def test_create_dataloaders(self):
         """Test creating dataloaders"""
         df = self.processor.load_data(self.data_file.name)
-        features, target, samples, genes = self.processor.preprocess(df)
-        X_train, y_train, X_val, y_val, X_test, y_test = self.processor.split_data(features, target, samples)
+        features, target, samples, genes, sample_classification, amplicon_mapping = self.processor.preprocess(df)
+        X_train, y_train, X_val, y_val, X_test, y_test = self.processor.split_data(features, target, samples, sample_classification)
         X_train_scaled, X_val_scaled, X_test_scaled = self.processor.normalize(X_train, X_val, X_test)
         train_loader, val_loader, test_loader = self.processor.create_dataloaders(X_train_scaled, y_train, X_val_scaled, y_val, X_test_scaled, y_test)
         

@@ -132,10 +132,10 @@ sample4,gene2,1,0,70,1
         df = processor.load_data(data_path)
         print(f"   Loaded data shape: {df.shape}")
         
-        features, target, samples, genes = processor.preprocess(df)
+        features, target, samples, genes, sample_classification, amplicon_mapping = processor.preprocess(df)
         print(f"   Preprocessed features shape: {features.shape}")
         
-        X_train, y_train, X_val, y_val, X_test, y_test = processor.split_data(features, target, samples)
+        X_train, y_train, X_val, y_val, X_test, y_test = processor.split_data(features, target, samples, sample_classification)
         print(f"   Train set shape: {X_train.shape}")
         print(f"   Validation set shape: {X_val.shape}")
         print(f"   Test set shape: {X_test.shape}")

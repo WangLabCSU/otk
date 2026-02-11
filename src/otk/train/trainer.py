@@ -51,6 +51,41 @@ for handler in logger.handlers:
 # Prevent propagation to root logger to avoid duplicate logs
 logger.propagate = False
 
+class FocalLoss(nn.Module):
+    """Focal Loss for imbalanced classification"""
+    def __init__(self, alpha=1, gamma=2, reduction='mean'):
+        super(FocalLoss, self).__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.reduction = reduction
+        self.bce = nn.BCEWithLogitsLoss(reduction='none')
+    
+    def forward(self, input, target):
+        bce_loss = self.bce(input, target)
+        pt = torch.exp(-bce_loss)
+        focal_loss = self.alpha * (1 - pt) ** self.gamma * bce_loss
+        
+        if self.reduction == 'mean':
+            return focal_loss.mean()
+        elif self.reduction == 'sum':
+            return focal_loss.sum()
+        else:
+            return focal_loss
+
+class CombinedLoss(nn.Module):
+    """Combined loss function for imbalanced classification"""
+    def __init__(self, bce_weight=0.5, focal_weight=0.5, alpha=1, gamma=2):
+        super(CombinedLoss, self).__init__()
+        self.bce_weight = bce_weight
+        self.focal_weight = focal_weight
+        self.bce_loss = nn.BCEWithLogitsLoss()
+        self.focal_loss = FocalLoss(alpha=alpha, gamma=gamma)
+    
+    def forward(self, input, target):
+        bce_loss = self.bce_loss(input, target)
+        focal_loss = self.focal_loss(input, target)
+        return self.bce_weight * bce_loss + self.focal_weight * focal_loss
+
 class Trainer:
     def __init__(self, config_path, output_dir, gpu=0):
         self.config_path = config_path
@@ -90,7 +125,7 @@ class Trainer:
         
         # Initialize metrics
         self.metrics = []
-    
+
     def _get_loss_function(self):
         """Get loss function based on configuration"""
         loss_type = self.config['model']['loss_function']['type']
@@ -103,6 +138,16 @@ class Trainer:
                 return nn.BCEWithLogitsLoss()
         elif loss_type == 'CrossEntropyLoss':
             return nn.CrossEntropyLoss()
+        elif loss_type == 'FocalLoss':
+            alpha = self.config['model']['loss_function'].get('alpha', 1)
+            gamma = self.config['model']['loss_function'].get('gamma', 2)
+            return FocalLoss(alpha=alpha, gamma=gamma)
+        elif loss_type == 'CombinedLoss':
+            bce_weight = self.config['model']['loss_function'].get('bce_weight', 0.5)
+            focal_weight = self.config['model']['loss_function'].get('focal_weight', 0.5)
+            alpha = self.config['model']['loss_function'].get('alpha', 1)
+            gamma = self.config['model']['loss_function'].get('gamma', 2)
+            return CombinedLoss(bce_weight=bce_weight, focal_weight=focal_weight, alpha=alpha, gamma=gamma)
         else:
             raise ValueError(f"Unsupported loss function: {loss_type}")
     
@@ -144,15 +189,23 @@ class Trainer:
         start_time = time.time()
         
         for batch_idx, batch in enumerate(tqdm(train_loader, desc=f"Training Epoch {epoch}")):
-            inputs, labels = batch
-            inputs = inputs.to(self.device)
-            labels = labels.to(self.device)
+            # Handle different batch formats
+            if len(batch) == 3:
+                inputs, labels, amplicon_class = batch
+                inputs = inputs.to(self.device)
+                labels = labels.to(self.device)
+                amplicon_class = amplicon_class.to(self.device)
+                # Forward pass with amplicon class
+                outputs = self.model(inputs, amplicon_class)
+            else:
+                inputs, labels = batch
+                inputs = inputs.to(self.device)
+                labels = labels.to(self.device)
+                # Forward pass without amplicon class
+                outputs = self.model(inputs)
             
             # Zero the parameter gradients
             self.optimizer.zero_grad()
-            
-            # Forward pass
-            outputs = self.model(inputs)
             
             # Handle different model outputs
             if isinstance(outputs, tuple):
@@ -209,12 +262,20 @@ class Trainer:
         
         with torch.no_grad():
             for batch_idx, batch in enumerate(tqdm(val_loader, desc="Validation")):
-                inputs, labels = batch
-                inputs = inputs.to(self.device)
-                labels = labels.to(self.device)
-                
-                # Forward pass
-                outputs = self.model(inputs)
+                # Handle different batch formats
+                if len(batch) == 3:
+                    inputs, labels, amplicon_class = batch
+                    inputs = inputs.to(self.device)
+                    labels = labels.to(self.device)
+                    amplicon_class = amplicon_class.to(self.device)
+                    # Forward pass with amplicon class
+                    outputs = self.model(inputs, amplicon_class)
+                else:
+                    inputs, labels = batch
+                    inputs = inputs.to(self.device)
+                    labels = labels.to(self.device)
+                    # Forward pass without amplicon class
+                    outputs = self.model(inputs)
                 
                 # Handle different model outputs
                 if isinstance(outputs, tuple):
