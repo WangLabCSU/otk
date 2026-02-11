@@ -190,7 +190,7 @@ class Predictor:
         gene_predictions = np.array(gene_predictions)
         return gene_predictions
     
-    def postprocess(self, predictions, sample_info=None, gene_info=None):
+    def postprocess(self, predictions, sample_info=None, gene_info=None, data_path=None):
         """Postprocess predictions"""
         # Create a DataFrame with predictions
         results = pd.DataFrame()
@@ -213,6 +213,11 @@ class Predictor:
         
         # Group by sample to calculate sample-level classification
         sample_id_col = self.config['data']['sample_id']
+        
+        # Get original data to access segVal and ploidy
+        original_df = self.load_data(data_path)
+        
+        # Group by sample
         sample_groups = results.groupby(sample_id_col)
         sample_classifications = {}
         
@@ -220,9 +225,20 @@ class Predictor:
             # Check if any gene is predicted as ecDNA cargo
             has_ecdna_cargo = any(group['prediction'] == 1)
             
-            # For now, we'll assume segVal > ploidy + 2 is False by default
-            # In practice, we would need to load this information from the data
+            # Calculate has_segval_threshold from original data
+            sample_data = original_df[original_df[sample_id_col] == sample]
             has_segval_threshold = False
+            
+            if not sample_data.empty:
+                # Check if any gene in the sample has segVal > ploidy + 2
+                if 'segVal' in sample_data.columns and 'ploidy' in sample_data.columns:
+                    # Get unique ploidy value for the sample
+                    ploidy_values = sample_data['ploidy'].dropna().unique()
+                    if len(ploidy_values) > 0:
+                        ploidy = ploidy_values[0]
+                        # Check if any gene has segVal > ploidy + 2
+                        has_segval_threshold = any(sample_data['segVal'] > (ploidy + 2))
+                        print(f"Sample {sample}: ploidy = {ploidy}, has_segval_threshold = {has_segval_threshold}")
             
             # Apply sample classification rules
             if has_ecdna_cargo:
@@ -259,7 +275,7 @@ class Predictor:
         predictions = self.predict(dataloader)
         
         # Postprocess predictions
-        results = self.postprocess(predictions, sample_info, gene_info)
+        results = self.postprocess(predictions, sample_info, gene_info, data_path)
         
         # Save results
         os.makedirs(output_dir, exist_ok=True)
