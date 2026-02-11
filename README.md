@@ -1,46 +1,46 @@
 # otk: ecDNA Analysis Toolkit
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-otk (ecDNA Analysis Toolkit) 是一个基于深度学习的ecDNA分析工具，用于预测基因是否在某样本中被检测为ecDNA cargo gene（gene level），以及样本的focal amplification类型（sample level）。
+otk (ecDNA Analysis Toolkit) is a deep learning-based tool for analyzing extrachromosomal DNA (ecDNA), predicting whether genes are detected as ecDNA cargo genes at the gene level, and classifying focal amplification types at the sample level.
 
-## 核心功能
+## Core Features
 
-- 基于深度学习的ecDNA cargo gene预测
-- 样本级别的focal amplification类型分类
-- 支持从BAM文件或处理后的拷贝数数据进行分析
-- 高效的命令行界面
-- 支持GPU加速
+- Deep learning-based ecDNA cargo gene prediction
+- Sample-level focal amplification type classification
+- Support for analysis from BAM files or processed copy number data
+- Efficient command-line interface
+- GPU acceleration support
 
-## 技术栈
+## Technology Stack
 
 - Python 3.8+
 - PyTorch 2.0+
 - NumPy
 - Pandas
 - scikit-learn
-- Click (命令行工具)
+- Click (command-line interface)
 
-## 安装指南
+## Installation Guide
 
-### 从源码安装
+### From Source
 
-1. 克隆项目仓库：
+1. Clone the repository:
 
 ```bash
 git clone https://github.com/yourusername/otk.git
 cd otk
 ```
 
-2. 使用pip安装：
+2. Install with pip:
 
 ```bash
 pip install -e .
 ```
 
-### 依赖项
+### Dependencies
 
-安装过程中会自动安装以下依赖项：
+The following dependencies will be installed automatically:
 
 - pandas>=2.0
 - numpy>=1.24
@@ -52,106 +52,106 @@ pip install -e .
 - seaborn>=0.12
 - pyyaml>=6.0
 
-## 使用方法
+## Usage
 
-otk提供了两个主要的命令行子命令：`train`和`predict`。
+otk provides two main command-line subcommands: `train` and `predict`.
 
-### 模型训练
+### Model Training
 
-使用`otk train`命令训练模型：
+Use the `otk train` command to train the model:
 
 ```bash
 otk train --config configs/model_config.yml --output models/ --gpu 0
 ```
 
-参数说明：
-- `--config, -c`: 配置文件路径（默认：configs/model_config.yml）
-- `--output, -o`: 训练模型的输出目录（默认：models/）
-- `--gpu, -g`: 使用的GPU设备ID（默认：0）
+Parameters:
+- `--config, -c`: Path to configuration file (default: configs/model_config.yml)
+- `--output, -o`: Output directory for trained models (default: models/)
+- `--gpu, -g`: GPU device ID to use (default: 0)
 
-### 模型预测
+### Model Prediction
 
-使用`otk predict`命令进行预测：
+Use the `otk predict` command for predictions:
 
 ```bash
 otk predict --model models/best_model.pth --input data/test_data.csv --output predictions/ --gpu -1
 ```
 
-参数说明：
-- `--model, -m`: 训练好的模型路径（必需）
-- `--input, -i`: 输入数据文件路径（必需）
-- `--output, -o`: 预测结果的输出目录（默认：predictions/）
-- `--gpu, -g`: 使用的GPU设备ID（默认：-1，即使用CPU）
+Parameters:
+- `--model, -m`: Path to trained model (required)
+- `--input, -i`: Path to input data file (required)
+- `--output, -o`: Output directory for predictions (default: predictions/)
+- `--gpu, -g`: GPU device ID to use (default: -1, i.e., use CPU)
 
-## 数据格式
+## Data Format
 
-### 输入数据格式
+### Input Data Format
 
-输入数据应为CSV格式，包含以下列：
+Input data should be in CSV format with the following columns:
 
-- `sample`: 肿瘤样本ID
-- `gene_id`: 基因ID
-- `segVal`: 基因总拷贝数
-- `minor_cn`: 基因小拷贝数
-- `age`: 患者年龄
-- `gender`: 患者性别
-- 各种肿瘤类型的one-hot编码列（如`type_BLCA`, `type_BRCA`等）
-- `freq_Linear`, `freq_BFB`, `freq_Circular`, `freq_HR`: 基因在不同类型基因组focal amplification中的先验估计频率
+- `sample`: Tumor sample ID
+- `gene_id`: Gene ID
+- `segVal`: Total gene copy number
+- `minor_cn`: Minor gene copy number
+- `age`: Patient age
+- `gender`: Patient gender
+- One-hot encoded columns for various tumor types (e.g., `type_BLCA`, `type_BRCA`, etc.)
+- `freq_Linear`, `freq_BFB`, `freq_Circular`, `freq_HR`: Prior estimated frequencies of genes in different types of genomic focal amplifications
 
-### 输出数据格式
+### Output Data Format
 
-预测结果包含以下列：
+Prediction results include the following columns:
 
-- `sample`: 肿瘤样本ID
-- `gene_id`: 基因ID
-- `prediction_prob`: 预测为ecDNA cargo gene的概率
-- `prediction`: 二分类预测结果（0或1）
+- `sample`: Tumor sample ID
+- `gene_id`: Gene ID
+- `prediction_prob`: Probability of being an ecDNA cargo gene
+- `prediction`: Binary classification result (0 or 1)
 
-此外，还会生成样本级别的预测结果：
+Additionally, sample-level prediction results are generated:
 
-- `sample`: 肿瘤样本ID
-- `prediction_prob`: 样本中最大的预测概率
-- `prediction`: 样本级别的预测结果（0或1）
-- `focal_amplification_type`: 样本的focal amplification类型（circular或noncircular）
+- `sample`: Tumor sample ID
+- `prediction_prob`: Maximum prediction probability in the sample
+- `prediction`: Sample-level prediction result (0 or 1)
+- `focal_amplification_type`: Sample's focal amplification type (circular or noncircular)
 
-## 模型架构
+## Model Architecture
 
-otk使用多层感知器（MLP）作为深度学习模型架构，默认配置如下：
+otk uses a Multi-Layer Perceptron (MLP) as the deep learning model architecture with the following default configuration:
 
-- 输入层：58个特征
-- 隐藏层1：128个神经元，ReLU激活，20% dropout
-- 隐藏层2：64个神经元，ReLU激活，20% dropout
-- 隐藏层3：32个神经元，ReLU激活，10% dropout
-- 输出层：1个神经元，Sigmoid激活
+- Input layer: 58 features
+- Hidden layer 1: 128 neurons, ReLU activation, 20% dropout
+- Hidden layer 2: 64 neurons, ReLU activation, 20% dropout
+- Hidden layer 3: 32 neurons, ReLU activation, 10% dropout
+- Output layer: 1 neuron, Sigmoid activation
 
-模型使用BCEWithLogitsLoss作为损失函数，Adam作为优化器。
+The model uses BCEWithLogitsLoss as the loss function and Adam as the optimizer.
 
-## 配置文件
+## Configuration File
 
-模型配置使用YAML格式，示例配置文件位于`configs/model_config.yml`。你可以根据需要修改配置文件中的参数，如模型架构、训练参数等。
+Model configuration uses YAML format, with example configuration files located in `configs/`. You can modify parameters in the configuration files as needed, such as model architecture and training parameters.
 
-## 示例
+## Examples
 
-### 训练示例
+### Training Examples
 
 ```bash
-# 使用默认配置训练模型
+# Train model with default configuration
 otk train
 
-# 使用自定义配置文件
+# Train model with custom configuration file
 otk train --config my_config.yml
 ```
 
-### 预测示例
+### Prediction Examples
 
 ```bash
-# 使用训练好的模型进行预测
+# Make predictions using a trained model
 otk predict --model models/best_model.pth --input test_data.csv
 ```
 
-## 性能指标
+## Performance Metrics
 
-模型训练过程中会记录以下性能指标：
+The following performance metrics are recorded during model training:
 
 - auPRC (Area under Precision-Recall Curve)
 - AUC (Area under ROC Curve)
@@ -159,31 +159,31 @@ otk predict --model models/best_model.pth --input test_data.csv
 - Precision
 - Recall
 
-## 贡献指南
+## Contribution Guide
 
-我们欢迎社区贡献！如果你有任何问题或建议，请通过GitHub Issues提交。
+We welcome community contributions! If you have any questions or suggestions, please submit them through GitHub Issues.
 
-### 开发流程
+### Development Process
 
-1. Fork仓库
-2. 创建功能分支
-3. 实现功能或修复bug
-4. 运行测试
-5. 提交Pull Request
+1. Fork the repository
+2. Create a feature branch
+3. Implement features or fix bugs
+4. Run tests
+5. Submit a Pull Request
 
-## 许可证
+## License
 
-本项目采用MIT许可证。详见[LICENSE](LICENSE)文件。
+This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
 
-## 引用
+## Citation
 
-如果您在研究中使用了otk，请引用以下论文：
+If you use otk in your research, please cite the following paper:
 
 ```
 Wang, S., Wu, C. Y., He, M. M., Yong, J. X., Chen, Y. X., Qian, L. M., ... & Zhao, Q. (2024). Machine learning-based extrachromosomal DNA identification in large-scale cohorts reveals its clinical implications in cancer. Nature Communications, 15(1), 1-17.
 ```
 
-## 联系我们
+## Contact
 
-- 项目主页：https://github.com/yourusername/otk
-- 邮箱：your.email@example.com
+- Project homepage: https://github.com/WangLabCSU/otk
+- Email: wangshx@csu.edu.cn

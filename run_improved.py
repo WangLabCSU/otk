@@ -22,7 +22,7 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
     
     # Run training
-    best_val_auPRC, test_metrics = train_model(config_path, output_dir, gpu=-1)
+    best_val_auPRC, test_metrics = train_model(config_path, output_dir, gpu=0)
     
     print(f"\nTraining completed!")
     print(f"Best validation auPRC: {best_val_auPRC:.4f}")
