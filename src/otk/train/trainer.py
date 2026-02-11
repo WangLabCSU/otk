@@ -26,8 +26,8 @@ log_file = os.path.join(log_dir, f'training_{log_timestamp}.log')
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-# Clear existing handlers
-logger.handlers = []
+# Clear existing handlers to prevent duplicate logs
+logger.handlers.clear()
 
 # Create formatters
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -48,6 +48,9 @@ logger.addHandler(file_handler)
 for handler in logger.handlers:
     handler.flush = lambda: None
 
+# Prevent propagation to root logger to avoid duplicate logs
+logger.propagate = False
+
 class Trainer:
     def __init__(self, config_path, output_dir, gpu=0):
         self.config_path = config_path
@@ -66,6 +69,11 @@ class Trainer:
         
         # Initialize data processor
         self.data_processor = DataProcessor(config_path)
+        
+        # Process data and record start time
+        self.data_processing_start_time = time.time()
+        logger.info("Starting data processing...")
+        self.data_dict = self.data_processor.process()
         
         # Initialize model
         self.ecdna_model = ECDNA_Model(config_path)
@@ -270,14 +278,11 @@ class Trainer:
     
     def train(self):
         """Train the model"""
-        # Process data
-        logger.info("Starting data processing...")
-        start_time = time.time()
-        data_dict = self.data_processor.process()
-        train_loader = data_dict['train_loader']
-        val_loader = data_dict['val_loader']
-        test_loader = data_dict['test_loader']
-        data_processing_time = time.time() - start_time
+        # Get data from the already processed data_dict
+        train_loader = self.data_dict['train_loader']
+        val_loader = self.data_dict['val_loader']
+        test_loader = self.data_dict['test_loader']
+        data_processing_time = time.time() - self.data_processing_start_time
         logger.info(f"Data processing completed in {data_processing_time:.2f} seconds")
         
         # Initialize training variables

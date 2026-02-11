@@ -165,5 +165,6 @@ class DataProcessor:
             'test_loader': test_loader,
             'scaler': self.scaler,
             'X_test': X_test_scaled,
-            'y_test': y_test
+            'y_test': y_test,
+            'genes': genes
         }

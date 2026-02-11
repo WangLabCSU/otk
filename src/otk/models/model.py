@@ -73,40 +73,49 @@ class TransformerModel(nn.Module):
         input_dim = config['model']['architecture']['layers'][0]['input_dim']
         
         # Embedding dimension (must be divisible by nhead)
-        d_model = 64  # Choose a value divisible by nhead=4
+        d_model = 128  # Increased for better representation
         
         # Linear layer to map input to d_model
         self.embedding = nn.Linear(input_dim, d_model)
         
-        # Transformer encoder layer
+        # Layer normalization for better training stability
+        self.layer_norm = nn.LayerNorm(d_model)
+        
+        # Transformer encoder layer with improved parameters
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=d_model,
-            nhead=4,
-            dim_feedforward=256,
-            dropout=0.2,
-            activation='relu'
+            nhead=8,  # Increased for better attention
+            dim_feedforward=512,  # Increased for better capacity
+            dropout=0.3,  # Increased for better regularization
+            activation='gelu'  # GELU for better performance
         )
         
-        # Transformer encoder
+        # Transformer encoder with more layers
         self.transformer_encoder = nn.TransformerEncoder(
             encoder_layer,
-            num_layers=2
+            num_layers=3  # Increased for deeper representation
         )
         
-        # Gene-level prediction head
+        # Improved gene-level prediction head
         self.gene_level_head = nn.Sequential(
-            nn.Linear(d_model, 64),
-            nn.ReLU(),
-            nn.Dropout(0.2),
+            nn.Linear(d_model, 128),
+            nn.GELU(),
+            nn.Dropout(0.3),
+            nn.Linear(128, 64),
+            nn.GELU(),
+            nn.Dropout(0.3),
             nn.Linear(64, 1),
             nn.Sigmoid()
         )
         
-        # Sample-level prediction head
+        # Improved sample-level prediction head
         self.sample_level_head = nn.Sequential(
-            nn.Linear(d_model, 64),
-            nn.ReLU(),
-            nn.Dropout(0.2),
+            nn.Linear(d_model, 128),
+            nn.GELU(),
+            nn.Dropout(0.3),
+            nn.Linear(128, 64),
+            nn.GELU(),
+            nn.Dropout(0.3),
             nn.Linear(64, 3),  # 3 classes: nofocal, noncircular, circular
             nn.Softmax(dim=1)
         )
@@ -117,6 +126,9 @@ class TransformerModel(nn.Module):
         
         # Map input to d_model
         x = self.embedding(x)
+        
+        # Apply layer normalization
+        x = self.layer_norm(x)
         
         # For transformer encoder, we need to add a sequence dimension
         # Since each sample is a single sequence, we add a sequence length of 1
