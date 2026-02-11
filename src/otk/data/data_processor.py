@@ -41,9 +41,20 @@ class DataProcessor:
         print(f"Loading data from {data_path}")
         df = pd.read_csv(data_path)
         print(f"Data loaded successfully with shape: {df.shape}")
+        
+        # Load amplicon data if available
+        amplicon_path = self.data_config.get('amplicon_path', None)
+        if amplicon_path:
+            if not os.path.isabs(amplicon_path):
+                amplicon_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), amplicon_path)
+            print(f"Loading amplicon data from {amplicon_path}")
+            amplicon_df = pd.read_csv(amplicon_path)
+            print(f"Amplicon data loaded successfully with shape: {amplicon_df.shape}")
+            return df, amplicon_df
+        
         return df
     
-    def preprocess(self, df):
+    def preprocess(self, df, amplicon_df=None):
         """Preprocess data including missing value handling"""
         # Handle missing values
         if 'age' in df.columns:
@@ -63,9 +74,17 @@ class DataProcessor:
         samples = df[self.data_config['sample_id']]
         genes = df[self.data_config['gene_id']]
         
-        return features, target, samples, genes
+        # Process amplicon data if available
+        sample_classification = None
+        if amplicon_df is not None:
+            # Create sample-level classification mapping
+            # For each sample, get the most common amplicon classification
+            sample_classification = amplicon_df.groupby('sample_barcode')['amplicon_classification'].agg(lambda x: x.value_counts().idxmax()).to_dict()
+            print(f"Created sample classification mapping for {len(sample_classification)} samples")
+        
+        return features, target, samples, genes, sample_classification
     
-    def split_data(self, features, target, samples):
+    def split_data(self, features, target, samples, sample_classification=None):
         """Split data into train, validation, and test sets by sample"""
         # Get unique samples
         unique_samples = samples.unique()
@@ -74,18 +93,51 @@ class DataProcessor:
         # Set random seed for reproducibility
         np.random.seed(self.training_config['seed'])
         
-        # Split samples into train, validation, and test
-        train_samples, temp_samples = train_test_split(
-            unique_samples, 
-            test_size=self.training_config['validation_split'] + self.training_config['test_split'],
-            random_state=self.training_config['seed']
-        )
-        
-        validation_samples, test_samples = train_test_split(
-            temp_samples, 
-            test_size=self.training_config['test_split'] / (self.training_config['validation_split'] + self.training_config['test_split']),
-            random_state=self.training_config['seed']
-        )
+        # Split samples into train, validation, and test with balanced distribution
+        if sample_classification is not None:
+            # Create a list of samples with their classification
+            sample_list = []
+            for sample in unique_samples:
+                if sample in sample_classification:
+                    sample_list.append((sample, sample_classification[sample]))
+                else:
+                    sample_list.append((sample, 'Unknown'))
+            
+            # Convert to DataFrame for stratified split
+            sample_df = pd.DataFrame(sample_list, columns=['sample', 'classification'])
+            
+            # Use stratified split to ensure balanced distribution of classifications
+            from sklearn.model_selection import train_test_split as stratified_split
+            
+            # First split into train and temp
+            train_samples, temp_samples = stratified_split(
+                sample_df['sample'], 
+                test_size=self.training_config['validation_split'] + self.training_config['test_split'],
+                stratify=sample_df['classification'],
+                random_state=self.training_config['seed']
+            )
+            
+            # Then split temp into validation and test
+            temp_df = sample_df[sample_df['sample'].isin(temp_samples)]
+            validation_samples, test_samples = stratified_split(
+                temp_df['sample'], 
+                test_size=self.training_config['test_split'] / (self.training_config['validation_split'] + self.training_config['test_split']),
+                stratify=temp_df['classification'],
+                random_state=self.training_config['seed']
+            )
+        else:
+            # Use random split if no classification data available
+            train_samples, temp_samples = train_test_split(
+                unique_samples, 
+                test_size=self.training_config['validation_split'] + self.training_config['test_split'],
+                random_state=self.training_config['seed']
+            )
+            
+            validation_samples, test_samples = train_test_split(
+                temp_samples, 
+                test_size=self.training_config['test_split'] / (self.training_config['validation_split'] + self.training_config['test_split']),
+                random_state=self.training_config['seed']
+            )
         
         print(f"Train samples: {len(train_samples)}, Validation samples: {len(validation_samples)}, Test samples: {len(test_samples)}")
         
@@ -102,7 +154,11 @@ class DataProcessor:
         X_test = features[test_mask]
         y_test = target[test_mask]
         
-        print(f"Train set shape: {X_train.shape}, Validation set shape: {X_val.shape}, Test set shape: {X_test.shape}")
+        # Print class distribution for each split
+        print(f"Train set shape: {X_train.shape}, Positive samples: {y_train.sum()}")
+        print(f"Validation set shape: {X_val.shape}, Positive samples: {y_val.sum()}")
+        print(f"Test set shape: {X_test.shape}, Positive samples: {y_test.sum()}")
+        
         return X_train, y_train, X_val, y_val, X_test, y_test
     
     def normalize(self, X_train, X_val, X_test):
@@ -143,13 +199,18 @@ class DataProcessor:
     def process(self, data_path=None):
         """End-to-end data processing pipeline"""
         # Load data
-        df = self.load_data(data_path)
+        load_result = self.load_data(data_path)
+        if isinstance(load_result, tuple):
+            df, amplicon_df = load_result
+        else:
+            df = load_result
+            amplicon_df = None
         
         # Preprocess data
-        features, target, samples, genes = self.preprocess(df)
+        features, target, samples, genes, sample_classification = self.preprocess(df, amplicon_df)
         
         # Split data
-        X_train, y_train, X_val, y_val, X_test, y_test = self.split_data(features, target, samples)
+        X_train, y_train, X_val, y_val, X_test, y_test = self.split_data(features, target, samples, sample_classification)
         
         # Normalize data
         X_train_scaled, X_val_scaled, X_test_scaled = self.normalize(X_train, X_val, X_test)
@@ -166,5 +227,6 @@ class DataProcessor:
             'scaler': self.scaler,
             'X_test': X_test_scaled,
             'y_test': y_test,
-            'genes': genes
+            'genes': genes,
+            'sample_classification': sample_classification
         }

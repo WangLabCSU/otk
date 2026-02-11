@@ -38,6 +38,7 @@ training:
 # Data configuration
 data:
   path: "../data/gcap_modeling_data.csv.gz"
+  amplicon_path: "../otk/data/gcap_modeling_sample_amplicons.csv.gz"
   features:
     - "segVal"
     - "minor_cn"
