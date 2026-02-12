@@ -1,0 +1,130 @@
+data:
+  sample_id: sample
+  gene_id: gene_id
+  target: y
+  features:
+    - segVal
+    - minor_cn
+    - intersect_ratio
+    - purity
+    - ploidy
+    - AScore
+    - pLOH
+    - cna_burden
+    - CN1
+    - CN2
+    - CN3
+    - CN4
+    - CN5
+    - CN6
+    - CN7
+    - CN8
+    - CN9
+    - CN10
+    - CN11
+    - CN12
+    - CN13
+    - CN14
+    - CN15
+    - CN16
+    - CN17
+    - CN18
+    - CN19
+    - age
+    - gender
+    - type_BLCA
+    - type_BRCA
+    - type_CESC
+    - type_COAD
+    - type_DLBC
+    - type_ESCA
+    - type_GBM
+    - type_HNSC
+    - type_KICH
+    - type_KIRC
+    - type_KIRP
+    - type_LGG
+    - type_LIHC
+    - type_LUAD
+    - type_LUSC
+    - type_OV
+    - type_PRAD
+    - type_READ
+    - type_SARC
+    - type_SKCM
+    - type_STAD
+    - type_THCA
+    - type_UCEC
+    - type_UVM
+    - freq_Linear
+    - freq_BFB
+    - freq_Circular
+    - freq_HR
+  missing_value_strategy:
+    age: mean
+  preprocessing:
+    normalize: true
+    scale: true
+
+model:
+  architecture:
+    type: EnsembleOptimizedEcDNA
+    input_dim: 57
+    num_models: 5
+    hidden_dims:
+      - 128
+      - 64
+      - 32
+    dropout_rate: 0.5
+  loss_function:
+    type: CombinedLoss
+    focal_weight: 0.4
+    dice_weight: 0.3
+    bce_weight: 0.3
+    alpha: 0.75
+    gamma: 2.0
+    pos_weight: 100.0
+  optimizer:
+    type: AdamW
+    lr: 0.0003
+    weight_decay: 0.05
+  metrics:
+    - auPRC
+    - AUC
+    - F1
+    - Precision
+    - Recall
+
+prediction:
+  batch_size: 64
+  threshold: 0.5
+
+training:
+  batch_size: 512
+  epochs: 150
+  validation_split: 0.1
+  test_split: 0.2
+  early_stopping:
+    patience: 30
+    min_delta: 0.001
+  learning_rate_scheduler:
+    type: CosineAnnealingWarmRestarts
+    T_0: 10
+    T_mult: 2
+    eta_min: 0.000001
+  gradient_clipping:
+    enabled: true
+    max_norm: 1.0
+  device:
+    gpu: 0
+  logging:
+    level: INFO
+    save_interval: 1
+  checkpoint:
+    save_best: true
+    save_last: false
+  data:
+    shuffle: true
+    num_workers: 4
+    pin_memory: true
+    seed: 2026

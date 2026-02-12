@@ -8,6 +8,7 @@ from otk.models.improved_model import ImprovedModel
 from otk.models.improved_model_v2 import ImprovedModelV2, ImprovedModelV2_Deep
 from otk.models.transformer_ecdna_model import TransformerEcDNAModel, EnhancedTransformerEcDNAModel, LightweightTransformerEcDNAModel
 from otk.models.advanced_ecdna_model import AdvancedEcDNAModel, PrecisionFocusedEcDNAModel, EnsembleEcDNAModel
+from otk.models.optimized_ecdna_model import OptimizedEcDNA, EnsembleOptimizedEcDNA
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -268,6 +269,20 @@ class ECDNA_Model:
             model = PrecisionFocusedEcDNAModel(self.config)
         elif model_type == 'EnsembleEcDNA':
             model = EnsembleEcDNAModel(self.config)
+        elif model_type == 'OptimizedEcDNA':
+            model = OptimizedEcDNA(
+                input_dim=self.config['model']['architecture'].get('input_dim', 57),
+                hidden_dims=self.config['model']['architecture'].get('hidden_dims', [128, 64, 32]),
+                dropout_rate=self.config['model']['architecture'].get('dropout_rate', 0.4),
+                use_residual=self.config['model']['architecture'].get('use_residual', True)
+            )
+        elif model_type == 'EnsembleOptimizedEcDNA':
+            model = EnsembleOptimizedEcDNA(
+                input_dim=self.config['model']['architecture'].get('input_dim', 57),
+                num_models=self.config['model']['architecture'].get('num_models', 3),
+                hidden_dims=self.config['model']['architecture'].get('hidden_dims', [128, 64, 32]),
+                dropout_rate=self.config['model']['architecture'].get('dropout_rate', 0.4)
+            )
         else:
             raise ValueError(f"Unsupported model type: {model_type}")
         return model

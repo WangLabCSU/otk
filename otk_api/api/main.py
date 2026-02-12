@@ -204,6 +204,7 @@ def get_nav_html(t, lang, current_page=""):
         (get_url("/web/upload"), t['nav_upload'], "upload"),
         (get_url("/web/jobs"), t['nav_jobs'], "jobs"),
         (get_url("/web/stats"), t['nav_stats'], "stats"),
+        (get_url("/web/models"), t['nav_models'], "models"),
         (get_url("/web/docs"), t['nav_docs'], "docs"),
     ]
     
@@ -1015,6 +1016,97 @@ async def stats_page(lang: str = Query(default="en", description="Language code"
     </html>
     """
 
+@app.get("/web/models", response_class=HTMLResponse)
+async def models_page(lang: str = Query(default="en", description="Language code")):
+    """Render model analysis report as HTML page"""
+    t = get_text(lang)
+    nav = get_nav_html(t, lang, "models")
+    footer = get_footer_html(t, lang)
+
+    report_path = Path(__file__).parent.parent / "models" / "model_analysis_report.md"
+    try:
+        with open(report_path, 'r', encoding='utf-8') as f:
+            report_content = f.read()
+        
+        import re
+        generated_time = ""
+        
+        time_match = re.search(r'生成时间:\s*(.+)', report_content)
+        if time_match:
+            generated_time = time_match.group(1).strip()
+        
+        report_content = re.sub(r'^=+\n.*?^=+\n', '', report_content, flags=re.MULTILINE | re.DOTALL)
+        report_content = re.sub(r'\n=+\n报告结束.*$', '', report_content, flags=re.DOTALL)
+        report_content = re.sub(r'\n=+$', '', report_content)
+        
+        report_content = re.sub(r'^  - ', '- ', report_content, flags=re.MULTILINE)
+        report_content = re.sub(r'(共发现 \d+ 个模型:)\n', r'\1\n\n', report_content)
+        
+        html_content = markdown.markdown(report_content, extensions=['tables', 'fenced_code'])
+    except Exception as e:
+        html_content = f"<p>Error loading model analysis report: {e}</p>"
+        generated_time = ""
+
+    info_html = ""
+    if generated_time:
+        info_html = f'''
+        <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #2196F3;">
+            <div><strong>{t["report_generated"]}:</strong> <span style="color: #666;">{generated_time}</span></div>
+        </div>
+        '''
+
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>{t['models_title']} - OTK API</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; max-width: 1200px; margin: 50px auto; padding: 20px; line-height: 1.6; }}
+            h1 {{ color: #333; border-bottom: 2px solid #2196F3; padding-bottom: 10px; }}
+            h2 {{ color: #444; margin-top: 30px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }}
+            h3 {{ color: #555; margin-top: 25px; }}
+            code {{ background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-family: Consolas, monospace; }}
+            pre {{ background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; }}
+            pre code {{ background: none; padding: 0; }}
+            table {{ border-collapse: collapse; width: 100%; margin: 20px 0; }}
+            th, td {{ border: 1px solid #ddd; padding: 10px; text-align: left; }}
+            th {{ background: #2196F3; color: white; font-weight: bold; }}
+            tr:nth-child(even) {{ background: #f9f9f9; }}
+            tr:hover {{ background: #f1f1f1; }}
+            a {{ color: #2196F3; text-decoration: none; }}
+            a:hover {{ text-decoration: underline; }}
+            ul, ol {{ padding-left: 25px; }}
+            blockquote {{ border-left: 4px solid #2196F3; margin: 0; padding-left: 15px; color: #666; }}
+            .lang-switch {{ position: absolute; top: 20px; right: 20px; }}
+            .lang-switch a {{ margin: 0 5px; text-decoration: none; padding: 5px 10px; border-radius: 3px; }}
+            .lang-switch a.active {{ background: #2196F3; color: white; }}
+            .lang-switch a:not(.active) {{ background: #f0f0f0; color: #333; }}
+            .models-content {{ margin-top: 20px; }}
+            .metric-highlight {{ background: #e3f2fd; padding: 2px 6px; border-radius: 3px; font-weight: bold; }}
+            strong {{ color: #333; }}
+            hr {{ border: none; border-top: 2px solid #eee; margin: 30px 0; }}
+        </style>
+    </head>
+    <body>
+        <div class="lang-switch">
+            <a href="{get_url('/web/models')}?lang=en" class="{'active' if lang == 'en' else ''}">English</a>
+            <a href="{get_url('/web/models')}?lang=zh" class="{'active' if lang == 'zh' else ''}">中文</a>
+        </div>
+        <h1>{t['models_title']}</h1>
+
+        {nav}
+
+        {info_html}
+
+        <div class="models-content">
+            {html_content}
+        </div>
+
+        {footer}
+    </body>
+    </html>
+    """
+
 @app.get("/web/docs", response_class=HTMLResponse)
 async def docs_page(lang: str = Query(default="en", description="Language code")):
     """Render README.md as HTML documentation page"""
@@ -1022,12 +1114,10 @@ async def docs_page(lang: str = Query(default="en", description="Language code")
     nav = get_nav_html(t, lang, "docs")
     footer = get_footer_html(t, lang)
 
-    # Read and convert README.md to HTML
     readme_path = Path(__file__).parent.parent / "README.md"
     try:
         with open(readme_path, 'r', encoding='utf-8') as f:
             readme_content = f.read()
-        # Convert markdown to HTML
         html_content = markdown.markdown(readme_content, extensions=['tables', 'fenced_code'])
     except Exception as e:
         html_content = f"<p>Error loading documentation: {e}</p>"

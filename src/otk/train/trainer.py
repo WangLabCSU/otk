@@ -161,11 +161,21 @@ class Trainer:
             gamma = self.config['model']['loss_function'].get('gamma', 2)
             return FocalLoss(alpha=alpha, gamma=gamma)
         elif loss_type == 'CombinedLoss':
-            bce_weight = self.config['model']['loss_function'].get('bce_weight', 0.5)
-            focal_weight = self.config['model']['loss_function'].get('focal_weight', 0.5)
-            alpha = self.config['model']['loss_function'].get('alpha', 1)
-            gamma = self.config['model']['loss_function'].get('gamma', 2)
-            return CombinedLoss(bce_weight=bce_weight, focal_weight=focal_weight, alpha=alpha, gamma=gamma)
+            from otk.models.optimized_ecdna_model import CombinedLoss as OptimizedCombinedLoss
+            focal_weight = self.config['model']['loss_function'].get('focal_weight', 0.4)
+            dice_weight = self.config['model']['loss_function'].get('dice_weight', 0.3)
+            bce_weight = self.config['model']['loss_function'].get('bce_weight', 0.3)
+            alpha = self.config['model']['loss_function'].get('alpha', 0.75)
+            gamma = self.config['model']['loss_function'].get('gamma', 2.0)
+            config_pos_weight = self.config['model']['loss_function'].get('pos_weight', pos_weight)
+            return OptimizedCombinedLoss(
+                focal_weight=focal_weight,
+                dice_weight=dice_weight,
+                bce_weight=bce_weight,
+                alpha=alpha,
+                gamma=gamma,
+                pos_weight=config_pos_weight
+            )
         elif loss_type == 'WeightedFocalLoss':
             config_pos_weight = self.config['model']['loss_function'].get('pos_weight', pos_weight)
             gamma = self.config['model']['loss_function'].get('gamma', 2.0)
@@ -229,10 +239,16 @@ class Trainer:
             min_lr = self.config['training']['learning_rate_scheduler']['min_lr']
             return ReduceLROnPlateau(self.optimizer, mode='max', factor=factor, patience=patience, min_lr=min_lr)
         elif scheduler_type == 'CosineAnnealingLR':
-            # Use cosine annealing learning rate scheduler for better training stability
             T_max = self.config['training']['epochs']
             eta_min = self.config['training']['learning_rate_scheduler'].get('min_lr', 0.00001)
             return torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=T_max, eta_min=eta_min)
+        elif scheduler_type == 'CosineAnnealingWarmRestarts':
+            T_0 = self.config['training']['learning_rate_scheduler'].get('T_0', 10)
+            T_mult = self.config['training']['learning_rate_scheduler'].get('T_mult', 2)
+            eta_min = self.config['training']['learning_rate_scheduler'].get('eta_min', 0.000001)
+            return torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+                self.optimizer, T_0=T_0, T_mult=T_mult, eta_min=eta_min
+            )
         else:
             return None
     
@@ -262,6 +278,12 @@ class Trainer:
             
             # Backward pass and optimize
             loss.backward()
+            
+            # Gradient clipping if enabled
+            if self.config['training'].get('gradient_clipping', {}).get('enabled', False):
+                max_norm = self.config['training']['gradient_clipping'].get('max_norm', 1.0)
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm)
+            
             self.optimizer.step()
             
             # Accumulate loss
