@@ -197,7 +197,7 @@ class Trainer:
             return LDAMLoss(cls_num_list=cls_num_list)
         elif loss_type in ['RecallBiasedTverskyLoss', 'HardNegativeMiningLoss', 'auPRCProxyLoss', 
                           'CostSensitiveRecallLoss', 'LabelSmoothingBCELoss', 'ecDNAOptimizedLoss', 
-                          'BalancedPrecisionRecallLoss']:
+                          'BalancedPrecisionRecallLoss', 'auPRCOptimizedLoss']:
             # Import ecDNA specialized losses
             from otk.models.ecdna_losses import get_ecdna_loss_function
             return get_ecdna_loss_function(self.config, pos_ratio=None)

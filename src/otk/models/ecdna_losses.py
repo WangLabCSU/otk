@@ -412,6 +412,112 @@ class BalancedPrecisionRecallLoss(nn.Module):
         return total_loss
 
 
+class auPRCOptimizedLoss(nn.Module):
+    """
+    Optimized loss function that prioritizes auPRC optimization
+    while maintaining balanced precision and recall
+    
+    Key features:
+    1. auPRC proxy loss as primary component (50%)
+    2. Balanced BCE loss for stability (30%)
+    3. Targeted hard negative mining (20%)
+    4. Precision-focused weight adjustment
+    """
+    def __init__(self, 
+                 auprc_weight=0.5,
+                 bce_weight=0.3,
+                 hard_mining_weight=0.2,
+                 pos_weight=285.0,
+                 precision_threshold=0.85,
+                 recall_threshold=0.7):
+        super(auPRCOptimizedLoss, self).__init__()
+        
+        self.auprc_weight = auprc_weight
+        self.bce_weight = bce_weight
+        self.hard_mining_weight = hard_mining_weight
+        self.precision_threshold = precision_threshold
+        self.recall_threshold = recall_threshold
+        
+        # Initialize component losses with auPRC focus
+        self.auprc_proxy_loss = auPRCProxyLoss(pos_weight=pos_weight)
+        
+        # Balanced BCE loss - will set pos_weight in forward method
+        self.bce_loss = nn.BCEWithLogitsLoss()
+        self.pos_weight_value = pos_weight
+        
+        # Targeted hard negative mining
+        self.hard_mining_loss = HardNegativeMiningLoss(
+            pos_weight=pos_weight,
+            hard_neg_ratio=0.3,  # More balanced mining
+            hard_pos_ratio=0.7,   # Focus on important positives
+            segval_threshold=4.5  # Balanced threshold
+        )
+        
+        self.pos_weight = pos_weight
+        
+    def forward(self, inputs, targets, features=None):
+        # Ensure inputs and targets have the same shape
+        if inputs.dim() > 1:
+            inputs = inputs.view(-1)
+        if targets.dim() > 1:
+            targets = targets.view(-1)
+        
+        # Component losses
+        auprc = self.auprc_proxy_loss(inputs, targets)
+        
+        # Calculate BCE loss with proper pos_weight on the same device
+        pos_weight = torch.tensor([self.pos_weight_value], device=inputs.device)
+        bce = F.binary_cross_entropy_with_logits(
+            inputs, targets,
+            pos_weight=pos_weight
+        )
+        
+        hard_mining = self.hard_mining_loss(inputs, targets, features)
+        
+        # Calculate current precision and recall
+        probs = torch.sigmoid(inputs)
+        predictions = (probs > 0.5).float()
+        
+        tp = (predictions * targets).sum()
+        fp = (predictions * (1 - targets)).sum()
+        fn = ((1 - predictions) * targets).sum()
+        
+        current_precision = tp / (tp + fp + 1e-8)
+        current_recall = tp / (tp + fn + 1e-8)
+        
+        # Adaptive weight adjustment based on precision and recall
+        weights = {
+            'auprc': self.auprc_weight,
+            'bce': self.bce_weight,
+            'hard_mining': self.hard_mining_weight
+        }
+        
+        # If precision drops below threshold, increase hard mining weight
+        if current_precision < self.precision_threshold:
+            precision_gap = self.precision_threshold - current_precision
+            weights['hard_mining'] = min(0.4, self.hard_mining_weight + precision_gap)
+            weights['bce'] = max(0.1, self.bce_weight - precision_gap * 0.5)
+        
+        # If recall drops below threshold, increase auPRC weight
+        if current_recall < self.recall_threshold:
+            recall_gap = self.recall_threshold - current_recall
+            weights['auprc'] = min(0.7, self.auprc_weight + recall_gap)
+        
+        # Normalize weights
+        total_weight = sum(weights.values())
+        for key in weights:
+            weights[key] /= total_weight
+        
+        # Combined weighted loss
+        total_loss = (
+            weights['auprc'] * auprc +
+            weights['bce'] * bce +
+            weights['hard_mining'] * hard_mining
+        )
+        
+        return total_loss
+
+
 def get_ecdna_loss_function(config, pos_ratio=None):
     """
     Factory function to get ecDNA-optimized loss function
@@ -464,6 +570,15 @@ def get_ecdna_loss_function(config, pos_ratio=None):
             tversky_alpha=tversky_alpha,
             tversky_beta=tversky_beta,
             precision_threshold=precision_threshold
+        )
+    
+    elif loss_type == 'auPRCOptimizedLoss':
+        precision_threshold = config.get('model', {}).get('loss_function', {}).get('precision_threshold', 0.85)
+        recall_threshold = config.get('model', {}).get('loss_function', {}).get('recall_threshold', 0.7)
+        return auPRCOptimizedLoss(
+            pos_weight=pos_weight,
+            precision_threshold=precision_threshold,
+            recall_threshold=recall_threshold
         )
     
     else:
