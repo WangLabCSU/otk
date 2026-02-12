@@ -156,7 +156,7 @@ ehthumbs.db
 Thumbs.db
 
 # Test output
-models/
+/models/
 out/
 out_*
 output_*

@@ -89,42 +89,76 @@ Parameters:
 
 Input data should be in CSV format with the following columns:
 
+**Required identifier columns:**
 - `sample`: Tumor sample ID
 - `gene_id`: Gene ID
+
+**Copy number features:**
 - `segVal`: Total gene copy number
 - `minor_cn`: Minor gene copy number
+- `intersect_ratio`: Proportion of overlap between copy number detection segment and gene region
+
+**Sample-level genomic features (same value for all genes in a sample):**
+- `purity`: Tumor purity estimate
+- `ploidy`: Tumor genome ploidy estimate
+- `AScore`: Aneuploidy score
+- `pLOH`: Proportion of genome with loss of heterozygosity (LOH)
+- `cna_burden`: Proportion of genome with copy number alterations
+
+**Copy number signature features:**
+- `CN1` to `CN19`: 19 copy number signature activity estimates
+
+**Clinical features:**
 - `age`: Patient age
-- `gender`: Patient gender
-- One-hot encoded columns for various tumor types (e.g., `type_BLCA`, `type_BRCA`, etc.)
-- `freq_Linear`, `freq_BFB`, `freq_Circular`, `freq_HR`: Prior estimated frequencies of genes in different types of genomic focal amplifications
+- `gender`: Patient gender (0/1 encoded)
+
+**Tumor type features (one-hot encoded, 24 cancer types):**
+- `type_BLCA`, `type_BRCA`, `type_CESC`, `type_COAD`, `type_DLBC`, `type_ESCA`, `type_GBM`, `type_HNSC`
+- `type_KICH`, `type_KIRC`, `type_KIRP`, `type_LGG`, `type_LIHC`, `type_LUAD`, `type_LUSC`, `type_OV`
+- `type_PRAD`, `type_READ`, `type_SARC`, `type_SKCM`, `type_STAD`, `type_THCA`, `type_UCEC`, `type_UVM`
+
+**Gene frequency features:**
+- `freq_Linear`: Prior estimated frequency of gene in linear focal amplifications
+- `freq_BFB`: Prior estimated frequency of gene in breakage-fusion-bridge (BFB) events
+- `freq_Circular`: Prior estimated frequency of gene in circular focal amplifications (ecDNA)
+- `freq_HR`: Prior estimated frequency of gene in homologous recombination events
+
+**Target column (for training data):**
+- `y`: Binary label indicating whether the gene is detected as an ecDNA cargo gene (1) or not (0)
 
 ### Output Data Format
 
-Prediction results include the following columns:
+Prediction results are saved as a CSV file with the following columns:
 
+**Gene-level predictions:**
 - `sample`: Tumor sample ID
 - `gene_id`: Gene ID
-- `prediction_prob`: Probability of being an ecDNA cargo gene
-- `prediction`: Binary classification result (0 or 1)
+- `prediction_prob`: Probability of being an ecDNA cargo gene (0-1)
+- `prediction`: Binary classification result (0 = not ecDNA cargo, 1 = ecDNA cargo)
 
-Additionally, sample-level prediction results are generated:
+**Sample-level predictions:**
+- `sample_level_prediction_label`: Sample-level focal amplification type classification:
+  - `nofocal`: No focal amplification detected
+  - `noncircular`: Non-circular focal amplification detected
+  - `circular`: Circular focal amplification (ecDNA) detected
+- `sample_level_prediction`: Numerical encoding of sample-level classification (0 = nofocal, 1 = noncircular, 2 = circular)
 
-- `sample`: Tumor sample ID
-- `prediction_prob`: Maximum prediction probability in the sample
-- `prediction`: Sample-level prediction result (0 or 1)
-- `focal_amplification_type`: Sample's focal amplification type (circular or noncircular)
+Note: Sample-level classification follows these rules:
+1. If any gene in the sample is predicted as ecDNA cargo (`prediction` = 1), the sample is classified as `circular`
+2. If no ecDNA cargo genes but any gene has `segVal > ploidy + 2`, the sample is classified as `noncircular`
+3. Otherwise, the sample is classified as `nofocal`
 
 ## Model Architecture
 
-otk uses a Multi-Layer Perceptron (MLP) as the deep learning model architecture with the following default configuration:
+otk supports multiple deep learning model architectures (MLP, Transformer, MultiInputTransformer) with configurable parameters. The default MLP configuration is:
 
-- Input layer: 58 features
+- Input layer: 57 features (matching the input data format)
 - Hidden layer 1: 128 neurons, ReLU activation, 20% dropout
 - Hidden layer 2: 64 neurons, ReLU activation, 20% dropout
 - Hidden layer 3: 32 neurons, ReLU activation, 10% dropout
 - Output layer: 1 neuron, Sigmoid activation
 
-The model uses BCEWithLogitsLoss as the loss function and Adam as the optimizer.
+The model uses BCEWithLogitsLoss (or CombinedLoss with Focal Loss for imbalanced data) as the loss function and Adam as the optimizer.
 
 ## Configuration File
 

@@ -128,14 +128,32 @@ class Trainer:
 
     def _get_loss_function(self):
         """Get loss function based on configuration"""
+        from otk.models.custom_losses import (
+            WeightedFocalLoss, DiceLoss, TverskyLoss, ComboLoss, 
+            AsymmetricLoss, LDAMLoss
+        )
+        
         loss_type = self.config['model']['loss_function']['type']
+        
+        # Calculate pos_weight from training data if available
+        pos_weight = 100.0  # Default for highly imbalanced data
+        if hasattr(self, 'data_dict') and 'train_loader' in self.data_dict:
+            # Estimate pos_weight from training data
+            train_dataset = self.data_dict['train_loader'].dataset
+            if hasattr(train_dataset, 'labels'):
+                pos_ratio = train_dataset.labels.mean()
+                if pos_ratio > 0:
+                    pos_weight = (1 - pos_ratio) / pos_ratio
+        
         if loss_type == 'BCEWithLogitsLoss':
             weights = self.config['model']['loss_function'].get('weight', None)
             if weights:
                 weights = torch.tensor(weights, dtype=torch.float32).to(self.device)
                 return nn.BCEWithLogitsLoss(pos_weight=weights[1])
             else:
-                return nn.BCEWithLogitsLoss()
+                # Use calculated pos_weight for imbalanced data
+                config_pos_weight = self.config['model']['loss_function'].get('pos_weight', pos_weight)
+                return nn.BCEWithLogitsLoss(pos_weight=torch.tensor([config_pos_weight], device=self.device))
         elif loss_type == 'CrossEntropyLoss':
             return nn.CrossEntropyLoss()
         elif loss_type == 'FocalLoss':
@@ -148,6 +166,41 @@ class Trainer:
             alpha = self.config['model']['loss_function'].get('alpha', 1)
             gamma = self.config['model']['loss_function'].get('gamma', 2)
             return CombinedLoss(bce_weight=bce_weight, focal_weight=focal_weight, alpha=alpha, gamma=gamma)
+        elif loss_type == 'WeightedFocalLoss':
+            config_pos_weight = self.config['model']['loss_function'].get('pos_weight', pos_weight)
+            gamma = self.config['model']['loss_function'].get('gamma', 2.0)
+            alpha = self.config['model']['loss_function'].get('alpha', 0.25)
+            return WeightedFocalLoss(pos_weight=config_pos_weight, gamma=gamma, alpha=alpha)
+        elif loss_type == 'DiceLoss':
+            return DiceLoss()
+        elif loss_type == 'TverskyLoss':
+            alpha = self.config['model']['loss_function'].get('alpha', 0.7)
+            beta = self.config['model']['loss_function'].get('beta', 0.3)
+            return TverskyLoss(alpha=alpha, beta=beta)
+        elif loss_type == 'ComboLoss':
+            bce_weight = self.config['model']['loss_function'].get('bce_weight', 0.5)
+            focal_weight = self.config['model']['loss_function'].get('focal_weight', 0.3)
+            dice_weight = self.config['model']['loss_function'].get('dice_weight', 0.2)
+            config_pos_weight = self.config['model']['loss_function'].get('pos_weight', pos_weight)
+            return ComboLoss(
+                bce_weight=bce_weight,
+                focal_weight=focal_weight,
+                dice_weight=dice_weight,
+                pos_weight=config_pos_weight
+            )
+        elif loss_type == 'AsymmetricLoss':
+            gamma_neg = self.config['model']['loss_function'].get('gamma_neg', 4)
+            gamma_pos = self.config['model']['loss_function'].get('gamma_pos', 1)
+            return AsymmetricLoss(gamma_neg=gamma_neg, gamma_pos=gamma_pos)
+        elif loss_type == 'LDAMLoss':
+            cls_num_list = self.config['model']['loss_function'].get('cls_num_list', None)
+            return LDAMLoss(cls_num_list=cls_num_list)
+        elif loss_type in ['RecallBiasedTverskyLoss', 'HardNegativeMiningLoss', 'auPRCProxyLoss', 
+                          'CostSensitiveRecallLoss', 'LabelSmoothingBCELoss', 'ecDNAOptimizedLoss', 
+                          'BalancedPrecisionRecallLoss']:
+            # Import ecDNA specialized losses
+            from otk.models.ecdna_losses import get_ecdna_loss_function
+            return get_ecdna_loss_function(self.config, pos_ratio=None)
         else:
             raise ValueError(f"Unsupported loss function: {loss_type}")
     

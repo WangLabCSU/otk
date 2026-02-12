@@ -1,0 +1,54 @@
+# Improved V2 model with optimized loss function for highly imbalanced ecDNA prediction
+
+# Model configuration
+model:
+  architecture:
+    type: "ImprovedV2"
+    layers:
+      - input_dim: 57  # Input dimension based on data
+  loss_function:
+    type: "ComboLoss"  # Optimized combined loss for extreme imbalance
+    bce_weight: 0.4    # Weighted BCE component
+    focal_weight: 0.4  # Focal loss component for hard examples
+    dice_weight: 0.2   # Dice loss component for overlap optimization
+    pos_weight: 285.0  # Calculated from pos_ratio ~0.0035 (1-0.0035)/0.0035
+    focal_gamma: 2.0   # Focus parameter for focal loss
+    focal_alpha: 0.25  # Balance parameter for focal loss
+  optimizer:
+    type: "Adam"
+    lr: 0.001
+    weight_decay: 0.0001
+
+# Training configuration
+training:
+  batch_size: 512
+  epochs: 50
+  seed: 2026
+  validation_split: 0.1
+  test_split: 0.2
+  early_stopping:
+    patience: 10
+    min_delta: 0.001
+  learning_rate_scheduler:
+    type: "ReduceLROnPlateau"
+    factor: 0.5
+    patience: 5
+    min_lr: 0.00001
+
+# Data configuration
+data:
+  path: "../data/gcap_modeling_data.csv.gz"
+  test_size: 0.2
+  val_size: 0.1
+  random_state: 42
+  features: ["segVal", "minor_cn", "intersect_ratio", "purity", "ploidy", "AScore", "pLOH", "cna_burden", "CN1", "CN2", "CN3", "CN4", "CN5", "CN6", "CN7", "CN8", "CN9", "CN10", "CN11", "CN12", "CN13", "CN14", "CN15", "CN16", "CN17", "CN18", "CN19", "age", "gender", "type_BLCA", "type_BRCA", "type_CESC", "type_COAD", "type_DLBC", "type_ESCA", "type_GBM", "type_HNSC", "type_KICH", "type_KIRC", "type_KIRP", "type_LGG", "type_LIHC", "type_LUAD", "type_LUSC", "type_OV", "type_PRAD", "type_READ", "type_SARC", "type_SKCM", "type_STAD", "type_THCA", "type_UCEC", "type_UVM", "freq_Linear", "freq_BFB", "freq_Circular", "freq_HR"]
+  target: "y"
+  sample_id: "sample"
+  gene_id: "gene_id"
+  missing_value_strategy:
+    age: "mean"
+
+# Prediction configuration
+prediction:
+  batch_size: 512
+  threshold: 0.5
