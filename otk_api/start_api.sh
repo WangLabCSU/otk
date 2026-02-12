@@ -16,6 +16,9 @@ elif [ -d ".venv" ]; then
     source .venv/bin/activate
 fi
 
+# Add parent src directory to Python path
+export PYTHONPATH="${SCRIPT_DIR}/../src:${PYTHONPATH}"
+
 # Set default host and port
 HOST=${API_HOST:-0.0.0.0}
 PORT=${API_PORT:-8000}
@@ -23,6 +26,7 @@ PORT=${API_PORT:-8000}
 echo "Starting OTK Prediction API..."
 echo "Host: $HOST"
 echo "Port: $PORT"
+echo "Python Path: ${PYTHONPATH}"
 echo ""
 
 # Start the API server
