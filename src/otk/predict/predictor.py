@@ -89,6 +89,9 @@ class Predictor:
     def _build_model(self, config):
         """Build the model based on configuration"""
         from otk.models.model import MLP, TransformerModel, MultiInputTransformerModel, BaselineModel, ImprovedModel
+        from otk.models.improved_model_v2 import ImprovedModelV2, ImprovedModelV2_Deep
+        from otk.models.transformer_ecdna_model import TransformerEcDNAModel, EnhancedTransformerEcDNAModel, LightweightTransformerEcDNAModel
+        from otk.models.advanced_ecdna_model import AdvancedEcDNAModel, PrecisionFocusedEcDNAModel, EnsembleEcDNAModel
         model_type = config['model']['architecture']['type']
         if model_type == 'MLP':
             return MLP({'model': config['model']})
@@ -100,6 +103,22 @@ class Predictor:
             return BaselineModel(config)
         elif model_type == 'Improved':
             return ImprovedModel(config)
+        elif model_type == 'ImprovedV2':
+            return ImprovedModelV2(config)
+        elif model_type == 'ImprovedV2_Deep':
+            return ImprovedModelV2_Deep(config)
+        elif model_type == 'TransformerEcDNA':
+            return TransformerEcDNAModel(config)
+        elif model_type == 'EnhancedTransformerEcDNA':
+            return EnhancedTransformerEcDNAModel(config)
+        elif model_type == 'LightweightTransformerEcDNA':
+            return LightweightTransformerEcDNAModel(config)
+        elif model_type == 'AdvancedEcDNA':
+            return AdvancedEcDNAModel(config)
+        elif model_type == 'PrecisionFocusedEcDNA':
+            return PrecisionFocusedEcDNAModel(config)
+        elif model_type == 'EnsembleEcDNA':
+            return EnsembleEcDNAModel(config)
         else:
             raise ValueError(f"Unsupported model type: {model_type}")
     
@@ -183,6 +202,11 @@ class Predictor:
                 # Single-input case
                 inputs = batch.to(self.device)
                 outputs = self.model(inputs)
+                
+                # Apply sigmoid activation if model outputs logits
+                # TransformerEcDNA models output logits, so we need to apply sigmoid
+                if outputs.min() < 0 or outputs.max() > 1:
+                    outputs = torch.sigmoid(outputs)
                 
                 # Get gene predictions
                 gene_predictions.extend(outputs.cpu().detach().numpy())

@@ -1,0 +1,109 @@
+data:
+  sample_id: sample_id
+  gene_id: gene_id
+  features:
+    - age
+    - segVal
+    - ploidy
+    - norm_cvg
+    - freq_Linear
+    - freq_BFB
+    - freq_Circular
+    - freq_HR
+    - type_BLCA
+    - type_BRCA
+    - type_CESC
+    - type_COAD
+    - type_DLBC
+    - type_ESCA
+    - type_GBM
+    - type_HNSC
+    - type_KICH
+    - type_KIRC
+    - type_KIRP
+    - type_LGG
+    - type_LIHC
+    - type_LUAD
+    - type_LUSC
+    - type_OV
+    - type_PRAD
+    - type_READ
+    - type_SARC
+    - type_SKCM
+    - type_STAD
+    - type_THCA
+    - type_UCEC
+    - type_UVM
+  missing_value_strategy:
+    age: mean
+  preprocessing:
+    normalize: true
+    scale: true
+  validation:
+    method: stratified
+    test_size: 0.2
+    val_size: 0.1
+  batch_size: 64
+
+model:
+  architecture:
+    type: EnsembleEcDNA
+    layers:
+      - input_dim: 36
+      - hidden_dim: 128
+      - hidden_dim: 64
+      - output_dim: 1
+  loss_function:
+    type: auPRCOptimizedLoss
+    auPRC_weight: 0.7
+    bce_weight: 0.2
+    hard_negative_weight: 0.1
+    alpha: 0.5
+    gamma: 2.5
+    pos_weight: 75.0
+  optimizer:
+    type: AdamW
+    lr: 0.00005
+    weight_decay: 0.01
+  metrics:
+    - auPRC
+    - AUC
+    - F1
+    - Precision
+    - Recall
+
+prediction:
+  batch_size: 64
+  threshold: 0.75
+
+ensemble:
+  models:
+    - model_path: output_advanced_ecdna/best_model.pth
+    - model_path: output_precision_focused/best_model.pth
+  voting: weighted
+  weights:
+    - 0.5
+    - 0.5
+
+training:
+  epochs: 100
+  early_stopping:
+    patience: 20
+    min_delta: 0.0005
+  learning_rate_scheduler:
+    type: ReduceLROnPlateau
+    factor: 0.3
+    patience: 8
+    min_lr: 0.0000001
+  device:
+    gpu: 0
+  logging:
+    level: INFO
+    save_interval: 1
+  checkpoint:
+    save_best: true
+    save_last: false
+  data:
+    shuffle: true
+    num_workers: 4
+    pin_memory: true

@@ -342,6 +342,12 @@ class Trainer:
         if preds.ndim > 1:
             preds = preds.ravel()
         
+        # Check if predictions are logits (not in [0, 1]) and apply sigmoid
+        if preds.min() < 0 or preds.max() > 1:
+            print("Applying sigmoid to logits for metric calculation")
+            # Apply sigmoid using numpy
+            preds = 1 / (1 + np.exp(-preds))
+        
         # Find optimal threshold based on F1 score
         thresholds = np.linspace(0, 1, 100)
         f1_scores = []

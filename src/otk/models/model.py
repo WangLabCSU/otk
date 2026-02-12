@@ -7,6 +7,7 @@ from otk.models.baseline_model import BaselineModel, ECDNA_Baseline_Model
 from otk.models.improved_model import ImprovedModel
 from otk.models.improved_model_v2 import ImprovedModelV2, ImprovedModelV2_Deep
 from otk.models.transformer_ecdna_model import TransformerEcDNAModel, EnhancedTransformerEcDNAModel, LightweightTransformerEcDNAModel
+from otk.models.advanced_ecdna_model import AdvancedEcDNAModel, PrecisionFocusedEcDNAModel, EnsembleEcDNAModel
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -261,6 +262,12 @@ class ECDNA_Model:
             model = EnhancedTransformerEcDNAModel(self.config)
         elif model_type == 'LightweightTransformerEcDNA':
             model = LightweightTransformerEcDNAModel(self.config)
+        elif model_type == 'AdvancedEcDNA':
+            model = AdvancedEcDNAModel(self.config)
+        elif model_type == 'PrecisionFocusedEcDNA':
+            model = PrecisionFocusedEcDNAModel(self.config)
+        elif model_type == 'EnsembleEcDNA':
+            model = EnsembleEcDNAModel(self.config)
         else:
             raise ValueError(f"Unsupported model type: {model_type}")
         return model

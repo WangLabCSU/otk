@@ -1,0 +1,135 @@
+data:
+  sample_id: sample
+  gene_id: gene_id
+  target: y
+  features:
+    - segVal
+    - minor_cn
+    - intersect_ratio
+    - purity
+    - ploidy
+    - AScore
+    - pLOH
+    - cna_burden
+    - CN1
+    - CN2
+    - CN3
+    - CN4
+    - CN5
+    - CN6
+    - CN7
+    - CN8
+    - CN9
+    - CN10
+    - CN11
+    - CN12
+    - CN13
+    - CN14
+    - CN15
+    - CN16
+    - CN17
+    - CN18
+    - CN19
+    - age
+    - gender
+    - type_BLCA
+    - type_BRCA
+    - type_CESC
+    - type_COAD
+    - type_DLBC
+    - type_ESCA
+    - type_GBM
+    - type_HNSC
+    - type_KICH
+    - type_KIRC
+    - type_KIRP
+    - type_LGG
+    - type_LIHC
+    - type_LUAD
+    - type_LUSC
+    - type_OV
+    - type_PRAD
+    - type_READ
+    - type_SARC
+    - type_SKCM
+    - type_STAD
+    - type_THCA
+    - type_UCEC
+    - type_UVM
+    - freq_Linear
+    - freq_BFB
+    - freq_Circular
+    - freq_HR
+  missing_value_strategy:
+    age: mean
+  preprocessing:
+    normalize: true
+    scale: true
+  batch_size: 64
+
+model:
+  architecture:
+    type: PrecisionFocusedEcDNA
+    layers:
+      - input_dim: 57
+      - hidden_dim: 128
+      - hidden_dim: 64
+      - output_dim: 1
+  loss_function:
+    type: auPRCOptimizedLoss
+    auPRC_weight: 0.5
+    bce_weight: 0.3
+    hard_negative_weight: 0.2
+    alpha: 0.75
+    gamma: 3.0
+    pos_weight: 50.0
+  optimizer:
+    type: AdamW
+    lr: 0.0001
+    weight_decay: 0.01
+  metrics:
+    - auPRC
+    - AUC
+    - F1
+    - Precision
+    - Recall
+
+prediction:
+  batch_size: 64
+  threshold: 0.8
+
+ensemble:
+  models:
+    - model_path: output_advanced_ecdna/best_model.pth
+    - model_path: output_precision_focused/best_model.pth
+  voting: weighted
+  weights:
+    - 0.4
+    - 0.6
+
+training:
+  batch_size: 1024
+  epochs: 100
+  validation_split: 0.1
+  test_split: 0.2
+  early_stopping:
+    patience: 15
+    min_delta: 0.001
+  learning_rate_scheduler:
+    type: ReduceLROnPlateau
+    factor: 0.5
+    patience: 5
+    min_lr: 0.000001
+  device:
+    gpu: 0
+  logging:
+    level: INFO
+    save_interval: 1
+  checkpoint:
+    save_best: true
+    save_last: false
+  data:
+    shuffle: true
+    num_workers: 4
+    pin_memory: true
+  seed: 2026
