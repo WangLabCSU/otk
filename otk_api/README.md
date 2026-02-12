@@ -1,265 +1,293 @@
 # OTK Prediction API
 
-High-performance Scientific Computing API - ecDNA (extrachromosomal DNA) Prediction Service based on the [OTK](https://github.com/WangLabCSU/otk) and [GCAP](https://github.com/shixiangwang/gcap) projects.
+High-performance Scientific Computing API for ecDNA (extrachromosomal DNA) Prediction Service based on the [OTK](https://github.com/WangLabCSU/otk) and [GCAP](https://github.com/shixiangwang/gcap) projects.
 
-## Features
+## 🌐 Public API Address
 
-- **Intelligent Resource Scheduling**: Automatically selects the best model and available GPU/CPU resources
-- **Model Management**: Auto-discovers models from `models/` directory, configurable via API
-- **Unified Configuration**: All settings managed through a single YAML configuration file
-- **Data Validation**: Comprehensive integrity checks when uploading data
-- **Asynchronous & Synchronous Processing**: Supports both async tasks and sync predictions for pipeline integration
-- **Statistics**: Task count, processing time, resource usage, and more
-- **Web Interface**: User-friendly interface for task upload, status viewing, and management
-- **REST API**: Complete API interface supporting curl and other tools
-- **Multi-language Support**: English and Chinese (default: English)
-- **Job Record Retention**: Task metadata kept permanently, result files retained for 3 days
-- **Security**: Job IDs are masked in web interface for privacy protection
+**Production API**: http://biotree.top:38123/otk/
 
-## Quick Start
+**API Base URL**: http://biotree.top:38123/otk/api/v1/
 
-### 1. Install Dependencies
+## ✨ Features
 
-```bash
-cd otk/otk_api
-pip install -r requirements.txt
-```
+- **Intelligent Resource Scheduling**: Automatically selects optimal model and available resources
+- **Model Management**: Auto-discovers models from `models/` directory
+- **Data Validation**: Comprehensive integrity checks during upload
+- **Asynchronous & Synchronous Processing**: Supports both async tasks and sync predictions
+- **Real-time Statistics**: Task counts, processing times, resource usage
+- **User-friendly Web Interface**: For task upload, status viewing, and management
+- **Complete REST API**: Supports curl and other HTTP clients
+- **Multi-language Support**: English and Chinese interfaces
+- **Job Record Management**: Task metadata retained permanently, results for 3 days
+- **Security**: Job IDs are masked in web interface for privacy
 
-### 2. Configure
+## 🚀 Quick Start
 
-Edit `config.yml` to customize settings:
+### Using the Public API
 
-```yaml
-api:
-  host: "0.0.0.0"
-  port: 8000
-
-models:
-  default_model: null  # Set to auto-select, or specify a model name
-  search_dirs:
-    - "otk/output_advanced_ecdna"
-    - "otk/output_precision_focused"
-```
-
-### 3. Model Setup
-
-Place your trained models in the `models/` directory:
-
-```
-otk_api/models/
-├── baseline/                    # Model name: "baseline"
-│   ├── best_model.pth
-│   └── config.yml
-└── your_custom_model/           # Model name: "your_custom_model"
-    ├── best_model.pth
-    └── config.yml
-```
-
-Models are auto-discovered from subdirectories containing `best_model.pth`.
-
-### 4. Start API Service
+You can immediately start using the public API without any installation:
 
 ```bash
-cd otk/otk_api
-python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
+# Health check
+curl http://biotree.top:38123/otk/api/v1/health
+
+# Submit prediction (async)
+curl -X POST "http://biotree.top:38123/otk/api/v1/predict" \
+  -F "file=@your_data.csv"
+
+# Submit prediction (sync)
+curl -X POST "http://biotree.top:38123/otk/api/v1/predict-sync" \
+  -F "file=@your_data.csv"
 ```
 
-Or use the provided startup script:
+### Running Locally
 
-```bash
-cd otk/otk_api
-./start_api.sh
-```
+1. **Install Dependencies**
+   ```bash
+   cd otk/otk_api
+   pip install -r requirements.txt
+   ```
 
-## API Usage Examples
+2. **Start the API**
+   ```bash
+   cd otk/otk_api
+   ./start_api.sh
+   ```
 
-### Submit Prediction Task
+3. **Access**
+   - API: http://localhost:8000/api/v1/
+   - Web Interface: http://localhost:8000/
 
-```bash
-curl -X POST "http://localhost:8000/api/v1/predict" \
-  -F "file=@data.csv"
-```
+## 📡 API Documentation
 
-### List Available Models
+### 1. Health Check
 
-```bash
-curl "http://localhost:8000/api/v1/models"
-```
+**Endpoint**: `GET /api/v1/health`
 
-Response:
+**Response**:
 ```json
 {
-  "models": [
-    {"name": "advanced_ecdna", "path": "...", "exists": true, "is_default": false},
-    {"name": "precision_focused", "path": "...", "exists": true, "is_default": false}
-  ],
-  "default_model": null,
-  "priority": ["advanced_ecdna", "precision_focused", "..."]
+  "status": "healthy",
+  "version": "1.0.0",
+  "gpu_available": false,
+  "gpu_count": 0,
+  "cpu_count": 192,
+  "active_jobs": 0,
+  "queue_size": 0
 }
 ```
 
-### Get API Configuration
+### 2. Submit Prediction (Async)
 
-```bash
-curl "http://localhost:8000/api/v1/config"
+**Endpoint**: `POST /api/v1/predict`
+
+**Parameters**:
+- `file`: CSV file with prediction data
+
+**Response**:
+```json
+{
+  "id": "af0e5298-b326-40ca-83b5-76f54ad212e6",
+  "status": "pending",
+  "created_at": "2026-02-12T09:54:25.495083",
+  "validation_report": {
+    "is_valid": true,
+    "errors": [],
+    "warnings": ["Optional column missing: intersect_ratio, using default value 1.0"]
+  }
+}
 ```
 
-### Query Task Status
+### 3. Submit Prediction (Sync)
 
-```bash
-curl "http://localhost:8000/api/v1/jobs/{job_id}"
+**Endpoint**: `POST /api/v1/predict-sync`
+
+**Parameters**:
+- `file`: CSV file with prediction data
+
+**Response**:
+- Returns CSV file directly for immediate use in pipelines
+
+### 4. Get Task Status
+
+**Endpoint**: `GET /api/v1/jobs/{job_id}`
+
+**Response**:
+```json
+{
+  "id": "af0e5298-b326-40ca-83b5-76f54ad212e6",
+  "status": "completed",
+  "progress": 1.0,
+  "completed_at": "2026-02-12T09:54:26.292634"
+}
 ```
 
-### Download Prediction Results
+### 5. Download Results
 
-```bash
-curl "http://localhost:8000/api/v1/jobs/{job_id}/download" -o results.csv
+**Endpoint**: `GET /api/v1/jobs/{job_id}/download`
+
+**Response**:
+- Returns CSV file with prediction results
+
+### 6. Get Statistics
+
+**Endpoint**: `GET /api/v1/statistics`
+
+**Response**:
+```json
+{
+  "total_jobs": 28,
+  "completed_jobs": 14,
+  "failed_jobs": 13,
+  "avg_processing_time": 0.605,
+  "cpu_jobs": 14,
+  "gpu_jobs": 5
+}
 ```
 
-### Get Data Validation Report
+## 📊 Data Format Requirements
 
-```bash
-curl "http://localhost:8000/api/v1/validation-report/{job_id}"
+### Required Columns
+
+Your CSV file must include these columns:
+
+| Column         | Description                          |
+|----------------|--------------------------------------|
+| `sample`       | Sample ID                            |
+| `gene_id`      | Gene identifier                      |
+| `segVal`       | Segment value                        |
+| `minor_cn`     | Minor copy number                    |
+| `purity`       | Tumor purity                         |
+| `ploidy`       | Ploidy level                         |
+| `AScore`       | A-score value                        |
+| `pLOH`         | Loss of heterozygosity probability   |
+| `cna_burden`   | Copy number alteration burden        |
+| `age`          | Sample age                           |
+| `gender`       | Gender (0/1 or Male/Female)          |
+| `type`         | Cancer type                          |
+| `CN1` to `CN19` | Chromosome copy numbers             |
+
+### Optional Columns
+
+| Column           | Description                          | Default Value |
+|------------------|--------------------------------------|---------------|
+| `intersect_ratio` | Intersection ratio                  | 1.0           |
+| `y`              | Ground truth label (for training)    | N/A           |
+
+### Example Data
+
+```csv
+sample,gene_id,segVal,minor_cn,purity,ploidy,AScore,pLOH,cna_burden,age,gender,type,intersect_ratio,CN1,CN2,CN3,CN4,CN5,CN6,CN7,CN8,CN9,CN10,CN11,CN12,CN13,CN14,CN15,CN16,CN17,CN18,CN19
+TCGA-TEST-01,ENSG00000284662,3.2,1.1,0.85,2.8,0.75,0.45,0.3,65,1,LUSC,1.0,2.1,2.2,2.3,2.4,2.5,2.6,2.7,2.8,2.9,3.0,3.1,3.2,3.3,3.4,3.5,3.6,3.7,3.8,3.9
 ```
 
-### Get Statistics
+## 🎯 Prediction Output
 
-```bash
-curl "http://localhost:8000/api/v1/statistics"
+### Output Format
+
+The prediction result CSV includes:
+
+| Column                         | Description                          |
+|--------------------------------|--------------------------------------|
+| `sample`                       | Sample ID                            |
+| `gene_id`                      | Gene identifier                      |
+| `prediction_prob`              | Probability of ecDNA occurrence      |
+| `prediction`                   | Binary prediction (0=no, 1=yes)      |
+| `sample_level_prediction_label` | Overall sample prediction label       |
+| `sample_level_prediction`      | Overall sample prediction (0/1)      |
+
+### Example Output
+
+```csv
+sample,gene_id,prediction_prob,prediction,sample_level_prediction_label,sample_level_prediction
+TCGA-TEST-01,ENSG00000284662,0.000279,0,nofocal,0
+TCGA-TEST-01,ENSG00000187634,0.002650,0,nofocal,0
+TCGA-TEST-01,ENSG00000243073,0.000036,0,nofocal,0
 ```
 
-### Health Check
+## 🌐 Web Interface
 
-```bash
-curl "http://localhost:8000/api/v1/health"
-```
+The API includes a user-friendly web interface:
 
-## Configuration
+### Access
+- **Homepage**: http://biotree.top:38123/otk/
+- **Task Upload**: http://biotree.top:38123/otk/web/upload
+- **Task List**: http://biotree.top:38123/otk/web/jobs
+- **Statistics**: http://biotree.top:38123/otk/web/stats
 
-All settings are managed through `config.yml`:
+### Language Support
+- Add `?lang=en` for English: http://biotree.top:38123/otk/?lang=en
+- Add `?lang=zh` for Chinese: http://biotree.top:38123/otk/?lang=zh
 
-```yaml
-# API Server Settings
-api:
-  host: "0.0.0.0"
-  port: 8000
-
-# File Upload Settings
-upload:
-  max_file_size: 104857600  # 100MB
-  allowed_extensions: [".csv"]
-
-# Model Settings
-models:
-  default_model: null  # null for auto-select, or specify model name
-  search_dirs:
-    - "otk/output_advanced_ecdna"
-    - "otk/output_precision_focused"
-  priority:
-    - "advanced_ecdna"
-    - "precision_focused"
-
-# Resource Management
-resources:
-  max_concurrent_jobs: 4
-  job_timeout: 3600
-  gpu_memory_threshold: 0.8
-  prefer_gpu: true
-
-# Data Retention
-retention:
-  days: 3  # Jobs and results are retained for 3 days
-  cleanup_interval: 24  # Cleanup runs every 24 hours
-```
-
-Environment variables can override YAML settings:
-- `API_HOST` / `API_PORT`: Server settings
-- `DATABASE_URL`: Database connection
-- `REDIS_URL`: Redis connection
-- `MAX_CONCURRENT_JOBS`: Concurrent job limit
-
-## Web Interface
-
-- Homepage: http://localhost:8000/
-- Task Upload: http://localhost:8000/web/upload
-- Task List: http://localhost:8000/web/jobs
-- Statistics Dashboard: http://localhost:8000/web/stats
-
-### Language Switching
-
-Add `?lang=en` or `?lang=zh` parameter to any URL:
-- English: http://localhost:8000/?lang=en
-- Chinese: http://localhost:8000/?lang=zh
-
-### Data Retention
-
-- **Result files**: Automatically deleted after **3 days**
-- **Job records**: Kept **permanently** for audit and tracking purposes
-- Please download your results promptly or save your Job ID for async tasks
-
-## Data Format Requirements
-
-The uploaded CSV file must contain the following columns:
-
-**Required Columns:**
-- `sample`: Sample ID
-- `gene_id`: Gene ID
-- `segVal`: Copy number
-- `minor_cn`: Minor copy number
-- `purity`: Tumor purity
-- `ploidy`: Ploidy
-- `AScore`: Aneuploidy score
-- `pLOH`: Loss of heterozygosity ratio
-- `cna_burden`: CNA burden
-- `CN1-CN19`: Copy number signatures
-
-**Optional Columns:**
-- `age`: Age
-- `gender`: Gender
-- `type`: Cancer type
-- `intersect_ratio`: Overlap ratio (default: 1.0 if not provided)
-
-## Project Structure
+## 📁 Project Structure
 
 ```
-otk/otk_api/
-├── api/
-│   ├── __init__.py
-│   ├── main.py              # Main application
-│   ├── models.py            # Database models
-│   ├── schemas.py           # Pydantic models
-│   ├── i18n.py              # Internationalization
-│   ├── data_validator.py    # Data validation
-│   ├── resource_manager.py  # Resource management
-│   ├── predictor_wrapper.py # otk predictor wrapper
-│   ├── cleanup.py           # Cleanup scheduler
-│   └── config.py            # Configuration loader
-├── models/                  # ML models directory
-│   └── baseline/            # Example model
-│       ├── best_model.pth
-│       └── config.yml
-├── static/                  # Static files
-├── templates/               # HTML templates
-├── uploads/                 # Uploaded files
-├── results/                 # Prediction results
-├── logs/                    # Logs
-├── config.yml               # Main configuration file
-├── requirements.txt
-├── Dockerfile
-├── docker-compose.yml
-├── start_api.sh             # Startup script
-└── README.md
+otk_api/
+├── api/                  # API implementation
+│   ├── main.py           # FastAPI application
+│   ├── predictor_wrapper.py  # Prediction job handler
+│   └── routes/           # API endpoints
+├── config.yml           # Configuration file
+├── models/              # Model storage
+│   └── baseline/         # Example model
+├── uploads/              # Uploaded files
+├── results/              # Prediction results
+├── logs/                 # Log files
+├── start_api.sh          # Startup script
+└── README.md             # This documentation
 ```
 
-## Model Selection Strategy
+## ⚠️ Important Notes
 
-The API selects models in the following priority:
-1. Model specified in prediction request (`model` parameter)
-2. Default model from config (`models.default_model`)
-3. Priority order from config (`models.priority`)
+1. **Job ID Security**: Save your Job ID securely for async tasks. It's needed to query status and download results.
 
-## GPU/CPU Scheduling Strategy
+2. **Data Retention**: 
+   - **Result files**: Automatically deleted after 3 days
+   - **Job records**: Kept permanently for audit purposes
 
-- Prioritize GPU for inference (configurable via `prefer_gpu`)
-- Monitor GPU memory usage, automatically switch to CPU when threshold is exceeded
-- Support multi-GPU load balancing
+3. **File Size Limit**: Maximum upload size is 100MB
+
+4. **Processing Time**: Depends on data size and server load, typically 1-5 seconds per sample
+
+5. **Error Handling**: If you receive an error, check your data format and try again
+
+## 🛠️ Troubleshooting
+
+### Common Issues
+
+1. **File Upload Errors**
+   - Ensure your file is a valid CSV
+   - Check that all required columns are present
+   - Verify file size is under 100MB
+
+2. **Prediction Failed**
+   - Check server logs for detailed error messages
+   - Verify your data format matches requirements
+   - Try with a smaller dataset first
+
+3. **API Unresponsive**
+   - Check if the server is running
+   - Verify network connectivity
+   - Try the health check endpoint
+
+## 📞 Support
+
+For questions or issues:
+
+1. **GitHub Issues**: [OTK Repository](https://github.com/WangLabCSU/otk/issues)
+2. **Email**: Contact the maintainers
+3. **Documentation**: This README and API endpoints
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+---
+
+**Last Updated**: February 12, 2026
+**Version**: 1.0.0
+**Maintainers**: Wang Lab @ CSU

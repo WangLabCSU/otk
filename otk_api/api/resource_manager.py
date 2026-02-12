@@ -72,6 +72,11 @@ class ResourceManager:
         """Get currently selected model name"""
         return self._selected_model
     
+    def rescan_models(self) -> Dict[str, Path]:
+        """Rescan for available models in configured directories"""
+        self.available_models = self._scan_models()
+        return self.available_models.copy()
+    
     def get_best_model(self) -> Tuple[str, Path]:
         """Get the best available model based on priority"""
         # If a model is explicitly selected and exists, use it

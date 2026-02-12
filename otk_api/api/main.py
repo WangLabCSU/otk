@@ -644,6 +644,24 @@ async def list_models():
         "priority": resource_manager.get_system_stats()["models"]["priority"],
     }
 
+@app.post("/api/v1/models/rescan")
+async def rescan_models():
+    """Rescan for available models and update the model list"""
+    try:
+        models = resource_manager.rescan_models()
+        model_list = resource_manager.get_model_list()
+        return {
+            "success": True,
+            "message": f"Successfully rescanned models. Found {len(models)} models.",
+            "models": model_list,
+            "total_models": len(models)
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Failed to rescan models: {str(e)}"
+        }
+
 @app.get("/api/v1/config", response_model=schemas.ConfigResponse)
 async def get_config():
     """Get current API configuration"""
