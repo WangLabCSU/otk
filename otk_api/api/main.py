@@ -24,6 +24,7 @@ from .resource_manager import resource_manager
 from .predictor_wrapper import run_prediction_job
 from .i18n import get_text, SUPPORTED_LANGUAGES
 from .cleanup import start_cleanup_scheduler
+import markdown
 
 app = FastAPI(
     title="OTK Prediction API",
@@ -191,6 +192,7 @@ def get_nav_html(t, lang, current_page=""):
         ("/web/upload", t['nav_upload'], "upload"),
         ("/web/jobs", t['nav_jobs'], "jobs"),
         ("/web/stats", t['nav_stats'], "stats"),
+        ("/web/docs", t['nav_docs'], "docs"),
     ]
     
     nav_html = '<nav style="background: #f5f5f5; padding: 10px; border-radius: 5px; margin-bottom: 20px;">'
@@ -978,6 +980,68 @@ async def stats_page(lang: str = Query(default="en", description="Language code"
             loadStats();
             setInterval(loadStats, 30000);
         </script>
+    </body>
+    </html>
+    """
+
+@app.get("/web/docs", response_class=HTMLResponse)
+async def docs_page(lang: str = Query(default="en", description="Language code")):
+    """Render README.md as HTML documentation page"""
+    t = get_text(lang)
+    nav = get_nav_html(t, lang, "docs")
+    footer = get_footer_html(t, lang)
+
+    # Read and convert README.md to HTML
+    readme_path = Path(__file__).parent.parent / "README.md"
+    try:
+        with open(readme_path, 'r', encoding='utf-8') as f:
+            readme_content = f.read()
+        # Convert markdown to HTML
+        html_content = markdown.markdown(readme_content, extensions=['tables', 'fenced_code'])
+    except Exception as e:
+        html_content = f"<p>Error loading documentation: {e}</p>"
+
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>{t['docs_title']} - OTK API</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; max-width: 900px; margin: 50px auto; padding: 20px; line-height: 1.6; }}
+            h1 {{ color: #333; border-bottom: 2px solid #2196F3; padding-bottom: 10px; }}
+            h2 {{ color: #444; margin-top: 30px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }}
+            h3 {{ color: #555; }}
+            code {{ background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-family: Consolas, monospace; }}
+            pre {{ background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; }}
+            pre code {{ background: none; padding: 0; }}
+            table {{ border-collapse: collapse; width: 100%; margin: 20px 0; }}
+            th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+            th {{ background: #f5f5f5; font-weight: bold; }}
+            a {{ color: #2196F3; text-decoration: none; }}
+            a:hover {{ text-decoration: underline; }}
+            ul, ol {{ padding-left: 25px; }}
+            blockquote {{ border-left: 4px solid #2196F3; margin: 0; padding-left: 15px; color: #666; }}
+            .lang-switch {{ position: absolute; top: 20px; right: 20px; }}
+            .lang-switch a {{ margin: 0 5px; text-decoration: none; padding: 5px 10px; border-radius: 3px; }}
+            .lang-switch a.active {{ background: #2196F3; color: white; }}
+            .lang-switch a:not(.active) {{ background: #f0f0f0; color: #333; }}
+            .docs-content {{ margin-top: 20px; }}
+        </style>
+    </head>
+    <body>
+        <div class="lang-switch">
+            <a href="/web/docs?lang=en" class="{'active' if lang == 'en' else ''}">English</a>
+            <a href="/web/docs?lang=zh" class="{'active' if lang == 'zh' else ''}">中文</a>
+        </div>
+        <h1>{t['docs_title']}</h1>
+
+        {nav}
+
+        <div class="docs-content">
+            {html_content}
+        </div>
+
+        {footer}
     </body>
     </html>
     """

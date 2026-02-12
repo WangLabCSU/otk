@@ -1,18 +1,20 @@
 # OTK Prediction API
 
-High-performance Scientific Computing API - ecDNA Prediction Service based on the otk project.
+High-performance Scientific Computing API - ecDNA (extrachromosomal DNA) Prediction Service based on the [OTK](https://github.com/WangLabCSU/otk) and [GCAP](https://github.com/shixiangwang/gcap) projects.
 
 ## Features
 
 - **Intelligent Resource Scheduling**: Automatically selects the best model and available GPU/CPU resources
-- **Model Management**: View and select from available models via API
+- **Model Management**: Auto-discovers models from `models/` directory, configurable via API
 - **Unified Configuration**: All settings managed through a single YAML configuration file
-- **Data Validation**: Integrity checks when uploading data
-- **Asynchronous Task Processing**: Uses background threads for prediction tasks
-- **Statistics**: Task count, processing time, resource usage, etc.
-- **Web Interface**: Supports task upload, status viewing, and result download
+- **Data Validation**: Comprehensive integrity checks when uploading data
+- **Asynchronous & Synchronous Processing**: Supports both async tasks and sync predictions for pipeline integration
+- **Statistics**: Task count, processing time, resource usage, and more
+- **Web Interface**: User-friendly interface for task upload, status viewing, and management
 - **REST API**: Complete API interface supporting curl and other tools
 - **Multi-language Support**: English and Chinese (default: English)
+- **Job Record Retention**: Task metadata kept permanently, result files retained for 3 days
+- **Security**: Job IDs are masked in web interface for privacy protection
 
 ## Quick Start
 
@@ -39,11 +41,34 @@ models:
     - "otk/output_precision_focused"
 ```
 
-### 3. Start API Service
+### 3. Model Setup
+
+Place your trained models in the `models/` directory:
+
+```
+otk_api/models/
+├── baseline/                    # Model name: "baseline"
+│   ├── best_model.pth
+│   └── config.yml
+└── your_custom_model/           # Model name: "your_custom_model"
+    ├── best_model.pth
+    └── config.yml
+```
+
+Models are auto-discovered from subdirectories containing `best_model.pth`.
+
+### 4. Start API Service
 
 ```bash
 cd otk/otk_api
 python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
+```
+
+Or use the provided startup script:
+
+```bash
+cd otk/otk_api
+./start_api.sh
 ```
 
 ## API Usage Examples
@@ -168,7 +193,9 @@ Add `?lang=en` or `?lang=zh` parameter to any URL:
 
 ### Data Retention
 
-Jobs and results are automatically deleted after **3 days**. Please download your results promptly.
+- **Result files**: Automatically deleted after **3 days**
+- **Job records**: Kept **permanently** for audit and tracking purposes
+- Please download your results promptly or save your Job ID for async tasks
 
 ## Data Format Requirements
 
@@ -205,7 +232,12 @@ otk/otk_api/
 │   ├── data_validator.py    # Data validation
 │   ├── resource_manager.py  # Resource management
 │   ├── predictor_wrapper.py # otk predictor wrapper
+│   ├── cleanup.py           # Cleanup scheduler
 │   └── config.py            # Configuration loader
+├── models/                  # ML models directory
+│   └── baseline/            # Example model
+│       ├── best_model.pth
+│       └── config.yml
 ├── static/                  # Static files
 ├── templates/               # HTML templates
 ├── uploads/                 # Uploaded files
@@ -215,13 +247,8 @@ otk/otk_api/
 ├── requirements.txt
 ├── Dockerfile
 ├── docker-compose.yml
+├── start_api.sh             # Startup script
 └── README.md
-```
-
-## Docker Deployment
-
-```bash
-docker-compose up -d
 ```
 
 ## Model Selection Strategy

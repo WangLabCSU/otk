@@ -49,7 +49,7 @@ model:
   architecture:
     type: EnsembleEcDNA
     layers:
-      - input_dim: 35
+      - input_dim: 31
       - hidden_dim: 128
       - hidden_dim: 64
       - output_dim: 1
