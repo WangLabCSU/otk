@@ -1,0 +1,139 @@
+# OTK API Configuration File
+# All settings can be overridden by environment variables
+
+# API Server Settings
+api:
+  host: "0.0.0.0"
+  port: 8000
+  debug: false
+  title: "OTK Prediction API"
+  description: "High-performance Scientific Computing API - ecDNA Prediction Service"
+  version: "1.0.0"
+
+# File Upload Settings
+upload:
+  max_file_size: 104857600  # 100MB in bytes
+  allowed_extensions: [".csv"]
+  upload_dir: "uploads"
+  results_dir: "results"
+  logs_dir: "logs"
+
+# Database Settings
+database:
+  url: "sqlite:///api.db"  # Can be overridden by DATABASE_URL env var
+  
+# Redis Settings (for Celery)
+redis:
+  url: "redis://localhost:6379/0"  # Can be overridden by REDIS_URL env var
+
+# Model Settings
+models:
+  # Default model to use (if not specified, will use priority order)
+  default_model: "baseline"
+
+  # Model search directories - only otk_api/models for released models
+  search_dirs:
+    - "models"
+
+  # Model priority order (higher priority first)
+  # Note: priority is dynamically loaded from otk_api/models directory
+  priority: []
+
+# Resource Management Settings
+resources:
+  # Maximum concurrent jobs
+  max_concurrent_jobs: 4
+  
+  # Job timeout in seconds
+  job_timeout: 3600
+  
+  # GPU memory threshold (0-1), switch to CPU if exceeded
+  gpu_memory_threshold: 0.8
+  
+  # Prefer GPU over CPU
+  prefer_gpu: true
+
+# Data Retention Settings
+retention:
+  # Job and result retention period in days
+  days: 3
+  
+  # Cleanup interval in hours
+  cleanup_interval: 24
+
+# Data Validation Settings
+validation:
+  required_columns:
+    - "sample"
+    - "gene_id"
+    - "segVal"
+    - "minor_cn"
+    - "purity"
+    - "ploidy"
+    - "AScore"
+    - "pLOH"
+    - "cna_burden"
+  
+  cn_columns:
+    - "CN1"
+    - "CN2"
+    - "CN3"
+    - "CN4"
+    - "CN5"
+    - "CN6"
+    - "CN7"
+    - "CN8"
+    - "CN9"
+    - "CN10"
+    - "CN11"
+    - "CN12"
+    - "CN13"
+    - "CN14"
+    - "CN15"
+    - "CN16"
+    - "CN17"
+    - "CN18"
+    - "CN19"
+  
+  optional_columns:
+    - "age"
+    - "gender"
+    - "y"
+    - "type"
+    - "intersect_ratio"
+  
+  # Default values for optional columns
+  default_values:
+    intersect_ratio: 1.0
+  
+  valid_cancer_types:
+    - "BLCA"
+    - "BRCA"
+    - "CESC"
+    - "COAD"
+    - "DLBC"
+    - "ESCA"
+    - "GBM"
+    - "HNSC"
+    - "KICH"
+    - "KIRC"
+    - "KIRP"
+    - "LGG"
+    - "LIHC"
+    - "LUAD"
+    - "LUSC"
+    - "OV"
+    - "PRAD"
+    - "READ"
+    - "SARC"
+    - "SKCM"
+    - "STAD"
+    - "THCA"
+    - "UCEC"
+    - "UVM"
+
+# Logging Settings
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/api.log"

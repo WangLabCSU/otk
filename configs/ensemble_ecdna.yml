@@ -1,11 +1,10 @@
 data:
-  sample_id: sample_id
+  sample_id: sample
   gene_id: gene_id
   features:
     - age
     - segVal
     - ploidy
-    - norm_cvg
     - freq_Linear
     - freq_BFB
     - freq_Circular
@@ -34,6 +33,7 @@ data:
     - type_THCA
     - type_UCEC
     - type_UVM
+  target: y
   missing_value_strategy:
     age: mean
   preprocessing:
@@ -43,13 +43,13 @@ data:
     method: stratified
     test_size: 0.2
     val_size: 0.1
-  batch_size: 64
+  batch_size: 1024
 
 model:
   architecture:
     type: EnsembleEcDNA
     layers:
-      - input_dim: 36
+      - input_dim: 35
       - hidden_dim: 128
       - hidden_dim: 64
       - output_dim: 1
@@ -73,7 +73,7 @@ model:
     - Recall
 
 prediction:
-  batch_size: 64
+  batch_size: 1024
   threshold: 0.75
 
 ensemble:
@@ -87,6 +87,7 @@ ensemble:
 
 training:
   epochs: 100
+  batch_size: 1024
   early_stopping:
     patience: 20
     min_delta: 0.0005
@@ -107,3 +108,5 @@ training:
     shuffle: true
     num_workers: 4
     pin_memory: true
+  validation_split: 0.1
+  test_split: 0.2

@@ -1,0 +1,238 @@
+# OTK Prediction API
+
+High-performance Scientific Computing API - ecDNA Prediction Service based on the otk project.
+
+## Features
+
+- **Intelligent Resource Scheduling**: Automatically selects the best model and available GPU/CPU resources
+- **Model Management**: View and select from available models via API
+- **Unified Configuration**: All settings managed through a single YAML configuration file
+- **Data Validation**: Integrity checks when uploading data
+- **Asynchronous Task Processing**: Uses background threads for prediction tasks
+- **Statistics**: Task count, processing time, resource usage, etc.
+- **Web Interface**: Supports task upload, status viewing, and result download
+- **REST API**: Complete API interface supporting curl and other tools
+- **Multi-language Support**: English and Chinese (default: English)
+
+## Quick Start
+
+### 1. Install Dependencies
+
+```bash
+cd otk/otk_api
+pip install -r requirements.txt
+```
+
+### 2. Configure
+
+Edit `config.yml` to customize settings:
+
+```yaml
+api:
+  host: "0.0.0.0"
+  port: 8000
+
+models:
+  default_model: null  # Set to auto-select, or specify a model name
+  search_dirs:
+    - "otk/output_advanced_ecdna"
+    - "otk/output_precision_focused"
+```
+
+### 3. Start API Service
+
+```bash
+cd otk/otk_api
+python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
+```
+
+## API Usage Examples
+
+### Submit Prediction Task
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/predict" \
+  -F "file=@data.csv"
+```
+
+### List Available Models
+
+```bash
+curl "http://localhost:8000/api/v1/models"
+```
+
+Response:
+```json
+{
+  "models": [
+    {"name": "advanced_ecdna", "path": "...", "exists": true, "is_default": false},
+    {"name": "precision_focused", "path": "...", "exists": true, "is_default": false}
+  ],
+  "default_model": null,
+  "priority": ["advanced_ecdna", "precision_focused", "..."]
+}
+```
+
+### Get API Configuration
+
+```bash
+curl "http://localhost:8000/api/v1/config"
+```
+
+### Query Task Status
+
+```bash
+curl "http://localhost:8000/api/v1/jobs/{job_id}"
+```
+
+### Download Prediction Results
+
+```bash
+curl "http://localhost:8000/api/v1/jobs/{job_id}/download" -o results.csv
+```
+
+### Get Data Validation Report
+
+```bash
+curl "http://localhost:8000/api/v1/validation-report/{job_id}"
+```
+
+### Get Statistics
+
+```bash
+curl "http://localhost:8000/api/v1/statistics"
+```
+
+### Health Check
+
+```bash
+curl "http://localhost:8000/api/v1/health"
+```
+
+## Configuration
+
+All settings are managed through `config.yml`:
+
+```yaml
+# API Server Settings
+api:
+  host: "0.0.0.0"
+  port: 8000
+
+# File Upload Settings
+upload:
+  max_file_size: 104857600  # 100MB
+  allowed_extensions: [".csv"]
+
+# Model Settings
+models:
+  default_model: null  # null for auto-select, or specify model name
+  search_dirs:
+    - "otk/output_advanced_ecdna"
+    - "otk/output_precision_focused"
+  priority:
+    - "advanced_ecdna"
+    - "precision_focused"
+
+# Resource Management
+resources:
+  max_concurrent_jobs: 4
+  job_timeout: 3600
+  gpu_memory_threshold: 0.8
+  prefer_gpu: true
+
+# Data Retention
+retention:
+  days: 3  # Jobs and results are retained for 3 days
+  cleanup_interval: 24  # Cleanup runs every 24 hours
+```
+
+Environment variables can override YAML settings:
+- `API_HOST` / `API_PORT`: Server settings
+- `DATABASE_URL`: Database connection
+- `REDIS_URL`: Redis connection
+- `MAX_CONCURRENT_JOBS`: Concurrent job limit
+
+## Web Interface
+
+- Homepage: http://localhost:8000/
+- Task Upload: http://localhost:8000/web/upload
+- Task List: http://localhost:8000/web/jobs
+- Statistics Dashboard: http://localhost:8000/web/stats
+
+### Language Switching
+
+Add `?lang=en` or `?lang=zh` parameter to any URL:
+- English: http://localhost:8000/?lang=en
+- Chinese: http://localhost:8000/?lang=zh
+
+### Data Retention
+
+Jobs and results are automatically deleted after **3 days**. Please download your results promptly.
+
+## Data Format Requirements
+
+The uploaded CSV file must contain the following columns:
+
+**Required Columns:**
+- `sample`: Sample ID
+- `gene_id`: Gene ID
+- `segVal`: Copy number
+- `minor_cn`: Minor copy number
+- `purity`: Tumor purity
+- `ploidy`: Ploidy
+- `AScore`: Aneuploidy score
+- `pLOH`: Loss of heterozygosity ratio
+- `cna_burden`: CNA burden
+- `CN1-CN19`: Copy number signatures
+
+**Optional Columns:**
+- `age`: Age
+- `gender`: Gender
+- `type`: Cancer type
+- `intersect_ratio`: Overlap ratio (default: 1.0 if not provided)
+
+## Project Structure
+
+```
+otk/otk_api/
+├── api/
+│   ├── __init__.py
+│   ├── main.py              # Main application
+│   ├── models.py            # Database models
+│   ├── schemas.py           # Pydantic models
+│   ├── i18n.py              # Internationalization
+│   ├── data_validator.py    # Data validation
+│   ├── resource_manager.py  # Resource management
+│   ├── predictor_wrapper.py # otk predictor wrapper
+│   └── config.py            # Configuration loader
+├── static/                  # Static files
+├── templates/               # HTML templates
+├── uploads/                 # Uploaded files
+├── results/                 # Prediction results
+├── logs/                    # Logs
+├── config.yml               # Main configuration file
+├── requirements.txt
+├── Dockerfile
+├── docker-compose.yml
+└── README.md
+```
+
+## Docker Deployment
+
+```bash
+docker-compose up -d
+```
+
+## Model Selection Strategy
+
+The API selects models in the following priority:
+1. Model specified in prediction request (`model` parameter)
+2. Default model from config (`models.default_model`)
+3. Priority order from config (`models.priority`)
+
+## GPU/CPU Scheduling Strategy
+
+- Prioritize GPU for inference (configurable via `prefer_gpu`)
+- Monitor GPU memory usage, automatically switch to CPU when threshold is exceeded
+- Support multi-GPU load balancing

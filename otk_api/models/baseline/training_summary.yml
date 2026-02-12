@@ -1,0 +1,13 @@
+best_val_auPRC: 0.8189385879496834
+data_processing_time: 56.02734446525574
+early_stopped: true
+epochs_trained: 16
+test_evaluation_time: 28.75942897796631
+test_metrics:
+  AUC: 0.9737294587400112
+  F1: 0.6823616418094416
+  Precision: 0.9242070116861436
+  Recall: 0.5408362641656898
+  auPRC: 0.7327505003717235
+  optimal_threshold: 0.8181818181818182
+total_training_time: 2225.6553971767426
