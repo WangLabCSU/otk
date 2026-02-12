@@ -446,6 +446,19 @@ class Trainer:
         epochs_no_improve = 0
         best_model_path = os.path.join(self.output_dir, 'best_model.pth')
         
+        # Initialize training history tracking
+        training_history = {
+            'train_loss': [],
+            'val_loss': [],
+            'train_metrics': [],
+            'val_metrics': [],
+            'learning_rates': [],
+            'epochs': []
+        }
+        best_val_metrics = None
+        best_train_metrics = None
+        best_epoch = 0
+        
         # Create output directory if it doesn't exist
         os.makedirs(self.output_dir, exist_ok=True)
         logger.info(f"Output directory created: {self.output_dir}")
@@ -468,6 +481,14 @@ class Trainer:
             # Validate
             val_loss, val_metrics = self.validate(val_loader)
             
+            # Record training history
+            training_history['epochs'].append(epoch)
+            training_history['train_loss'].append(float(train_loss))
+            training_history['val_loss'].append(float(val_loss))
+            training_history['train_metrics'].append({k: float(v) for k, v in train_metrics.items()})
+            training_history['val_metrics'].append({k: float(v) for k, v in val_metrics.items()})
+            training_history['learning_rates'].append(float(self.optimizer.param_groups[0]['lr']))
+            
             # Update learning rate scheduler
             if self.scheduler:
                 # 根据调度器类型决定是否传递参数
@@ -483,6 +504,9 @@ class Trainer:
             # Early stopping
             if val_metrics['auPRC'] > best_val_auPRC + min_delta:
                 best_val_auPRC = val_metrics['auPRC']
+                best_val_metrics = val_metrics.copy()
+                best_train_metrics = train_metrics.copy()
+                best_epoch = epoch
                 epochs_no_improve = 0
                 # Save best model
                 self.ecdna_model.save(best_model_path)
@@ -514,21 +538,78 @@ class Trainer:
         for metric, value in test_metrics.items():
             logger.info(f"{metric}: {value:.4f}")
         
+        # Get dataset statistics
+        train_dataset = train_loader.dataset
+        val_dataset = val_loader.dataset
+        test_dataset = test_loader.dataset
+        
+        train_labels = train_dataset.labels if hasattr(train_dataset, 'labels') else []
+        val_labels = val_dataset.labels if hasattr(val_dataset, 'labels') else []
+        test_labels = test_dataset.labels if hasattr(test_dataset, 'labels') else []
+        
+        dataset_stats = {
+            'train_samples': len(train_dataset),
+            'val_samples': len(val_dataset),
+            'test_samples': len(test_dataset),
+            'train_positive': int(sum(train_labels)) if len(train_labels) > 0 else 0,
+            'val_positive': int(sum(val_labels)) if len(val_labels) > 0 else 0,
+            'test_positive': int(sum(test_labels)) if len(test_labels) > 0 else 0,
+            'train_positive_rate': float(sum(train_labels) / len(train_labels)) if len(train_labels) > 0 else 0.0,
+            'val_positive_rate': float(sum(val_labels) / len(val_labels)) if len(val_labels) > 0 else 0.0,
+            'test_positive_rate': float(sum(test_labels) / len(test_labels)) if len(test_labels) > 0 else 0.0
+        }
+        
+        # Calculate overfitting analysis
+        overfitting_analysis = {}
+        if best_train_metrics and best_val_metrics:
+            overfitting_analysis = {
+                'train_val_auPRC_gap': float(best_train_metrics.get('auPRC', 0) - best_val_metrics.get('auPRC', 0)),
+                'train_val_precision_gap': float(best_train_metrics.get('Precision', 0) - best_val_metrics.get('Precision', 0)),
+                'train_val_recall_gap': float(best_train_metrics.get('Recall', 0) - best_val_metrics.get('Recall', 0)),
+                'overfitting_severity': 'high' if (best_train_metrics.get('auPRC', 0) - best_val_metrics.get('auPRC', 0)) > 0.15 else 'medium' if (best_train_metrics.get('auPRC', 0) - best_val_metrics.get('auPRC', 0)) > 0.05 else 'low'
+            }
+        
         # Save test metrics
         test_metrics_path = os.path.join(self.output_dir, 'test_metrics.yml')
         with open(test_metrics_path, 'w') as f:
-            yaml.dump(test_metrics, f)
+            yaml.dump({k: float(v) for k, v in test_metrics.items()}, f)
         logger.info(f"Test metrics saved to {test_metrics_path}")
         
-        # Save training summary
+        # Save training history
+        history_path = os.path.join(self.output_dir, 'training_history.yml')
+        with open(history_path, 'w') as f:
+            yaml.dump(training_history, f)
+        logger.info(f"Training history saved to {history_path}")
+        
+        # Save comprehensive training summary
         training_summary = {
-            'best_val_auPRC': best_val_auPRC,
-            'test_metrics': test_metrics,
-            'epochs_trained': epoch,
-            'early_stopped': epochs_no_improve >= patience,
-            'total_training_time': total_training_time,
-            'data_processing_time': data_processing_time,
-            'test_evaluation_time': test_time
+            'model_info': {
+                'model_type': self.config['model']['architecture']['type'],
+                'input_dim': self.config['model']['architecture'].get('input_dim', 'N/A'),
+                'hidden_dims': self.config['model']['architecture'].get('hidden_dims', 'N/A'),
+                'dropout_rate': self.config['model']['architecture'].get('dropout_rate', 'N/A'),
+                'loss_function': self.config['model']['loss_function']['type'],
+                'optimizer': self.config['model']['optimizer']['type'],
+                'learning_rate': self.config['model']['optimizer']['lr'],
+                'weight_decay': self.config['model']['optimizer'].get('weight_decay', 0),
+                'batch_size': self.config['training']['batch_size']
+            },
+            'dataset_statistics': dataset_stats,
+            'training_progress': {
+                'epochs_trained': epoch,
+                'best_epoch': best_epoch,
+                'early_stopped': epochs_no_improve >= patience,
+                'total_training_time_seconds': float(total_training_time),
+                'data_processing_time_seconds': float(data_processing_time),
+                'test_evaluation_time_seconds': float(test_time)
+            },
+            'performance': {
+                'training_set': {k: float(v) for k, v in best_train_metrics.items()} if best_train_metrics else {},
+                'validation_set': {k: float(v) for k, v in best_val_metrics.items()} if best_val_metrics else {},
+                'test_set': {k: float(v) for k, v in test_metrics.items()}
+            },
+            'overfitting_analysis': overfitting_analysis,
+            'best_val_auPRC': float(best_val_auPRC)
         }
         summary_path = os.path.join(self.output_dir, 'training_summary.yml')
         with open(summary_path, 'w') as f:

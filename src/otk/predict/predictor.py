@@ -131,7 +131,36 @@ class Predictor:
     
     def preprocess(self, df):
         """Preprocess data for prediction"""
-        # Handle missing values
+        DEFAULT_VALUES = {
+            'minor_cn': 0,
+            'intersect_ratio': 1.0,
+            'purity': 0.8,
+            'ploidy': 2.0,
+            'AScore': 10.0,
+            'pLOH': 0.1,
+            'cna_burden': 0.2,
+            'age': 60,
+            'gender': 0,
+        }
+        for i in range(1, 20):
+            DEFAULT_VALUES[f'CN{i}'] = 0.05
+        
+        required_features = self.config['data']['features']
+        missing_cols = [col for col in required_features if col not in df.columns]
+        
+        if missing_cols:
+            print(f"Filling missing columns with default values: {missing_cols}")
+            for col in missing_cols:
+                if col in DEFAULT_VALUES:
+                    df[col] = DEFAULT_VALUES[col]
+                elif col.startswith('type_'):
+                    df[col] = 0
+                elif col.startswith('freq_'):
+                    df[col] = 0
+                else:
+                    df[col] = 0
+                    print(f"Warning: No default value for column '{col}', using 0")
+        
         if 'age' in df.columns:
             if df['age'].isnull().sum() > 0:
                 strategy = self.config['data']['missing_value_strategy'].get('age', 'mean')
@@ -143,7 +172,6 @@ class Predictor:
                     df['age'] = df['age'].fillna(df['age'].mode()[0])
                 print(f"Handled missing values in 'age' column using {strategy} strategy")
         
-        # Add gene level frequency features
         if 'gene_id' in df.columns:
             print("Adding gene level frequency features...")
             for gene_freq_col in ['freq_Linear', 'freq_BFB', 'freq_Circular', 'freq_HR']:
@@ -152,21 +180,23 @@ class Predictor:
         else:
             print("Warning: 'gene_id' column not found, cannot add gene frequency features")
         
-        # Handle cancer type conversion
         if 'type' in df.columns:
             print("Processing cancer type...")
-            # Convert cancer type to one-hot encoding
             for cancer_type in self.cancer_types:
                 col_name = f'type_{cancer_type}'
                 df[col_name] = df['type'].apply(lambda x: 1 if str(x).strip() == cancer_type else 0)
             print("Cancer type one-hot encoding completed")
         else:
-            print("Warning: 'type' column not found, cannot process cancer type")
+            has_type_cols = any(col.startswith('type_') for col in df.columns)
+            if not has_type_cols:
+                print("Warning: No 'type' column and no type_* columns found, setting all type_* to 0")
+                for cancer_type in self.cancer_types:
+                    col_name = f'type_{cancer_type}'
+                    if col_name not in df.columns:
+                        df[col_name] = 0
         
-        # Select features
         features = df[self.config['data']['features']]
         
-        # Save sample and gene information if available
         sample_info = None
         gene_info = None
         if self.config['data']['sample_id'] in df.columns:

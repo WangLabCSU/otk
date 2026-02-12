@@ -82,6 +82,7 @@ curl -X POST "http://biotree.top:38123/otk/api/v1/predict-sync" \
 **Endpoint**: `POST /api/v1/predict`
 
 **Parameters**:
+
 - `file`: CSV file with prediction data
 
 **Response**:
@@ -103,9 +104,11 @@ curl -X POST "http://biotree.top:38123/otk/api/v1/predict-sync" \
 **Endpoint**: `POST /api/v1/predict-sync`
 
 **Parameters**:
+
 - `file`: CSV file with prediction data
 
 **Response**:
+
 - Returns CSV file directly for immediate use in pipelines
 
 ### 4. Get Task Status
@@ -127,6 +130,7 @@ curl -X POST "http://biotree.top:38123/otk/api/v1/predict-sync" \
 **Endpoint**: `GET /api/v1/jobs/{job_id}/download`
 
 **Response**:
+
 - Returns CSV file with prediction results
 
 ### 6. Get Statistics
@@ -147,38 +151,106 @@ curl -X POST "http://biotree.top:38123/otk/api/v1/predict-sync" \
 
 ## 📊 Data Format Requirements
 
-### Required Columns
+### Minimal Required Columns
 
-Your CSV file must include these columns:
+For basic prediction, your CSV file only needs these **minimum columns**:
 
-| Column         | Description                          |
-|----------------|--------------------------------------|
-| `sample`       | Sample ID                            |
-| `gene_id`      | Gene identifier                      |
-| `segVal`       | Segment value                        |
-| `minor_cn`     | Minor copy number                    |
-| `purity`       | Tumor purity                         |
-| `ploidy`       | Ploidy level                         |
-| `AScore`       | A-score value                        |
-| `pLOH`         | Loss of heterozygosity probability   |
-| `cna_burden`   | Copy number alteration burden        |
-| `age`          | Sample age                           |
-| `gender`       | Gender (0/1 or Male/Female)          |
-| `type`         | Cancer type                          |
-| `CN1` to `CN19` | Chromosome copy numbers             |
+| Column     | Description       |
+|------------|-------------------|
+| `sample`   | Sample ID         |
+| `gene_id`  | Gene identifier   |
+| `segVal`   | Segment value     |
+
+However, for optimal prediction accuracy, we recommend including as many features as possible.
+
+### Recommended Columns
+
+| Column         | Description                          | Required by API | Auto-fill Default |
+|----------------|--------------------------------------|-----------------|-------------------|
+| `sample`       | Sample ID                            | ✅ Yes          | -                 |
+| `gene_id`      | Gene identifier (e.g., ENSG00000284662) | ✅ Yes      | -                 |
+| `segVal`       | Gene total copy number               | ✅ Yes          | -                 |
+| `minor_cn`     | Minor copy number                    | ✅ Yes          | 0                 |
+| `purity`       | Tumor purity                         | ✅ Yes          | 0.8               |
+| `ploidy`       | Ploidy level                         | ✅ Yes          | 2.0               |
+| `AScore`       | A-score value                        | ✅ Yes          | 10.0              |
+| `pLOH`         | Loss of heterozygosity probability   | ✅ Yes          | 0.1               |
+| `cna_burden`   | Copy number alteration burden        | ✅ Yes          | 0.2               |
+| `CN1` to `CN19` | Chromosome copy number signatures   | ⚠️ Recommended  | 0.05 each         |
 
 ### Optional Columns
 
-| Column           | Description                          | Default Value |
-|------------------|--------------------------------------|---------------|
-| `intersect_ratio` | Intersection ratio                  | 1.0           |
-| `y`              | Ground truth label (for training)    | N/A           |
+| Column           | Description                          | Auto-fill Behavior               |
+|------------------|--------------------------------------|----------------------------------|
+| `type`           | Cancer type (e.g., BRCA, LUAD)       | Auto-converts to `type_*` columns |
+| `age`            | Sample age                           | Filled with mean value            |
+| `gender`         | Gender (0/1 or Male/Female)          | Filled with 0                     |
+| `intersect_ratio`| Intersection ratio                   | Filled with 1.0                   |
+| `y`              | Ground truth label (for validation)  | Not used in prediction            |
+
+### Auto-Generated Features
+
+The system automatically generates these features - **you do NOT need to provide them**:
+
+| Feature Type    | Columns                          | Source                              |
+|-----------------|----------------------------------|-------------------------------------|
+| Cancer Type     | `type_BLCA`, `type_BRCA`, ... (24 columns) | Converted from `type` column |
+| Gene Frequency  | `freq_Linear`, `freq_BFB`, `freq_Circular`, `freq_HR` | Matched from `gene_id` using precomputed prior data |
+
+### Cancer Types
+
+The following cancer types are supported (for `type` column):
+
+```
+BLCA, BRCA, CESC, COAD, DLBC, ESCA, GBM, HNSC,
+KICH, KIRC, KIRP, LGG, LIHC, LUAD, LUSC, OV,
+PRAD, READ, SARC, SKCM, STAD, THCA, UCEC, UVM
+```
+
+If an invalid cancer type is provided, all `type_*` columns will be set to 0.
 
 ### Example Data
 
+**Minimal input (3 columns):**
 ```csv
-sample,gene_id,segVal,minor_cn,purity,ploidy,AScore,pLOH,cna_burden,age,gender,type,intersect_ratio,CN1,CN2,CN3,CN4,CN5,CN6,CN7,CN8,CN9,CN10,CN11,CN12,CN13,CN14,CN15,CN16,CN17,CN18,CN19
-TCGA-TEST-01,ENSG00000284662,3.2,1.1,0.85,2.8,0.75,0.45,0.3,65,1,LUSC,1.0,2.1,2.2,2.3,2.4,2.5,2.6,2.7,2.8,2.9,3.0,3.1,3.2,3.3,3.4,3.5,3.6,3.7,3.8,3.9
+sample,gene_id,segVal
+TCGA-TEST-01,ENSG00000284662,3.2
+TCGA-TEST-01,ENSG00000187634,2.5
+```
+
+**Recommended input (with type column):**
+```csv
+sample,gene_id,segVal,minor_cn,purity,ploidy,AScore,pLOH,cna_burden,age,gender,type,CN1,CN2,CN3,CN4,CN5,CN6,CN7,CN8,CN9,CN10,CN11,CN12,CN13,CN14,CN15,CN16,CN17,CN18,CN19
+TCGA-TEST-01,ENSG00000284662,3.2,1.1,0.85,2.8,12.5,0.15,0.25,65,1,LUSC,0.1,0.2,0.3,0.1,0.05,0.05,0.05,0.05,0.02,0.02,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01
+```
+
+**Alternative: Using pre-encoded type_* columns:**
+```csv
+sample,gene_id,segVal,minor_cn,purity,ploidy,AScore,pLOH,cna_burden,type_BRCA,type_LUAD,...(other type_* columns),CN1,CN2,...
+TCGA-TEST-01,ENSG00000284662,3.2,1.1,0.85,2.8,12.5,0.15,0.25,1,0,...,0.1,0.2,...
+```
+
+### Data Validation
+
+The API validates your data and returns a detailed report:
+
+```json
+{
+  "validation_report": {
+    "is_valid": true,
+    "errors": [],
+    "warnings": [
+      "Optional column missing: intersect_ratio, will use default value 1.0",
+      "CN signature columns incomplete: found 15/19 columns",
+      "Missing type column, cannot validate cancer type"
+    ],
+    "info": {
+      "total_rows": 100,
+      "unique_samples": 50,
+      "unique_genes": 100
+    }
+  }
+}
 ```
 
 ## 🎯 Prediction Output
@@ -210,12 +282,14 @@ TCGA-TEST-01,ENSG00000243073,0.000036,0,nofocal,0
 The API includes a user-friendly web interface:
 
 ### Access
+
 - **Homepage**: http://biotree.top:38123/otk/
 - **Task Upload**: http://biotree.top:38123/otk/web/upload
 - **Task List**: http://biotree.top:38123/otk/web/jobs
 - **Statistics**: http://biotree.top:38123/otk/web/stats
 
 ### Language Support
+
 - Add `?lang=en` for English: http://biotree.top:38123/otk/?lang=en
 - Add `?lang=zh` for Chinese: http://biotree.top:38123/otk/?lang=zh
 
@@ -242,8 +316,8 @@ otk_api/
 1. **Job ID Security**: Save your Job ID securely for async tasks. It's needed to query status and download results.
 
 2. **Data Retention**: 
-   - **Result files**: Automatically deleted after 3 days
-   - **Job records**: Kept permanently for audit purposes
+  - **Result files**: Automatically deleted after 3 days
+  - **Job records**: Kept permanently for audit purposes
 
 3. **File Size Limit**: Maximum upload size is 100MB
 
@@ -256,19 +330,22 @@ otk_api/
 ### Common Issues
 
 1. **File Upload Errors**
-   - Ensure your file is a valid CSV
-   - Check that all required columns are present
-   - Verify file size is under 100MB
+
+  - Ensure your file is a valid CSV
+  - Check that all required columns are present
+  - Verify file size is under 100MB
 
 2. **Prediction Failed**
-   - Check server logs for detailed error messages
-   - Verify your data format matches requirements
-   - Try with a smaller dataset first
+
+  - Check server logs for detailed error messages
+  - Verify your data format matches requirements
+  - Try with a smaller dataset first
 
 3. **API Unresponsive**
-   - Check if the server is running
-   - Verify network connectivity
-   - Try the health check endpoint
+
+  - Check if the server is running
+  - Verify network connectivity
+  - Try the health check endpoint
 
 ## 📞 Support
 
@@ -289,5 +366,5 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ---
 
 **Last Updated**: February 12, 2026
-**Version**: 1.0.0
+**Version**: 1.1.0
 **Maintainers**: Wang Lab @ CSU

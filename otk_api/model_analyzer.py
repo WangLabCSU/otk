@@ -258,6 +258,7 @@ class ModelAnalyzer:
         lines.append("## 模型概览")
         lines.append("")
         lines.append(f"共发现 {len(self.models)} 个模型:")
+        lines.append("")
         for m in self.models:
             lines.append(f"  - {m.name} ({m.model_type})")
         lines.append("")
@@ -299,6 +300,7 @@ class ModelAnalyzer:
             best_precision = max(self.models, key=lambda m: m.metrics['Precision'])
             best_recall = max(self.models, key=lambda m: m.metrics['Recall'])
             
+            lines.append("")
             lines.append(f"- **最佳 test_auPRC**: {best_auprc.name} ({best_auprc.metrics['auPRC']:.4f})")
             lines.append(f"- **最佳 val_auPRC**: {best_val_auprc.name} ({best_val_auprc.val_auPRC:.4f})")
             lines.append(f"- **最佳 AUC**: {best_auc.name} ({best_auc.metrics['AUC']:.4f})")
@@ -312,6 +314,7 @@ class ModelAnalyzer:
         for m in self.models:
             arch_info = self.MODEL_ARCHITECTURE_INFO.get(m.model_type, {})
             lines.append(f"### {m.name}")
+            lines.append("")
             lines.append("")
             lines.append(f"- **类型**: {m.model_type}")
             lines.append(f"- **描述**: {arch_info.get('description', 'N/A')}")
