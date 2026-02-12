@@ -34,7 +34,7 @@ class Predictor:
         self.model = self._load_model()
         
         # Load configuration from model checkpoint
-        checkpoint = torch.load(model_path)
+        checkpoint = torch.load(model_path, map_location=self.device)
         self.config = checkpoint['config']
         
         # Load precomputed gene frequencies

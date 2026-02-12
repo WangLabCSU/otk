@@ -6,7 +6,7 @@ api_dir = Path(__file__).parent
 otk_src_path = api_dir.parent.parent.parent / "src"
 sys.path.insert(0, str(otk_src_path))
 
-from fastapi import FastAPI, File, UploadFile, Depends, HTTPException, BackgroundTasks, Query, Form
+from fastapi import FastAPI, File, UploadFile, Depends, HTTPException, BackgroundTasks, Query, Form, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
@@ -26,10 +26,20 @@ from .i18n import get_text, SUPPORTED_LANGUAGES
 from .cleanup import start_cleanup_scheduler
 import markdown
 
+# Get base path from environment variable or use empty string (root)
+BASE_PATH = os.environ.get('OTK_BASE_PATH', '').rstrip('/')
+
+def get_url(path: str) -> str:
+    """Generate URL with base path prefix"""
+    if not path.startswith('/'):
+        path = '/' + path
+    return f"{BASE_PATH}{path}"
+
 app = FastAPI(
     title="OTK Prediction API",
     description="High-performance Scientific Computing API - ecDNA Prediction Service",
     version="1.0.0",
+    root_path=BASE_PATH if BASE_PATH else None,
 )
 
 init_db()
@@ -37,7 +47,9 @@ init_db()
 # Start cleanup scheduler for old jobs
 start_cleanup_scheduler()
 
-app.mount("/static", StaticFiles(directory=str(Path(__file__).parent.parent / "static")), name="static")
+# Mount static files with base path
+static_path = f"{BASE_PATH}/static" if BASE_PATH else "/static"
+app.mount(static_path, StaticFiles(directory=str(Path(__file__).parent.parent / "static")), name="static")
 
 task_queue = queue.Queue()
 active_jobs = {}
@@ -188,11 +200,11 @@ def _update_statistics(db, success: bool, stats: dict, device_type: str):
 def get_nav_html(t, lang, current_page=""):
     """Generate navigation HTML for web pages"""
     nav_items = [
-        ("/", t['nav_home'], "home"),
-        ("/web/upload", t['nav_upload'], "upload"),
-        ("/web/jobs", t['nav_jobs'], "jobs"),
-        ("/web/stats", t['nav_stats'], "stats"),
-        ("/web/docs", t['nav_docs'], "docs"),
+        (get_url("/"), t['nav_home'], "home"),
+        (get_url("/web/upload"), t['nav_upload'], "upload"),
+        (get_url("/web/jobs"), t['nav_jobs'], "jobs"),
+        (get_url("/web/stats"), t['nav_stats'], "stats"),
+        (get_url("/web/docs"), t['nav_docs'], "docs"),
     ]
     
     nav_html = '<nav style="background: #f5f5f5; padding: 10px; border-radius: 5px; margin-bottom: 20px;">'
@@ -204,10 +216,11 @@ def get_nav_html(t, lang, current_page=""):
 
 def get_footer_html(t, lang):
     """Generate footer HTML for web pages"""
+    home_url = get_url("/")
     return f'''
     <footer style="margin-top: 40px; padding: 20px; border-top: 1px solid #ddd; text-align: center; color: #666; font-size: 12px;">
         <p>{t['retention_notice']}</p>
-        <p>OTK Prediction API | <a href="/?lang={lang}">{t['nav_home']}</a></p>
+        <p>OTK Prediction API | <a href="{home_url}?lang={lang}">{t['nav_home']}</a></p>
     </footer>
     '''
 
@@ -246,8 +259,8 @@ async def root(lang: str = Query(default="en", description="Language code")):
     </head>
     <body>
         <div class="lang-switch">
-            <a href="/?lang=en" class="{'active' if lang == 'en' else ''}">English</a>
-            <a href="/?lang=zh" class="{'active' if lang == 'zh' else ''}">中文</a>
+            <a href="{get_url('/')}?lang=en" class="{'active' if lang == 'en' else ''}">English</a>
+            <a href="{get_url('/')}?lang=zh" class="{'active' if lang == 'zh' else ''}">中文</a>
         </div>
         <div class="title-row">
             <h1>OTK Prediction API</h1>
@@ -304,9 +317,9 @@ async def root(lang: str = Query(default="en", description="Language code")):
         
         <h2>{t['web_interface']}</h2>
         <ul>
-            <li><a href="/web/upload?lang={lang}">{t['task_upload']}</a></li>
-            <li><a href="/web/jobs?lang={lang}">{t['task_list']}</a></li>
-            <li><a href="/web/stats?lang={lang}">{t['statistics_dashboard']}</a></li>
+            <li><a href="{get_url('/web/upload')}?lang={lang}">{t['task_upload']}</a></li>
+            <li><a href="{get_url('/web/jobs')}?lang={lang}">{t['task_list']}</a></li>
+            <li><a href="{get_url('/web/stats')}?lang={lang}">{t['statistics_dashboard']}</a></li>
         </ul>
 
         {footer}
@@ -715,8 +728,8 @@ async def upload_page(lang: str = Query(default="en", description="Language code
     </head>
     <body>
         <div class="lang-switch">
-            <a href="/web/upload?lang=en" class="{'active' if lang == 'en' else ''}">English</a>
-            <a href="/web/upload?lang=zh" class="{'active' if lang == 'zh' else ''}">中文</a>
+            <a href="{get_url('/web/upload')}?lang=en" class="{'active' if lang == 'en' else ''}">English</a>
+            <a href="{get_url('/web/upload')}?lang=zh" class="{'active' if lang == 'zh' else ''}">中文</a>
         </div>
         <h1>{t['upload_title']}</h1>
         
@@ -724,7 +737,7 @@ async def upload_page(lang: str = Query(default="en", description="Language code
         
         <div class="sample-file">
             <strong>{t['sample_file']}:</strong> 
-            {'<a href="/api/v1/sample-file" download>📥 ' + t['download_sample'] + '</a>' if sample_file_exists else '<span style="color: #999;">Sample file not available</span>'}
+            {'<a href="' + get_url('/api/v1/sample-file') + '" download>📥 ' + t['download_sample'] + '</a>' if sample_file_exists else '<span style="color: #999;">Sample file not available</span>'}
         </div>
         
         <div class="upload-area">
@@ -758,7 +771,7 @@ async def upload_page(lang: str = Query(default="en", description="Language code
                 const selectedModel = modelSelect.value || '{t['auto_select']}';
                 
                 try {{
-                    const response = await fetch('/api/v1/predict', {{
+                    const response = await fetch('{get_url('/api/v1/predict')}', {{
                         method: 'POST',
                         body: formData
                     }});
@@ -771,7 +784,7 @@ async def upload_page(lang: str = Query(default="en", description="Language code
                             <p>Job ID: <code>${{data.id}}</code></p>
                             <p>{t['status']}: ${{data.status}}</p>
                             <p>{t['selected_model']}: ${{selectedModel}}</p>
-                            <p><a href="/web/jobs?lang={lang}">{t['view_task_list']}</a></p>
+                            <p><a href="{get_url('/web/jobs')}?lang={lang}">{t['view_task_list']}</a></p>
                         `;
                     }} else {{
                         resultDiv.className = 'error';
@@ -826,8 +839,8 @@ async def jobs_page(lang: str = Query(default="en", description="Language code")
     </head>
     <body>
         <div class="lang-switch">
-            <a href="/web/jobs?lang=en" class="{'active' if lang == 'en' else ''}">English</a>
-            <a href="/web/jobs?lang=zh" class="{'active' if lang == 'zh' else ''}">中文</a>
+            <a href="{get_url('/web/jobs')}?lang=en" class="{'active' if lang == 'en' else ''}">English</a>
+            <a href="{get_url('/web/jobs')}?lang=zh" class="{'active' if lang == 'zh' else ''}">中文</a>
         </div>
         <h1>{t['task_list_title']}</h1>
         
@@ -863,11 +876,11 @@ async def jobs_page(lang: str = Query(default="en", description="Language code")
                 
                 try {{
                     // Fetch recent jobs from a new endpoint
-                    const response = await fetch('/api/v1/jobs/recent');
+                    const response = await fetch('{get_url('/api/v1/jobs/recent')}');
                     const jobs = await response.json();
                     
                     // Update stats
-                    const statsResponse = await fetch('/api/v1/statistics');
+                    const statsResponse = await fetch('{get_url('/api/v1/statistics')}');
                     const stats = await statsResponse.json();
                     document.getElementById('statTotal').textContent = stats.total_jobs;
                     document.getElementById('statCompleted').textContent = stats.completed_jobs;
@@ -935,8 +948,8 @@ async def stats_page(lang: str = Query(default="en", description="Language code"
     </head>
     <body>
         <div class="lang-switch">
-            <a href="/web/stats?lang=en" class="{'active' if lang == 'en' else ''}">English</a>
-            <a href="/web/stats?lang=zh" class="{'active' if lang == 'zh' else ''}">中文</a>
+            <a href="{get_url('/web/stats')}?lang=en" class="{'active' if lang == 'en' else ''}">English</a>
+            <a href="{get_url('/web/stats')}?lang=zh" class="{'active' if lang == 'zh' else ''}">中文</a>
         </div>
         <h1>{t['stats_title']}</h1>
         
@@ -966,7 +979,7 @@ async def stats_page(lang: str = Query(default="en", description="Language code"
         <script>
             async function loadStats() {{
                 try {{
-                    const response = await fetch('/api/v1/statistics');
+                    const response = await fetch('{get_url('/api/v1/statistics')}');
                     const data = await response.json();
                     
                     document.getElementById('totalJobs').textContent = data.total_jobs;
@@ -1030,8 +1043,8 @@ async def docs_page(lang: str = Query(default="en", description="Language code")
     </head>
     <body>
         <div class="lang-switch">
-            <a href="/web/docs?lang=en" class="{'active' if lang == 'en' else ''}">English</a>
-            <a href="/web/docs?lang=zh" class="{'active' if lang == 'zh' else ''}">中文</a>
+            <a href="{get_url('/web/docs')}?lang=en" class="{'active' if lang == 'en' else ''}">English</a>
+            <a href="{get_url('/web/docs')}?lang=zh" class="{'active' if lang == 'zh' else ''}">中文</a>
         </div>
         <h1>{t['docs_title']}</h1>
 

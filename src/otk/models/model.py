@@ -289,9 +289,9 @@ class ECDNA_Model:
         print(f"Model saved to {path}")
     
     @classmethod
-    def load(cls, path):
+    def load(cls, path, map_location=None):
         """Load the model from a saved file"""
-        checkpoint = torch.load(path)
+        checkpoint = torch.load(path, map_location=map_location)
         
         # Create a temporary config file to initialize the model
         import tempfile

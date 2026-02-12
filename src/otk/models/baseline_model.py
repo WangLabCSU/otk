@@ -33,9 +33,15 @@ class BaselineModel(nn.Module):
 
 class ECDNA_Baseline_Model:
     """ECDNA baseline model wrapper"""
-    def __init__(self, config_path):
-        with open(config_path, 'r') as f:
-            self.config = yaml.safe_load(f)
+    def __init__(self, config):
+        # config can be either a path to yaml file or a config dict
+        if isinstance(config, str):
+            # config is a file path
+            with open(config, 'r') as f:
+                self.config = yaml.safe_load(f)
+        else:
+            # config is already a dict
+            self.config = config
         self.model = BaselineModel(self.config)
     
     def get_model(self):
@@ -48,8 +54,8 @@ class ECDNA_Baseline_Model:
         }, path)
     
     @classmethod
-    def load(cls, path):
-        checkpoint = torch.load(path)
+    def load(cls, path, map_location=None):
+        checkpoint = torch.load(path, map_location=map_location)
         config = checkpoint['config']
         model = cls(config)
         model.model.load_state_dict(checkpoint['model_state_dict'])
