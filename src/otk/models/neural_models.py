@@ -265,7 +265,8 @@ class TransformerModel(nn.Module):
         h = self.input_proj(x)
         h = self.transformer(h)
         h = h.squeeze(1)
-        return self.classifier(h).squeeze(-1)
+        output = self.classifier(h)  # [batch, 1]
+        return output.squeeze(-1)  # [batch]
 
 
 # Model registry

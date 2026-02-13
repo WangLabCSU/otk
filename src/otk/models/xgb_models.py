@@ -69,11 +69,12 @@ class XGB11Model(BaseEcDNAModel):
             evals=evals, early_stopping_rounds=50, verbose_eval=False
         )
         
+        self.is_fitted = True
+        
         if X_val is not None and y_val is not None:
             val_probs = self.predict_proba(X_val)
             self.optimal_threshold = self._find_optimal_threshold(y_val, val_probs)
         
-        self.is_fitted = True
         return self
     
     def _find_optimal_threshold(self, y_true, y_prob):
