@@ -14,10 +14,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 from otk.train.trainer import Trainer
 
 MODELS = [
-    {'name': 'baseline_mlp', 'config': 'otk_api/models/baseline_mlp/config.yml', 'output': 'otk_api/models/baseline_mlp', 'gpu': -1},
-    {'name': 'deep_residual', 'config': 'otk_api/models/deep_residual/config.yml', 'output': 'otk_api/models/deep_residual', 'gpu': -1},
-    {'name': 'optimized_residual', 'config': 'otk_api/models/optimized_residual/config.yml', 'output': 'otk_api/models/optimized_residual', 'gpu': -1},
-    {'name': 'transformer', 'config': 'otk_api/models/transformer/config.yml', 'output': 'otk_api/models/transformer', 'gpu': -1},
+    {'name': 'baseline_mlp', 'config': 'otk_api/models/baseline_mlp/config.yml', 'output': 'otk_api/models/baseline_mlp', 'gpu': 0},
+    {'name': 'deep_residual', 'config': 'otk_api/models/deep_residual/config.yml', 'output': 'otk_api/models/deep_residual', 'gpu': 0},
+    {'name': 'optimized_residual', 'config': 'otk_api/models/optimized_residual/config.yml', 'output': 'otk_api/models/optimized_residual', 'gpu': 0},
+    {'name': 'transformer', 'config': 'otk_api/models/transformer/config.yml', 'output': 'otk_api/models/transformer', 'gpu': 0},
 ]
 
 
