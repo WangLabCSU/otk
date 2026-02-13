@@ -1,178 +1,70 @@
 #!/usr/bin/env python
 """
-XGB11 Model - XGBoost-based ecDNA Prediction Model
+XGBoost Models for ecDNA Prediction
 
-Based on Nature Communications 2024 paper:
-"Machine learning-based extrachromosomal DNA identification in large-scale cohorts"
+Unified implementation inheriting from BaseEcDNAModel.
+All models use seed=2026 for reproducibility.
 
-Original R model features (exactly 11 features):
-1. total_cn (segVal in our data)
-2. minor_cn
-3. purity
-4. ploidy
-5. AScore
-6. pLOH
-7. cna_burden
-8. freq_Linear
-9. freq_BFB
-10. freq_Circular
-11. freq_HR
-
-Original hyperparameters from R model:
-- eta: 0.3
-- max_depth: 3
-- gamma: 1
-- subsample: 0.5
-- max_delta_step: 1
-- min_child_weight: 1
-- objective: binary:logistic
-- eval_metric: aucpr
-
-Target Performance:
-- Gene-level auPRC: 0.85+
-- Gene-level Precision: 0.8+
-- Sample-level auPRC: 0.99+
-- Sample-level auROC: 0.9+
+Models:
+- XGB11Model: 11 features with paper hyperparameters
+- XGBNewModel: All features with feature engineering
 """
 
 import numpy as np
 import pandas as pd
 import xgboost as xgb
-from sklearn.metrics import precision_recall_curve, auc, roc_auc_score, accuracy_score
-from typing import Dict, Any, Tuple, Optional
-import logging
-import pickle
+from typing import Dict, Any, Optional
 from pathlib import Path
+import pickle
+import logging
+
+from .base_model import BaseEcDNAModel
 
 logger = logging.getLogger(__name__)
 
+RANDOM_SEED = 2026
 
-class XGB11Model:
+
+class XGB11Model(BaseEcDNAModel):
     """
     XGB11 Model - Exact reproduction of Nature Communications 2024 paper
-    Uses exactly 11 features with original hyperparameters
+    Uses 11 features with paper hyperparameters
     """
     
-    # Exact 11 features from the original R model
     FEATURES = [
-        'total_cn',      # Maps to segVal
-        'minor_cn',      # minor_cn
-        'purity',        # purity
-        'ploidy',        # ploidy
-        'AScore',        # AScore
-        'pLOH',          # pLOH
-        'cna_burden',    # cna_burden
-        'freq_Linear',   # freq_Linear
-        'freq_BFB',      # freq_BFB
-        'freq_Circular', # freq_Circular
-        'freq_HR',       # freq_HR
+        'total_cn', 'minor_cn', 'purity', 'ploidy', 'AScore',
+        'pLOH', 'cna_burden', 'freq_Linear', 'freq_BFB', 'freq_Circular', 'freq_HR'
     ]
     
-    # Hyperparameters from Nature Communications paper text
     PAPER_PARAMS = {
-        'eta': 0.1,
-        'max_depth': 4,
-        'gamma': 10,
-        'subsample': 0.6,
-        'max_delta_step': 0,
-        'min_child_weight': 1,
-        'alpha': 0,
-        'lambda': 1,
-        'objective': 'binary:logistic',
-        'eval_metric': 'aucpr',
-        'booster': 'gbtree',
-        'tree_method': 'hist',
-        'device': 'cuda',
+        'eta': 0.1, 'max_depth': 4, 'gamma': 10, 'subsample': 0.6,
+        'max_delta_step': 0, 'min_child_weight': 1, 'alpha': 0, 'lambda': 1,
+        'objective': 'binary:logistic', 'eval_metric': 'aucpr',
+        'booster': 'gbtree', 'tree_method': 'hist', 'device': 'cuda',
+        'random_state': RANDOM_SEED
     }
     
-    # Actual hyperparameters from saved R model
-    ORIGINAL_PARAMS = {
-        'eta': 0.3,
-        'max_depth': 3,
-        'gamma': 1,
-        'subsample': 0.5,
-        'max_delta_step': 1,
-        'min_child_weight': 1,
-        'objective': 'binary:logistic',
-        'eval_metric': 'aucpr',
-        'booster': 'gbtree',
-        'tree_method': 'hist',
-        'device': 'cuda',
-    }
-    
-    def __init__(self, params: Optional[Dict[str, Any]] = None, use_original_params: bool = True):
-        """
-        Initialize XGB11 model
-        
-        Args:
-            params: Optional custom parameters
-            use_original_params: If True, use exact params from paper; if False, use provided params
-        """
-        if use_original_params or params is None:
-            self.params = self.ORIGINAL_PARAMS.copy()
-        else:
-            self.params = params
-        
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        super().__init__(config)
+        self.params = self.PAPER_PARAMS.copy()
         self.model = None
-        self.optimal_threshold = 0.5
         
     def prepare_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Prepare features - exact 11 features, no additional engineering
-        
-        Args:
-            df: Input dataframe with raw features
-            
-        Returns:
-            DataFrame with exactly 11 features
-        """
+        """Prepare 11 features"""
         feature_df = pd.DataFrame()
-        
-        # Map features from data to model features
-        feature_mapping = {
-            'total_cn': 'segVal',  # total_cn maps to segVal
-            'minor_cn': 'minor_cn',
-            'purity': 'purity',
-            'ploidy': 'ploidy',
-            'AScore': 'AScore',
-            'pLOH': 'pLOH',
-            'cna_burden': 'cna_burden',
-            'freq_Linear': 'freq_Linear',
-            'freq_BFB': 'freq_BFB',
-            'freq_Circular': 'freq_Circular',
-            'freq_HR': 'freq_HR',
+        mapping = {
+            'total_cn': 'segVal', 'minor_cn': 'minor_cn', 'purity': 'purity',
+            'ploidy': 'ploidy', 'AScore': 'AScore', 'pLOH': 'pLOH',
+            'cna_burden': 'cna_burden', 'freq_Linear': 'freq_Linear',
+            'freq_BFB': 'freq_BFB', 'freq_Circular': 'freq_Circular', 'freq_HR': 'freq_HR'
         }
-        
-        for model_feat, data_feat in feature_mapping.items():
-            if data_feat in df.columns:
-                feature_df[model_feat] = df[data_feat].fillna(0)
-            else:
-                logger.warning(f"Feature {data_feat} not found in data, using zeros")
-                feature_df[model_feat] = 0
-        
+        for model_feat, data_feat in mapping.items():
+            feature_df[model_feat] = df[data_feat].fillna(0) if data_feat in df.columns else 0
         return feature_df
     
-    def fit(
-        self,
-        X_train: pd.DataFrame,
-        y_train: pd.Series,
-        X_val: Optional[pd.DataFrame] = None,
-        y_val: Optional[pd.Series] = None,
-        sample_weight: Optional[np.ndarray] = None,
-        early_stopping_rounds: int = 50,
-        verbose: bool = True
-    ) -> 'XGB11Model':
-        """Train the XGB11 model"""
-        logger.info("Preparing features...")
+    def fit(self, X_train, y_train, X_val=None, y_val=None, **kwargs):
         X_train_prepared = self.prepare_features(X_train)
-        
-        # Create DMatrix
-        dtrain = xgb.DMatrix(
-            X_train_prepared,
-            label=y_train,
-            weight=sample_weight
-        )
-        
+        dtrain = xgb.DMatrix(X_train_prepared, label=y_train)
         evals = [(dtrain, 'train')]
         
         if X_val is not None and y_val is not None:
@@ -180,513 +72,190 @@ class XGB11Model:
             dval = xgb.DMatrix(X_val_prepared, label=y_val)
             evals.append((dval, 'eval'))
         
-        logger.info(f"Training XGB11 model with params: {self.params}")
-        
         self.model = xgb.train(
-            self.params,
-            dtrain,
-            num_boost_round=200,
-            evals=evals,
-            early_stopping_rounds=early_stopping_rounds,
-            verbose_eval=verbose
+            self.params, dtrain, num_boost_round=200,
+            evals=evals, early_stopping_rounds=50, verbose_eval=False
         )
         
-        # Find optimal threshold on validation set
+        self.is_fitted = True
+        
         if X_val is not None and y_val is not None:
             val_probs = self.predict_proba(X_val)
             self.optimal_threshold = self._find_optimal_threshold(y_val, val_probs)
-            logger.info(f"Optimal threshold: {self.optimal_threshold:.4f}")
         
         return self
     
-    def _find_optimal_threshold(self, y_true: np.ndarray, y_prob: np.ndarray) -> float:
-        """Find optimal threshold using F1 score"""
+    def _find_optimal_threshold(self, y_true, y_prob):
+        from sklearn.metrics import precision_recall_curve
         precision, recall, thresholds = precision_recall_curve(y_true, y_prob)
         f1_scores = 2 * (precision * recall) / (precision + recall + 1e-10)
         optimal_idx = np.argmax(f1_scores)
-        
-        if optimal_idx < len(thresholds):
-            return thresholds[optimal_idx]
-        return 0.5
+        return thresholds[optimal_idx] if optimal_idx < len(thresholds) else 0.5
     
-    def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
-        """Predict probabilities"""
-        if self.model is None:
-            raise ValueError("Model not trained. Call fit() first.")
-        
+    def predict_proba(self, X):
+        if not self.is_fitted:
+            raise ValueError("Model not fitted")
         X_prepared = self.prepare_features(X)
-        dtest = xgb.DMatrix(X_prepared)
-        return self.model.predict(dtest)
+        return self.model.predict(xgb.DMatrix(X_prepared))
     
-    def predict(self, X: pd.DataFrame, threshold: Optional[float] = None) -> np.ndarray:
-        """Predict labels"""
-        probs = self.predict_proba(X)
-        threshold = threshold if threshold is not None else self.optimal_threshold
-        return (probs >= threshold).astype(int)
-    
-    def evaluate(
-        self,
-        X: pd.DataFrame,
-        y: pd.Series,
-        threshold: Optional[float] = None
-    ) -> Dict[str, float]:
-        """Evaluate model performance - gene level"""
-        probs = self.predict_proba(X)
-        preds = self.predict(X, threshold)
-        
-        precision, recall, _ = precision_recall_curve(y, probs)
-        auprc = auc(recall, precision)
-        auc_score = roc_auc_score(y, probs)
-        
-        tp = ((preds == 1) & (y == 1)).sum()
-        fp = ((preds == 1) & (y == 0)).sum()
-        fn = ((preds == 0) & (y == 1)).sum()
-        
-        prec = tp / (tp + fp) if (tp + fp) > 0 else 0
-        rec = tp / (tp + fn) if (tp + fn) > 0 else 0
-        f1 = 2 * prec * rec / (prec + rec) if (prec + rec) > 0 else 0
-        
-        return {
-            'auPRC': auprc,
-            'AUC': auc_score,
-            'Precision': prec,
-            'Recall': rec,
-            'F1': f1,
-            'threshold': threshold if threshold else self.optimal_threshold
-        }
-    
-    def evaluate_sample_level(
-        self,
-        X: pd.DataFrame,
-        y: pd.Series,
-        samples: pd.Series,
-        threshold: Optional[float] = None
-    ) -> Dict[str, float]:
-        """Evaluate at sample level"""
-        probs = self.predict_proba(X)
-        
-        # Aggregate to sample level
-        results_df = pd.DataFrame({
-            'sample': samples,
-            'y': y,
-            'prob': probs
-        })
-        
-        sample_agg = results_df.groupby('sample').agg({
-            'y': 'max',
-            'prob': 'max'
-        }).reset_index()
-        
-        y_true = sample_agg['y'].values
-        y_prob = sample_agg['prob'].values
-        y_pred = (y_prob >= (threshold if threshold else self.optimal_threshold)).astype(int)
-        
-        precision, recall, _ = precision_recall_curve(y_true, y_prob)
-        auprc = auc(recall, precision)
-        auc_score = roc_auc_score(y_true, y_prob)
-        
-        tp = ((y_pred == 1) & (y_true == 1)).sum()
-        fp = ((y_pred == 1) & (y_true == 0)).sum()
-        fn = ((y_pred == 0) & (y_true == 1)).sum()
-        tn = ((y_pred == 0) & (y_true == 0)).sum()
-        
-        prec = tp / (tp + fp) if (tp + fp) > 0 else 0
-        rec = tp / (tp + fn) if (tp + fn) > 0 else 0
-        f1 = 2 * prec * rec / (prec + rec) if (prec + rec) > 0 else 0
-        acc = (tp + tn) / len(y_true)
-        
-        return {
-            'auPRC': auprc,
-            'AUC': auc_score,
-            'Accuracy': acc,
-            'Precision': prec,
-            'Recall': rec,
-            'F1': f1,
-            'total_samples': len(y_true),
-            'positive_samples': int(y_true.sum()),
-            'predicted_positive': int(y_pred.sum())
-        }
-    
-    def save(self, path: str):
-        """Save model to file"""
+    def save(self, path):
         Path(path).parent.mkdir(parents=True, exist_ok=True)
-        
-        save_dict = {
-            'model': self.model,
-            'params': self.params,
-            'optimal_threshold': self.optimal_threshold,
-            'features': self.FEATURES
-        }
-        
         with open(path, 'wb') as f:
-            pickle.dump(save_dict, f)
-        
-        logger.info(f"Model saved to {path}")
+            pickle.dump({
+                'model': self.model, 'params': self.params,
+                'optimal_threshold': self.optimal_threshold, 'features': self.FEATURES
+            }, f)
     
-    def load(self, path: str) -> 'XGB11Model':
-        """Load model from file"""
+    def load(self, path):
         with open(path, 'rb') as f:
-            save_dict = pickle.load(f)
-        
-        self.model = save_dict['model']
-        self.params = save_dict['params']
-        self.optimal_threshold = save_dict['optimal_threshold']
-        
-        logger.info(f"Model loaded from {path}")
+            data = pickle.load(f)
+        self.model = data['model']
+        self.params = data['params']
+        self.optimal_threshold = data['optimal_threshold']
+        self.is_fitted = True
         return self
     
-    def get_feature_importance(self) -> pd.DataFrame:
-        """Get feature importance"""
-        if self.model is None:
-            raise ValueError("Model not trained. Call fit() first.")
-        
+    def get_feature_importance(self):
+        if not self.is_fitted:
+            return None
         importance = self.model.get_score(importance_type='gain')
-        
-        importance_df = pd.DataFrame([
-            {'feature': k, 'importance': v}
-            for k, v in importance.items()
-        ])
-        importance_df = importance_df.sort_values('importance', ascending=False)
-        
-        return importance_df
+        return pd.DataFrame([
+            {'feature': k, 'importance': v} for k, v in importance.items()
+        ]).sort_values('importance', ascending=False)
 
 
-class XGBNewModel(XGB11Model):
+class XGBNewModel(BaseEcDNAModel):
     """
-    XGB New - Optimized version with corrected feature engineering
-    
-    Understanding of features:
-    - CN1-CN19: Copy Number Signatures (not copy number values)
-    - freq_*: Amplicon overlap frequency (x1000 for scaling)
-    - segVal: Total copy number from ASCAT
-    - minor_cn: Minor allele copy number
+    XGB New - Optimized with all features and engineering
     """
     
-    # Optimized hyperparameters
     DEFAULT_PARAMS = {
-        'eta': 0.05,
-        'max_depth': 6,
-        'gamma': 3,
-        'subsample': 0.8,
-        'max_delta_step': 1,
-        'min_child_weight': 2,
-        'alpha': 0.1,
-        'lambda': 2,
-        'objective': 'binary:logistic',
-        'eval_metric': 'aucpr',
-        'booster': 'gbtree',
-        'tree_method': 'hist',
-        'device': 'cuda',
+        'eta': 0.05, 'max_depth': 6, 'gamma': 3, 'subsample': 0.8,
+        'max_delta_step': 1, 'min_child_weight': 2, 'alpha': 0.1, 'lambda': 2,
+        'objective': 'binary:logistic', 'eval_metric': 'aucpr',
+        'booster': 'gbtree', 'tree_method': 'hist', 'device': 'cuda',
+        'random_state': RANDOM_SEED
     }
     
-    def __init__(self, params: Optional[Dict[str, Any]] = None):
-        """Initialize with optimized feature set"""
-        super().__init__(params, use_original_params=False)
-        if params is None:
-            self.params = self.DEFAULT_PARAMS.copy()
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        super().__init__(config)
+        self.params = self.DEFAULT_PARAMS.copy()
+        self.model = None
     
-    def prepare_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Prepare features with biologically-informed engineering
-        """
+    def prepare_features(self, df):
+        """Prepare all features with engineering"""
         feature_df = pd.DataFrame()
         
-        # === CORE 7 FEATURES (from ASCAT) ===
-        core_features = ['segVal', 'minor_cn', 'purity', 'ploidy', 'pLOH', 'AScore', 'cna_burden']
-        for feat in core_features:
-            if feat in df.columns:
-                feature_df[feat] = df[feat].fillna(0)
+        # Core features
+        for f in ['segVal', 'minor_cn', 'purity', 'ploidy', 'pLOH', 'AScore', 'cna_burden']:
+            feature_df[f] = df[f].fillna(0) if f in df.columns else 0
         
-        # === AMPLICON FREQUENCY FEATURES ===
-        # These represent how often a gene overlaps with amplicon types
-        freq_features = ['freq_Linear', 'freq_BFB', 'freq_Circular', 'freq_HR']
-        for feat in freq_features:
-            if feat in df.columns:
-                feature_df[feat] = df[feat].fillna(0)
+        # Frequency features
+        for f in ['freq_Linear', 'freq_BFB', 'freq_Circular', 'freq_HR']:
+            feature_df[f] = df[f].fillna(0) if f in df.columns else 0
         
-        # === COPY NUMBER SIGNATURES (CN1-CN19) ===
-        # These are signature exposures, not CN values
-        cn_sig_cols = [f'CN{i}' for i in range(1, 20)]
-        for feat in cn_sig_cols:
-            if feat in df.columns:
-                feature_df[feat] = df[feat].fillna(0)
+        # CN signatures
+        for i in range(1, 20):
+            f = f'CN{i}'
+            feature_df[f] = df[f].fillna(0) if f in df.columns else 0
         
-        # === CLINICAL FEATURES ===
+        # Clinical
         if 'age' in df.columns:
             feature_df['age'] = df['age'].fillna(df['age'].mean())
         if 'gender' in df.columns:
             feature_df['gender'] = df['gender'].fillna(0)
         
-        # === CANCER TYPE FEATURES ===
-        cancer_types = [col for col in df.columns if col.startswith('type_')]
-        for feat in cancer_types:
-            feature_df[feat] = df[feat].fillna(0)
+        # Cancer types
+        for c in [col for col in df.columns if col.startswith('type_')]:
+            feature_df[c] = df[c].fillna(0)
         
-        # === FEATURE ENGINEERING (Biologically Meaningful) ===
-        
-        # 1. Copy number imbalance (segVal vs ploidy)
-        # High CN relative to ploidy suggests amplification
+        # Feature engineering
         if 'segVal' in df.columns and 'ploidy' in df.columns:
             feature_df['cn_imbalance'] = df['segVal'] / (df['ploidy'] + 1e-6)
-        
-        # 2. Allele imbalance (minor_cn / segVal)
-        # Low ratio suggests LOH or allelic imbalance
         if 'minor_cn' in df.columns and 'segVal' in df.columns:
-            feature_df['allele_imbalance_ratio'] = df['minor_cn'] / (df['segVal'] + 1e-6)
-        
-        # 3. CNA burden adjusted by purity
-        # Higher purity = more reliable CNA calls
+            feature_df['allele_imbalance'] = df['minor_cn'] / (df['segVal'] + 1e-6)
         if 'cna_burden' in df.columns and 'purity' in df.columns:
             feature_df['cna_burden_adj'] = df['cna_burden'] * df['purity']
-        
-        # 4. Aneuploidy score adjusted by purity
         if 'AScore' in df.columns and 'purity' in df.columns:
             feature_df['ascore_adj'] = df['AScore'] * df['purity']
+        for f in ['freq_Circular', 'freq_BFB', 'freq_HR']:
+            if f in df.columns:
+                feature_df[f'has_{f.split("_")[1].lower()}'] = (df[f] > 0).astype(int)
         
-        # 5. Circular amplicon indicator
-        # Direct indicator of ecDNA potential
-        if 'freq_Circular' in df.columns:
-            feature_df['has_circular'] = (df['freq_Circular'] > 0).astype(int)
+        freq_cols = ['freq_Linear', 'freq_BFB', 'freq_Circular', 'freq_HR']
+        if all(c in df.columns for c in freq_cols):
+            feature_df['amplicon_type_count'] = (df[freq_cols] > 0).sum(axis=1)
         
-        # 6. BFB indicator (breakage-fusion-bridge)
-        if 'freq_BFB' in df.columns:
-            feature_df['has_bfb'] = (df['freq_BFB'] > 0).astype(int)
+        cn_cols = [f'CN{i}' for i in range(1, 20)]
+        existing_cn = [c for c in cn_cols if c in df.columns]
+        if existing_cn:
+            feature_df['cn_sig_diversity'] = (df[existing_cn] > 0).sum(axis=1)
+            feature_df['max_cn_sig'] = df[existing_cn].max(axis=1)
         
-        # 7. HR indicator (homologous recombination)
-        if 'freq_HR' in df.columns:
-            feature_df['has_hr'] = (df['freq_HR'] > 0).astype(int)
-        
-        # 8. Multiple amplicon types
-        # Genes involved in multiple amplicon mechanisms
-        if all(c in df.columns for c in freq_features):
-            feature_df['amplicon_type_count'] = (df[freq_features] > 0).sum(axis=1)
-        
-        # 9. CN signature diversity
-        # Number of active CN signatures
-        if cn_sig_cols:
-            feature_df['cn_sig_diversity'] = (df[cn_sig_cols] > 0).sum(axis=1)
-        
-        # 10. Dominant CN signature
-        # The strongest CN signature for this gene
-        if cn_sig_cols:
-            feature_df['max_cn_sig'] = df[cn_sig_cols].max(axis=1)
-        
-        # 11. Purity-ploidy interaction
         if 'purity' in df.columns and 'ploidy' in df.columns:
             feature_df['purity_x_ploidy'] = df['purity'] * df['ploidy']
-        
-        # 12. LOH indicator
         if 'pLOH' in df.columns:
             feature_df['has_loh'] = (df['pLOH'] > 0.1).astype(int)
         
         return feature_df
-
-
-class XGB11Trainer:
-    """Trainer for XGB11 model"""
     
-    def __init__(
-        self,
-        data_path: str,
-        output_dir: str,
-        model_type: str = 'paper',  # 'paper', 'original', or 'full'
-        validation_split: float = 0.12,
-        test_split: float = 0.18,
-        random_state: int = 42
-    ):
-        self.data_path = Path(data_path)
-        self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.model_type = model_type
-        self.validation_split = validation_split
-        self.test_split = test_split
-        self.random_state = random_state
+    def fit(self, X_train, y_train, X_val=None, y_val=None, **kwargs):
+        X_train_prepared = self.prepare_features(X_train)
+        dtrain = xgb.DMatrix(X_train_prepared, label=y_train)
+        evals = [(dtrain, 'train')]
         
-        # Choose model type
-        if model_type == 'paper':
-            # Use paper hyperparameters with 11 features
-            self.model = XGB11Model(use_original_params=False)
-            self.model.params = XGB11Model.PAPER_PARAMS.copy()
-        elif model_type == 'original':
-            # Use actual R model hyperparameters
-            self.model = XGB11Model(use_original_params=True)
-        elif model_type == 'new':
-            # Use new optimized model with corrected feature engineering
-            self.model = XGBNewModel()
-        else:  # 'full' - deprecated, use 'new' instead
-            # Use all features with optimized hyperparameters
-            self.model = XGBNewModel()
+        if X_val is not None and y_val is not None:
+            X_val_prepared = self.prepare_features(X_val)
+            dval = xgb.DMatrix(X_val_prepared, label=y_val)
+            evals.append((dval, 'eval'))
         
-    def load_data(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-        """Load and split data using unified split"""
-        from otk.data.data_split import load_split
-        
-        logger.info(f"Loading data from {self.data_path}")
-        logger.info(f"Using unified data split (seed=2026)")
-        
-        train_df, val_df, test_df = load_split(self.data_path)
-        
-        logger.info(f"Train: {len(train_df)} rows, {train_df['y'].sum()} positive")
-        logger.info(f"Val: {len(val_df)} rows, {val_df['y'].sum()} positive")
-        logger.info(f"Test: {len(test_df)} rows, {test_df['y'].sum()} positive")
-        
-        return train_df, val_df, test_df
-    
-    def train(self):
-        """Train XGB11 model"""
-        train_df, val_df, test_df = self.load_data()
-        
-        # Prepare features and labels
-        X_train = train_df
-        y_train = train_df['y']
-        X_val = val_df
-        y_val = val_df['y']
-        X_test = test_df
-        y_test = test_df['y']
-        
-        # Calculate sample weights for imbalanced data
-        pos_weight = (y_train == 0).sum() / (y_train == 1).sum()
-        sample_weight = np.where(y_train == 1, pos_weight, 1.0)
-        
-        logger.info(f"Positive weight: {pos_weight:.2f}")
-        
-        # Train model
-        self.model.fit(
-            X_train, y_train,
-            X_val=X_val, y_val=y_val,
-            sample_weight=sample_weight,
-            early_stopping_rounds=50,
-            verbose=True
+        self.model = xgb.train(
+            self.params, dtrain, num_boost_round=10000,
+            evals=evals, early_stopping_rounds=50, verbose_eval=False
         )
         
-        # Evaluate gene-level
-        logger.info("\nEvaluating gene-level performance...")
-        train_metrics = self.model.evaluate(X_train, y_train)
-        val_metrics = self.model.evaluate(X_val, y_val)
-        test_metrics = self.model.evaluate(X_test, y_test)
+        self.is_fitted = True
         
-        logger.info(f"Train - auPRC: {train_metrics['auPRC']:.4f}, Precision: {train_metrics['Precision']:.4f}")
-        logger.info(f"Val - auPRC: {val_metrics['auPRC']:.4f}, Precision: {val_metrics['Precision']:.4f}")
-        logger.info(f"Test - auPRC: {test_metrics['auPRC']:.4f}, Precision: {test_metrics['Precision']:.4f}")
+        if X_val is not None and y_val is not None:
+            val_probs = self.predict_proba(X_val)
+            self.optimal_threshold = self._find_optimal_threshold(y_val, val_probs)
         
-        # Evaluate sample-level
-        logger.info("\nEvaluating sample-level performance...")
-        train_sample_metrics = self.model.evaluate_sample_level(
-            X_train, y_train, train_df['sample']
-        )
-        val_sample_metrics = self.model.evaluate_sample_level(
-            X_val, y_val, val_df['sample']
-        )
-        test_sample_metrics = self.model.evaluate_sample_level(
-            X_test, y_test, test_df['sample']
-        )
-        
-        logger.info(f"Train Sample - auPRC: {train_sample_metrics['auPRC']:.4f}, auROC: {train_sample_metrics['AUC']:.4f}")
-        logger.info(f"Val Sample - auPRC: {val_sample_metrics['auPRC']:.4f}, auROC: {val_sample_metrics['AUC']:.4f}")
-        logger.info(f"Test Sample - auPRC: {test_sample_metrics['auPRC']:.4f}, auROC: {test_sample_metrics['AUC']:.4f}")
-        
-        # Save model
-        model_path = self.output_dir / f'xgb11_{self.model_type}_model.pkl'
-        self.model.save(str(model_path))
-        
-        # Save metrics - convert numpy types to Python native types
-        def convert_to_native(obj):
-            """Convert numpy types to Python native types for YAML serialization"""
-            if isinstance(obj, dict):
-                return {k: convert_to_native(v) for k, v in obj.items()}
-            elif isinstance(obj, (list, tuple)):
-                return [convert_to_native(v) for v in obj]
-            elif isinstance(obj, np.integer):
-                return int(obj)
-            elif isinstance(obj, np.floating):
-                return float(obj)
-            elif isinstance(obj, np.ndarray):
-                return obj.tolist()
-            else:
-                return obj
-        
-        import yaml
-        summary = {
-            'model': f'XGB11_{self.model_type}',
-            'gene_level': {
-                'train': convert_to_native(train_metrics),
-                'val': convert_to_native(val_metrics),
-                'test': convert_to_native(test_metrics)
-            },
-            'sample_level': {
-                'train': convert_to_native(train_sample_metrics),
-                'val': convert_to_native(val_sample_metrics),
-                'test': convert_to_native(test_sample_metrics)
-            }
-        }
-        
-        with open(self.output_dir / f'training_summary_{self.model_type}.yml', 'w') as f:
-            yaml.dump(summary, f, default_flow_style=False)
-        
-        # Feature importance
-        importance_df = self.model.get_feature_importance()
-        importance_df.to_csv(self.output_dir / f'feature_importance_{self.model_type}.csv', index=False)
-        logger.info(f"\nTop 10 features:\n{importance_df.head(10)}")
-        
-        return test_metrics, test_sample_metrics
-
-
-def main():
-    """Main function for training XGB11"""
-    import logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+        return self
     
-    # Train original XGB11
-    print("="*60)
-    print("Training XGB11 Original Model")
-    print("="*60)
+    def _find_optimal_threshold(self, y_true, y_prob):
+        from sklearn.metrics import precision_recall_curve
+        precision, recall, thresholds = precision_recall_curve(y_true, y_prob)
+        f1_scores = 2 * (precision * recall) / (precision + recall + 1e-10)
+        optimal_idx = np.argmax(f1_scores)
+        return thresholds[optimal_idx] if optimal_idx < len(thresholds) else 0.5
     
-    trainer_original = XGB11Trainer(
-        data_path='src/otk/data/sorted_modeling_data.csv.gz',
-        output_dir='otk_api/models/xgb11',
-        model_type='original'
-    )
+    def predict_proba(self, X):
+        if not self.is_fitted:
+            raise ValueError("Model not fitted")
+        X_prepared = self.prepare_features(X)
+        return self.model.predict(xgb.DMatrix(X_prepared))
     
-    test_metrics_orig, test_sample_metrics_orig = trainer_original.train()
+    def save(self, path):
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        with open(path, 'wb') as f:
+            pickle.dump({
+                'model': self.model, 'params': self.params,
+                'optimal_threshold': self.optimal_threshold
+            }, f)
     
-    print("\n" + "="*60)
-    print("XGB11 ORIGINAL - TRAINING COMPLETED")
-    print("="*60)
-    print(f"Gene-level auPRC: {test_metrics_orig['auPRC']:.4f}")
-    print(f"Gene-level Precision: {test_metrics_orig['Precision']:.4f}")
-    print(f"Sample-level auPRC: {test_sample_metrics_orig['auPRC']:.4f}")
-    print(f"Sample-level auROC: {test_sample_metrics_orig['AUC']:.4f}")
+    def load(self, path):
+        with open(path, 'rb') as f:
+            data = pickle.load(f)
+        self.model = data['model']
+        self.params = data['params']
+        self.optimal_threshold = data['optimal_threshold']
+        self.is_fitted = True
+        return self
     
-    # Train optimized XGB11
-    print("\n" + "="*60)
-    print("Training XGB11 Optimized Model")
-    print("="*60)
-    
-    trainer_optimized = XGB11Trainer(
-        data_path='src/otk/data/sorted_modeling_data.csv.gz',
-        output_dir='otk_api/models/xgb11',
-        model_type='optimized'
-    )
-    
-    test_metrics_opt, test_sample_metrics_opt = trainer_optimized.train()
-    
-    print("\n" + "="*60)
-    print("XGB11 OPTIMIZED - TRAINING COMPLETED")
-    print("="*60)
-    print(f"Gene-level auPRC: {test_metrics_opt['auPRC']:.4f}")
-    print(f"Gene-level Precision: {test_metrics_opt['Precision']:.4f}")
-    print(f"Sample-level auPRC: {test_sample_metrics_opt['auPRC']:.4f}")
-    print(f"Sample-level auROC: {test_sample_metrics_opt['AUC']:.4f}")
-    
-    print("\n" + "="*60)
-    print("COMPARISON")
-    print("="*60)
-    print(f"Original  - Gene auPRC: {test_metrics_orig['auPRC']:.4f}, Sample auPRC: {test_sample_metrics_orig['auPRC']:.4f}")
-    print(f"Optimized - Gene auPRC: {test_metrics_opt['auPRC']:.4f}, Sample auPRC: {test_sample_metrics_opt['auPRC']:.4f}")
-
-
-if __name__ == "__main__":
-    main()
+    def get_feature_importance(self):
+        if not self.is_fitted:
+            return None
+        importance = self.model.get_score(importance_type='gain')
+        return pd.DataFrame([
+            {'feature': k, 'importance': v} for k, v in importance.items()
+        ]).sort_values('importance', ascending=False)

@@ -2,11 +2,13 @@ import pandas as pd
 import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
-from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 import yaml
 import os
 import logging
+import gzip
+
+from .data_split import get_data_splits
 
 logger = logging.getLogger(__name__)
 
@@ -82,55 +84,11 @@ class DataProcessor:
         return features, target, samples, genes
     
     def split_data(self, features, target, samples):
-        """Split data into train, validation, and test sets by sample"""
-        # Get unique samples
-        unique_samples = samples.unique()
-        logger.info(f"Number of unique samples: {len(unique_samples)}")
+        """Split data into train, validation, and test sets using unified split"""
+        # Use unified data split (80/10/10, seed=2026)
+        train_samples, val_samples, test_samples = get_data_splits()
         
-        # Load precomputed sample y sum if available
-        sample_y_sum_path = os.path.join(os.path.dirname(__file__), 'sample_y_sum.csv')
-        
-        if os.path.exists(sample_y_sum_path):
-            logger.info(f"Loading precomputed sample y sum from {sample_y_sum_path}")
-            sample_y_sum_df = pd.read_csv(sample_y_sum_path)
-            sample_y_sum = dict(zip(sample_y_sum_df['sample'], sample_y_sum_df['y_sum']))
-            logger.info(f"Loaded y sum for {len(sample_y_sum)} samples")
-        else:
-            # Calculate sum of y for each sample
-            logger.info("Calculating sum of y for each sample...")
-            sample_y_sum = {}
-            for sample in unique_samples:
-                sample_mask = samples == sample
-                sample_y_sum[sample] = target[sample_mask].sum()
-        
-        # Sort samples by y sum
-        sorted_samples = sorted(unique_samples, key=lambda x: sample_y_sum[x])
-        logger.info(f"Sorted samples by y sum: {len(sorted_samples)} samples")
-        
-        # Calculate split indices for even distribution
-        total_samples = len(sorted_samples)
-        val_split = self.training_config['validation_split']
-        test_split = self.training_config['test_split']
-        
-        test_size = int(total_samples * test_split)
-        val_size = int(total_samples * val_split)
-        train_size = total_samples - val_size - test_size
-        
-        # Use equidistant sampling to ensure even distribution
-        train_indices = np.linspace(0, total_samples-1, train_size, dtype=int)
-        remaining_indices = list(set(range(total_samples)) - set(train_indices))
-        remaining_indices.sort()
-        
-        val_indices = np.linspace(0, len(remaining_indices)-1, val_size, dtype=int)
-        val_indices = [remaining_indices[i] for i in val_indices]
-        test_indices = list(set(remaining_indices) - set(val_indices))
-        
-        # Get samples for each split
-        train_samples = [sorted_samples[i] for i in train_indices]
-        val_samples = [sorted_samples[i] for i in val_indices]
-        test_samples = [sorted_samples[i] for i in test_indices]
-        
-        logger.info(f"Train samples: {len(train_samples)}, Validation samples: {len(val_samples)}, Test samples: {len(test_samples)}")
+        logger.info(f"Using unified split: train={len(train_samples)}, val={len(val_samples)}, test={len(test_samples)}")
         
         # Create masks for each split
         train_mask = samples.isin(train_samples)

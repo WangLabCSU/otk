@@ -3,19 +3,32 @@
 Neural Network Models for ecDNA Prediction
 
 Unified implementation using BaseEcDNAModel interface.
+All models use seed=2026 for reproducibility.
 """
 
 import torch
 import torch.nn as nn
 import numpy as np
 import pandas as pd
-from typing import Dict, Any, Optional, Union, Tuple
+from typing import Dict, Any, Optional
 from pathlib import Path
 import logging
 
 from .base_model import BaseEcDNAModel
 
 logger = logging.getLogger(__name__)
+
+RANDOM_SEED = 2026
+
+
+def set_random_seed(seed: int = RANDOM_SEED):
+    """Set random seed for reproducibility"""
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
 
 
 class BaselineMLPModel(BaseEcDNAModel):
@@ -34,6 +47,9 @@ class BaselineMLPModel(BaseEcDNAModel):
     
     def fit(self, X_train, y_train, X_val=None, y_val=None, **kwargs):
         from torch.utils.data import DataLoader, TensorDataset
+        
+        # Set random seed for reproducibility
+        set_random_seed(RANDOM_SEED)
         
         # Prepare data
         X_train_arr = self.prepare_features(X_train)
