@@ -272,6 +272,16 @@ async def root(lang: str = Query(default="en", description="Language code")):
         </div>
         <p>{t['description']}</p>
         
+        <div class="endpoint" style="background: #e3f2fd; border-left: 4px solid #2196F3;">
+            <h3 style="margin: 0 0 10px 0; color: #1976D2;">📖 Description</h3>
+            <p style="margin:0; font-size:14px; line-height:1.6;">
+                OTK (ecDNA Analysis Toolkit) Prediction API provides a high-performance deep learning-based service for predicting extrachromosomal DNA (ecDNA) cargo genes and classifying focal amplification types.
+                <br><br>
+                <strong>Production API:</strong> <code>http://biotree.top:38123/otk/</code><br>
+                <strong>API Base URL:</strong> <code>http://biotree.top:38123/otk/api/v1/</code>
+            </p>
+        </div>
+        
         {nav}
         
         <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 5px; margin: 20px 0;">
@@ -284,36 +294,64 @@ async def root(lang: str = Query(default="en", description="Language code")):
         <div class="endpoint">
             <span class="method post">POST</span> <code>/api/v1/predict</code>
             <p>{t['submit_task']} (Async)</p>
+            <details>
+                <summary style="cursor:pointer; color:#666; font-size:12px;">Example / 示例</summary>
+                <pre style="background:#f0f0f0; padding:10px; border-radius:5px; overflow-x:auto; font-size:12px; margin-top:5px;">curl -X POST "http://biotree.top:38123/otk/api/v1/predict" -F "file=@data.csv"</pre>
+            </details>
         </div>
         
         <div class="endpoint">
             <span class="method post">POST</span> <code>/api/v1/predict-sync</code>
-            <p>Synchronous prediction - upload and wait for results (for pipeline integration)</p>
+            <p>{t['submit_task_sync']}</p>
+            <details>
+                <summary style="cursor:pointer; color:#666; font-size:12px;">Example / 示例</summary>
+                <pre style="background:#f0f0f0; padding:10px; border-radius:5px; overflow-x:auto; font-size:12px; margin-top:5px;">curl -X POST "http://biotree.top:38123/otk/api/v1/predict-sync" -F "file=@data.csv" --output predictions.csv</pre>
+            </details>
         </div>
         
         <div class="endpoint">
-            <span class="method get">GET</span> <code>/api/v1/jobs/{{job_id}}</code>
+            <span class="method get">GET</span> <code>/api/v1/jobs/{job_id}</code>
             <p>{t['query_status']}</p>
+            <details>
+                <summary style="cursor:pointer; color:#666; font-size:12px;">Example / 示例</summary>
+                <pre style="background:#f0f0f0; padding:10px; border-radius:5px; overflow-x:auto; font-size:12px; margin-top:5px;">curl "http://biotree.top:38123/otk/api/v1/jobs/your-job-id"</pre>
+            </details>
         </div>
         
         <div class="endpoint">
-            <span class="method get">GET</span> <code>/api/v1/jobs/{{job_id}}/download</code>
+            <span class="method get">GET</span> <code>/api/v1/jobs/{job_id}/download</code>
             <p>{t['download_result']}</p>
+            <details>
+                <summary style="cursor:pointer; color:#666; font-size:12px;">Example / 示例</summary>
+                <pre style="background:#f0f0f0; padding:10px; border-radius:5px; overflow-x:auto; font-size:12px; margin-top:5px;">curl "http://biotree.top:38123/otk/api/v1/jobs/your-job-id/download" --output predictions.csv</pre>
+            </details>
         </div>
         
         <div class="endpoint">
-            <span class="method get">GET</span> <code>/api/v1/validation-report/{{job_id}}</code>
+            <span class="method get">GET</span> <code>/api/v1/validation-report/{job_id}</code>
             <p>{t['validation_report']}</p>
+            <details>
+                <summary style="cursor:pointer; color:#666; font-size:12px;">Example / 示例</summary>
+                <pre style="background:#f0f0f0; padding:10px; border-radius:5px; overflow-x:auto; font-size:12px; margin-top:5px;">curl "http://biotree.top:38123/otk/api/v1/validation-report/your-job-id"</pre>
+            </details>
         </div>
         
         <div class="endpoint">
             <span class="method get">GET</span> <code>/api/v1/statistics</code>
             <p>{t['statistics']}</p>
+            <details>
+                <summary style="cursor:pointer; color:#666; font-size:12px;">Example / 示例</summary>
+                <pre style="background:#f0f0f0; padding:10px; border-radius:5px; overflow-x:auto; font-size:12px; margin-top:5px;">curl "http://biotree.top:38123/otk/api/v1/statistics"</pre>
+            </details>
         </div>
         
         <div class="endpoint">
             <span class="method get">GET</span> <code>/api/v1/health</code>
             <p>{t['health_check']}</p>
+            <details>
+                <summary style="cursor:pointer; color:#666; font-size:12px;">Example / 示例</summary>
+                <pre style="background:#f0f0f0; padding:10px; border-radius:5px; overflow-x:auto; font-size:12px; margin-top:5px;">curl "http://biotree.top:38123/otk/api/v1/health"</pre>
+            </details>
         </div>
         
         <h2>{t['web_interface']}</h2>
@@ -1035,12 +1073,19 @@ async def models_page(lang: str = Query(default="en", description="Language code
         if time_match:
             generated_time = time_match.group(1).strip()
         
+        lines = report_content.split('\n')
+        if lines and lines[0].startswith('# '):
+            lines = lines[1:]
+        report_content = '\n'.join(lines)
+        
         report_content = re.sub(r'^=+\n.*?^=+\n', '', report_content, flags=re.MULTILINE | re.DOTALL)
         report_content = re.sub(r'\n=+\n报告结束.*$', '', report_content, flags=re.DOTALL)
         report_content = re.sub(r'\n=+$', '', report_content)
         
         report_content = re.sub(r'^  - ', '- ', report_content, flags=re.MULTILINE)
         report_content = re.sub(r'(共发现 \d+ 个模型:)\n', r'\1\n\n', report_content)
+        
+        report_content = re.sub(r'^(- )(.+)$', r'\1\2', report_content, flags=re.MULTILINE)
         
         html_content = markdown.markdown(report_content, extensions=['tables', 'fenced_code'])
     except Exception as e:
