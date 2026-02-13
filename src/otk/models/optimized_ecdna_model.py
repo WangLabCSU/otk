@@ -105,9 +105,22 @@ class ResidualBlock(nn.Module):
 
 
 class OptimizedEcDNA(nn.Module):
-    def __init__(self, input_dim: int = 57, hidden_dims: list = [128, 64, 32], 
-                 dropout_rate: float = 0.4, use_residual: bool = True):
+    def __init__(self, config=None, input_dim: int = None, hidden_dims: list = None, 
+                 dropout_rate: float = None, use_residual: bool = None):
         super(OptimizedEcDNA, self).__init__()
+        
+        if config is not None:
+            arch = config['model']['architecture']
+            input_dim = arch.get('input_dim', 57)
+            hidden_dims = arch.get('hidden_dims', [128, 64, 32])
+            dropout_rate = arch.get('dropout_rate', 0.4)
+            use_residual = arch.get('use_residual', True)
+            self.config = config
+        else:
+            input_dim = input_dim if input_dim is not None else 57
+            hidden_dims = hidden_dims if hidden_dims is not None else [128, 64, 32]
+            dropout_rate = dropout_rate if dropout_rate is not None else 0.4
+            use_residual = use_residual if use_residual is not None else True
         
         self.input_dim = input_dim
         self.hidden_dims = hidden_dims
@@ -175,13 +188,26 @@ class OptimizedEcDNA(nn.Module):
 
 
 class EnsembleOptimizedEcDNA(nn.Module):
-    def __init__(self, input_dim: int = 57, num_models: int = 3, 
-                 hidden_dims: list = [128, 64, 32], dropout_rate: float = 0.4):
+    def __init__(self, config=None, input_dim: int = None, num_models: int = 3, 
+                 hidden_dims: list = None, dropout_rate: float = None):
         super(EnsembleOptimizedEcDNA, self).__init__()
+        
+        if config is not None:
+            arch = config['model']['architecture']
+            input_dim = arch.get('input_dim', 57)
+            hidden_dims = arch.get('hidden_dims', [128, 64, 32])
+            dropout_rate = arch.get('dropout_rate', 0.4)
+            num_models = arch.get('num_models', 3)
+            self.config = config
+        else:
+            input_dim = input_dim if input_dim is not None else 57
+            hidden_dims = hidden_dims if hidden_dims is not None else [128, 64, 32]
+            dropout_rate = dropout_rate if dropout_rate is not None else 0.4
         
         self.num_models = num_models
         self.models = nn.ModuleList([
-            OptimizedEcDNA(input_dim, hidden_dims, dropout_rate, use_residual=True)
+            OptimizedEcDNA(input_dim=input_dim, hidden_dims=hidden_dims, 
+                          dropout_rate=dropout_rate, use_residual=True)
             for _ in range(num_models)
         ])
         

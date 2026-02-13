@@ -270,19 +270,9 @@ class ECDNA_Model:
         elif model_type == 'EnsembleEcDNA':
             model = EnsembleEcDNAModel(self.config)
         elif model_type == 'OptimizedEcDNA':
-            model = OptimizedEcDNA(
-                input_dim=self.config['model']['architecture'].get('input_dim', 57),
-                hidden_dims=self.config['model']['architecture'].get('hidden_dims', [128, 64, 32]),
-                dropout_rate=self.config['model']['architecture'].get('dropout_rate', 0.4),
-                use_residual=self.config['model']['architecture'].get('use_residual', True)
-            )
+            model = OptimizedEcDNA(self.config)
         elif model_type == 'EnsembleOptimizedEcDNA':
-            model = EnsembleOptimizedEcDNA(
-                input_dim=self.config['model']['architecture'].get('input_dim', 57),
-                num_models=self.config['model']['architecture'].get('num_models', 3),
-                hidden_dims=self.config['model']['architecture'].get('hidden_dims', [128, 64, 32]),
-                dropout_rate=self.config['model']['architecture'].get('dropout_rate', 0.4)
-            )
+            model = EnsembleOptimizedEcDNA(self.config)
         else:
             raise ValueError(f"Unsupported model type: {model_type}")
         return model

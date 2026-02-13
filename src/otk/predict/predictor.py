@@ -121,21 +121,10 @@ class Predictor:
             return EnsembleEcDNAModel(config)
         elif model_type == 'OptimizedEcDNA':
             from otk.models.optimized_ecdna_model import OptimizedEcDNA
-            arch = config['model']['architecture']
-            return OptimizedEcDNA(
-                input_dim=arch.get('input_dim', 57),
-                hidden_dims=arch.get('hidden_dims', [128, 64, 32]),
-                dropout_rate=arch.get('dropout_rate', 0.4),
-                use_residual=arch.get('use_residual', True)
-            )
+            return OptimizedEcDNA(config)
         elif model_type == 'EnsembleOptimizedEcDNA':
             from otk.models.optimized_ecdna_model import EnsembleOptimizedEcDNA
-            arch = config['model']['architecture']
-            return EnsembleOptimizedEcDNA(
-                input_dim=arch.get('input_dim', 57),
-                hidden_dims=arch.get('hidden_dims', [128, 64, 32]),
-                dropout_rate=arch.get('dropout_rate', 0.4)
-            )
+            return EnsembleOptimizedEcDNA(config)
         else:
             raise ValueError(f"Unsupported model type: {model_type}")
     
