@@ -1,7 +1,7 @@
 # Model Performance Analysis Report
 
-**Generated**: 2026-02-13 01:40:02
-**Total Models**: 4
+**Generated**: 2026-02-13 04:30:56
+**Total Models**: 5
 
 ## Abstract
 
@@ -33,6 +33,7 @@ which presents significant challenges for model training and evaluation.
 |-------|--------------|-------------------|---------------|-----------|
 | baseline_mlp | Baseline | 57→256→128→64→1 | BCEWithLogitsLoss | Adam |
 | deep_residual | PrecisionFocusedEcDNA | 57→512→256→128→64→32→1 | auPRCOptimizedLoss | AdamW |
+| dgit_super | DGITSuper | N/A | DGITSuperLoss | AdamW |
 | optimized_residual | OptimizedEcDNA | 57→128→64→32→16→1 | CombinedLoss | AdamW |
 | transformer | TransformerEcDNA | 57→128(embedding)→Attention→64→32→1 | auPRCOptimizedLoss | Adam |
 
@@ -42,7 +43,8 @@ which presents significant challenges for model training and evaluation.
 |-------|---------------|--------------|------------|--------|------------|------------|
 | baseline_mlp | 0.001000 | 0.0001 | 512 | 11 | 1 | Yes |
 | deep_residual | 0.000100 | 0.0100 | 1024 | 17 | 2 | Yes |
-| optimized_residual | 0.001000 | 0.1000 | 1024 | 38 | 3 | Yes |
+| dgit_super | 0.000200 | 0.0001 | 2048 | 0 | 0 | No |
+| optimized_residual | 0.001000 | 0.1000 | 1024 | 98 | 63 | Yes |
 | transformer | 0.000100 | 0.0001 | 1024 | 19 | 9 | Yes |
 
 ## Performance Metrics
@@ -54,7 +56,8 @@ which presents significant challenges for model training and evaluation.
 | transformer | **0.7484** | 0.9746 | 0.9150 | 0.5868 | 0.7150 |
 | deep_residual | **0.7384** | 0.9797 | 0.7685 | 0.6862 | 0.7250 |
 | baseline_mlp | **0.7208** | 0.9690 | 0.8860 | 0.5860 | 0.7054 |
-| optimized_residual | **0.7004** | 0.9733 | 0.8528 | 0.5748 | 0.6867 |
+| optimized_residual | **0.6218** | 0.9729 | 0.8713 | 0.4869 | 0.6247 |
+| dgit_super | **0.0000** | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
 
 ### Complete Performance Comparison
 
@@ -64,7 +67,7 @@ which presents significant challenges for model training and evaluation.
 |-------|-------|-----|-----------|--------|----------|
 | baseline_mlp | 0.6541 | 0.9462 | 0.8463 | 0.4833 | 0.6153 |
 | deep_residual | 0.8583 | 0.9978 | 0.8368 | 0.7765 | 0.8055 |
-| optimized_residual | 0.4764 | 0.9514 | 0.5812 | 0.4335 | 0.4966 |
+| optimized_residual | 0.5715 | 0.9475 | 0.7058 | 0.5305 | 0.6057 |
 | transformer | 0.8849 | 0.9985 | 0.8405 | 0.8254 | 0.8329 |
 
 #### Validation Set Performance
@@ -73,7 +76,7 @@ which presents significant challenges for model training and evaluation.
 |-------|-------|-----|-----------|--------|----------|
 | baseline_mlp | 0.7949 | 0.9434 | 0.8964 | 0.7195 | 0.7983 |
 | deep_residual | 0.7260 | 0.9885 | 0.7060 | 0.7147 | 0.7103 |
-| optimized_residual | 0.7542 | 0.9895 | 0.6537 | 0.8060 | 0.7219 |
+| optimized_residual | 0.7684 | 0.9820 | 0.9140 | 0.6736 | 0.7756 |
 | transformer | 0.7272 | 0.9832 | 0.7328 | 0.6904 | 0.7110 |
 
 #### Test Set Performance
@@ -82,7 +85,8 @@ which presents significant challenges for model training and evaluation.
 |-------|-------|-----|-----------|--------|----------|
 | baseline_mlp | 0.7208 | 0.9690 | 0.8860 | 0.5860 | 0.7054 |
 | deep_residual | 0.7384 | 0.9797 | 0.7685 | 0.6862 | 0.7250 |
-| optimized_residual | 0.7004 | 0.9733 | 0.8528 | 0.5748 | 0.6867 |
+| dgit_super | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
+| optimized_residual | 0.6218 | 0.9729 | 0.8713 | 0.4869 | 0.6247 |
 | transformer | 0.7484 | 0.9746 | 0.9150 | 0.5868 | 0.7150 |
 
 ### Overfitting Analysis
@@ -91,7 +95,8 @@ which presents significant challenges for model training and evaluation.
 |-------|---------------------|----------|---------------|------------|
 | baseline_mlp | -0.1408 | ✅ low | -0.0501 | -0.2362 |
 | deep_residual | 0.1323 | ⚠️ medium | 0.1309 | 0.0619 |
-| optimized_residual | -0.2778 | ✅ low | -0.0724 | -0.3726 |
+| dgit_super | 0.0000 | ❓ unknown | 0.0000 | 0.0000 |
+| optimized_residual | -0.1969 | ✅ low | -0.2082 | -0.1431 |
 | transformer | 0.1576 | ❌ high | 0.1077 | 0.1350 |
 
 ## Best Model Recommendations
@@ -103,7 +108,7 @@ which presents significant challenges for model training and evaluation.
 | **Best F1-Score** | deep_residual | 0.7250 |
 | **Best Precision** | transformer | 0.9150 |
 | **Best Recall** | deep_residual | 0.6862 |
-| **Best Generalization** | optimized_residual | Gap: -0.2778 |
+| **Best Generalization** | optimized_residual | Gap: -0.1969 |
 
 ## Architecture Details
 
@@ -138,6 +143,22 @@ which presents significant challenges for model training and evaluation.
 - **Loss Function**: `auPRCOptimizedLoss`
 
 - **Optimizer**: `AdamW` (lr=0.0001, weight_decay=0.01)
+
+### dgit_super
+
+- **Type**: `DGITSuper`
+
+- **Description**: N/A
+
+- **Structure**: `N/A`
+
+- **Key Features**: 
+
+- **Suitable For**: N/A
+
+- **Loss Function**: `DGITSuperLoss`
+
+- **Optimizer**: `AdamW` (lr=0.0002, weight_decay=0.0001)
 
 ### optimized_residual
 
@@ -194,7 +215,7 @@ specialized loss functions and techniques to handle this imbalance effectively.
 
 ## Conclusions
 
-Among the 4 models evaluated, **transformer** achieved the highest
+Among the 5 models evaluated, **transformer** achieved the highest
 test auPRC of **0.7484**, demonstrating superior performance
 for ecDNA prediction on this challenging imbalanced dataset.
 
