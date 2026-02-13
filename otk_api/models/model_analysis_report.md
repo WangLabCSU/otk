@@ -1,7 +1,7 @@
 # Model Performance Analysis Report
 
-**Generated**: 2026-02-13 05:07:51
-**Total Models**: 4 trained models
+**Generated**: 2026-02-13 11:19:36
+**Total Models**: 5 trained models
 
 ## Abstract
 
@@ -33,6 +33,7 @@ which presents significant challenges for model training and evaluation.
 |-------|--------------|-------------------|---------------|-----------|
 | baseline_mlp | Baseline | 57→256→128→64→1 | BCEWithLogitsLoss | Adam |
 | deep_residual | PrecisionFocusedEcDNA | 57→512→256→128→64→32→1 | auPRCOptimizedLoss | AdamW |
+| dgit_super | DGITSuper | 57→256→Transformer(4层)→Gated Residual(6层)→1 | DGITSuperLoss | AdamW |
 | optimized_residual | OptimizedEcDNA | 57→128→64→32→16→1 | CombinedLoss | AdamW |
 | transformer | TransformerEcDNA | 57→128(embedding)→Attention→64→32→1 | auPRCOptimizedLoss | Adam |
 
@@ -42,6 +43,7 @@ which presents significant challenges for model training and evaluation.
 |-------|---------------|--------------|------------|--------|------------|------------|
 | baseline_mlp | 0.001000 | 0.0001 | 512 | 11 | 1 | Yes |
 | deep_residual | 0.000100 | 0.0100 | 1024 | 17 | 2 | Yes |
+| dgit_super | 0.000200 | 0.0001 | 2048 | 33 | 3 | Yes |
 | optimized_residual | 0.001000 | 0.1000 | 1024 | 98 | 63 | Yes |
 | transformer | 0.000100 | 0.0001 | 1024 | 19 | 9 | Yes |
 
@@ -55,6 +57,7 @@ which presents significant challenges for model training and evaluation.
 | deep_residual | **0.7384** | 0.9797 | 0.7685 | 0.6862 | 0.7250 |
 | baseline_mlp | **0.7208** | 0.9690 | 0.8860 | 0.5860 | 0.7054 |
 | optimized_residual | **0.6218** | 0.9729 | 0.8713 | 0.4869 | 0.6247 |
+| dgit_super | **0.6199** | 0.9389 | 0.9831 | 0.3380 | 0.5031 |
 
 ### Complete Performance Comparison
 
@@ -64,6 +67,7 @@ which presents significant challenges for model training and evaluation.
 |-------|-------|-----|-----------|--------|----------|
 | baseline_mlp | 0.6541 | 0.9462 | 0.8463 | 0.4833 | 0.6153 |
 | deep_residual | 0.8583 | 0.9978 | 0.8368 | 0.7765 | 0.8055 |
+| dgit_super | 0.3774 | 0.8863 | 0.4250 | 0.6621 | 0.5177 |
 | optimized_residual | 0.5715 | 0.9475 | 0.7058 | 0.5305 | 0.6057 |
 | transformer | 0.8849 | 0.9985 | 0.8405 | 0.8254 | 0.8329 |
 
@@ -73,6 +77,7 @@ which presents significant challenges for model training and evaluation.
 |-------|-------|-----|-----------|--------|----------|
 | baseline_mlp | 0.7949 | 0.9434 | 0.8964 | 0.7195 | 0.7983 |
 | deep_residual | 0.7260 | 0.9885 | 0.7060 | 0.7147 | 0.7103 |
+| dgit_super | 0.5711 | 0.9181 | 0.9284 | 0.3443 | 0.5023 |
 | optimized_residual | 0.7684 | 0.9820 | 0.9140 | 0.6736 | 0.7756 |
 | transformer | 0.7272 | 0.9832 | 0.7328 | 0.6904 | 0.7110 |
 
@@ -82,6 +87,7 @@ which presents significant challenges for model training and evaluation.
 |-------|-------|-----|-----------|--------|----------|
 | baseline_mlp | 0.7208 | 0.9690 | 0.8860 | 0.5860 | 0.7054 |
 | deep_residual | 0.7384 | 0.9797 | 0.7685 | 0.6862 | 0.7250 |
+| dgit_super | 0.6199 | 0.9389 | 0.9831 | 0.3380 | 0.5031 |
 | optimized_residual | 0.6218 | 0.9729 | 0.8713 | 0.4869 | 0.6247 |
 | transformer | 0.7484 | 0.9746 | 0.9150 | 0.5868 | 0.7150 |
 
@@ -94,28 +100,28 @@ A sample is predicted as circular if any gene in the sample is predicted positiv
 
 | Model | auPRC | AUC | Accuracy | Precision | Recall | F1 | Samples |
 |-------|-------|-----|----------|-----------|--------|-----|---------|
-| deep_residual | **0.9701** | 0.8962 | 0.5072 | 1.0000 | 0.3585 | 0.5278 | 69 |
-| transformer | **0.9648** | 0.8774 | 0.4783 | 1.0000 | 0.3208 | 0.4857 | 69 |
-| baseline_mlp | **0.9251** | 0.7465 | 0.6377 | 0.8500 | 0.6415 | 0.7312 | 69 |
-| optimized_residual | **0.9070** | 0.7134 | 0.6232 | 0.8462 | 0.6226 | 0.7174 | 69 |
+| transformer | **0.9639** | 0.8602 | 0.3500 | 1.0000 | 0.1613 | 0.2778 | 40 |
+| deep_residual | **0.9626** | 0.8530 | 0.4000 | 1.0000 | 0.2258 | 0.3684 | 40 |
+| optimized_residual | **0.8803** | 0.6237 | 0.5500 | 0.8421 | 0.5161 | 0.6400 | 40 |
+| baseline_mlp | **0.8549** | 0.5663 | 0.5250 | 0.7727 | 0.5484 | 0.6415 | 40 |
 
 ### Validation Set Sample-Level Performance
 
 | Model | auPRC | AUC | Accuracy | Precision | Recall | F1 | Samples |
 |-------|-------|-----|----------|-----------|--------|-----|---------|
-| baseline_mlp | 0.8391 | 0.5429 | 0.4783 | 0.7619 | 0.4571 | 0.5714 | 46 |
-| deep_residual | 0.9246 | 0.7481 | 0.4565 | 1.0000 | 0.2857 | 0.4444 | 46 |
-| optimized_residual | 0.8347 | 0.5442 | 0.5000 | 0.7727 | 0.4857 | 0.5965 | 46 |
-| transformer | 0.9426 | 0.8052 | 0.3913 | 1.0000 | 0.2000 | 0.3333 | 46 |
+| baseline_mlp | 0.8612 | 0.5766 | 0.4737 | 0.7143 | 0.5172 | 0.6000 | 38 |
+| deep_residual | 0.9093 | 0.7165 | 0.4474 | 1.0000 | 0.2759 | 0.4324 | 38 |
+| optimized_residual | 0.8542 | 0.5785 | 0.5263 | 0.8235 | 0.4828 | 0.6087 | 38 |
+| transformer | 0.9395 | 0.8008 | 0.4474 | 1.0000 | 0.2759 | 0.4324 | 38 |
 
 ### Training Set Sample-Level Performance
 
 | Model | auPRC | AUC | Accuracy | Precision | Recall | F1 | Samples |
 |-------|-------|-----|----------|-----------|--------|-----|---------|
-| baseline_mlp | 0.8959 | 0.6783 | 0.5904 | 0.8065 | 0.6068 | 0.6925 | 271 |
-| deep_residual | 0.9387 | 0.8043 | 0.4539 | 1.0000 | 0.2816 | 0.4394 | 271 |
-| optimized_residual | 0.9049 | 0.7179 | 0.6089 | 0.8788 | 0.5631 | 0.6864 | 271 |
-| transformer | 0.9482 | 0.8263 | 0.4133 | 1.0000 | 0.2282 | 0.3715 | 271 |
+| baseline_mlp | 0.9053 | 0.7030 | 0.6071 | 0.8266 | 0.6111 | 0.7027 | 308 |
+| deep_residual | 0.9443 | 0.8211 | 0.4740 | 1.0000 | 0.3077 | 0.4706 | 308 |
+| optimized_residual | 0.9006 | 0.7107 | 0.6136 | 0.8662 | 0.5812 | 0.6957 | 308 |
+| transformer | 0.9506 | 0.8338 | 0.4286 | 1.0000 | 0.2479 | 0.3973 | 308 |
 
 ### Overfitting Analysis
 
@@ -123,6 +129,7 @@ A sample is predicted as circular if any gene in the sample is predicted positiv
 |-------|---------------------|----------|---------------|------------|
 | baseline_mlp | -0.1408 | ✅ low | -0.0501 | -0.2362 |
 | deep_residual | 0.1323 | ⚠️ medium | 0.1309 | 0.0619 |
+| dgit_super | -0.1937 | ✅ low | -0.5035 | 0.3178 |
 | optimized_residual | -0.1969 | ✅ low | -0.2082 | -0.1431 |
 | transformer | 0.1576 | ❌ high | 0.1077 | 0.1350 |
 
@@ -133,10 +140,10 @@ A sample is predicted as circular if any gene in the sample is predicted positiv
 | **Best auPRC** | transformer | 0.7484 |
 | **Best AUC** | deep_residual | 0.9797 |
 | **Best F1-Score** | deep_residual | 0.7250 |
-| **Best Precision** | transformer | 0.9150 |
+| **Best Precision** | dgit_super | 0.9831 |
 | **Best Recall** | deep_residual | 0.6862 |
 | **Best Generalization** | optimized_residual | Gap: -0.1969 |
-| **Best Sample-Level auPRC** | deep_residual | 0.9701 |
+| **Best Sample-Level auPRC** | transformer | 0.9639 |
 
 ## Architecture Details
 
@@ -171,6 +178,22 @@ A sample is predicted as circular if any gene in the sample is predicted positiv
 - **Loss Function**: `auPRCOptimizedLoss`
 
 - **Optimizer**: `AdamW` (lr=0.0001, weight_decay=0.01)
+
+### dgit_super
+
+- **Type**: `DGITSuper`
+
+- **Description**: Super Deep Gated Interaction Transformer
+
+- **Structure**: `57→256→Transformer(4层)→Gated Residual(6层)→1`
+
+- **Key Features**: Multi-scale features, Adaptive gating, Contrastive learning, Density estimation
+
+- **Suitable For**: High-performance ecDNA prediction
+
+- **Loss Function**: `DGITSuperLoss`
+
+- **Optimizer**: `AdamW` (lr=0.0002, weight_decay=0.0001)
 
 ### optimized_residual
 
@@ -233,7 +256,7 @@ specialized loss functions and techniques to handle this imbalance effectively.
 
 ## Conclusions
 
-Among the 4 models evaluated, **transformer** achieved the highest
+Among the 5 models evaluated, **transformer** achieved the highest
 test auPRC of **0.7484**, demonstrating superior performance
 for ecDNA prediction on this challenging imbalanced dataset.
 
