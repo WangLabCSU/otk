@@ -6,13 +6,18 @@ Model Analyzer - 自动分析 otk_api/models 下的模型架构和性能
 1. 扫描所有模型目录
 2. 解析 config.yml 和 training_summary.yml
 3. 生成架构对比和性能汇总报告 (SCI论文级别)
+4. 样本级别评估 (sample-level circular detection)
 """
 
 import yaml
+import torch
+import numpy as np
+import pandas as pd
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime
+from sklearn.metrics import precision_recall_curve, auc, roc_auc_score, accuracy_score
 
 
 @dataclass
@@ -36,6 +41,20 @@ class PerformanceMetrics:
     Precision: float = 0.0
     Recall: float = 0.0
     optimal_threshold: float = 0.5
+
+
+@dataclass
+class SampleLevelMetrics:
+    auPRC: float = 0.0
+    AUC: float = 0.0
+    Accuracy: float = 0.0
+    Precision: float = 0.0
+    Recall: float = 0.0
+    F1: float = 0.0
+    total_samples: int = 0
+    positive_samples: int = 0
+    predicted_positive: int = 0
+    true_positive: int = 0
 
 
 @dataclass
@@ -69,6 +88,10 @@ class ModelInfo:
     val_metrics: PerformanceMetrics = field(default_factory=PerformanceMetrics)
     test_metrics: PerformanceMetrics = field(default_factory=PerformanceMetrics)
     overfitting: OverfittingAnalysis = field(default_factory=OverfittingAnalysis)
+    sample_train_metrics: SampleLevelMetrics = field(default_factory=SampleLevelMetrics)
+    sample_val_metrics: SampleLevelMetrics = field(default_factory=SampleLevelMetrics)
+    sample_test_metrics: SampleLevelMetrics = field(default_factory=SampleLevelMetrics)
+    is_trained: bool = False
 
 
 class ModelAnalyzer:
@@ -139,15 +162,60 @@ class ModelAnalyzer:
             "features": ["Lightweight design", "Fast inference", "Low memory footprint"],
             "suitable_for": "Fast training, resource-constrained scenarios"
         },
+        "DeepGatedInteractionTransformer": {
+            "description": "Deep Gated Interaction Transformer",
+            "structure": "57→128→Transformer→Gated Residual→1",
+            "features": ["Feature gating", "Transformer encoder", "Gated residual blocks"],
+            "suitable_for": "Feature interaction learning with gating mechanism"
+        },
+        "DGITSuper": {
+            "description": "Super Deep Gated Interaction Transformer",
+            "structure": "57→256→Transformer(4层)→Gated Residual(6层)→1",
+            "features": ["Multi-scale features", "Adaptive gating", "Contrastive learning", "Density estimation"],
+            "suitable_for": "High-performance ecDNA prediction"
+        },
     }
 
-    def __init__(self, models_dir: Optional[Path] = None):
+    def __init__(self, models_dir: Optional[Path] = None, data_path: Optional[Path] = None):
         if models_dir is None:
             self.models_dir = Path(__file__).parent / "models"
         else:
             self.models_dir = Path(models_dir)
         
+        self.data_path = data_path
+        self.data_df = None
+        self.sample_splits = None
         self.models: List[ModelInfo] = []
+    
+    def load_data(self):
+        """Load preprocessed data for sample-level evaluation"""
+        if self.data_df is not None:
+            return
+        
+        data_file = self.models_dir.parent.parent / "src/otk/data/sorted_modeling_data.csv.gz"
+        if not data_file.exists():
+            print(f"Data file not found: {data_file}")
+            return
+        
+        import gzip
+        print(f"Loading data from {data_file}...")
+        with gzip.open(data_file, 'rt') as f:
+            self.data_df = pd.read_csv(f)
+        print(f"Loaded {len(self.data_df)} rows")
+        
+        unique_samples = self.data_df['sample'].unique()
+        np.random.seed(42)
+        np.random.shuffle(unique_samples)
+        
+        n_samples = len(unique_samples)
+        train_end = int(n_samples * 0.7)
+        val_end = int(n_samples * 0.82)
+        
+        self.sample_splits = {
+            'train': set(unique_samples[:train_end]),
+            'val': set(unique_samples[train_end:val_end]),
+            'test': set(unique_samples[val_end:])
+        }
     
     def scan_models(self) -> List[str]:
         """扫描模型目录,返回所有模型名称"""
@@ -242,7 +310,6 @@ class ModelAnalyzer:
         """解析训练摘要 - 支持新旧格式"""
         result = {}
         
-        # 新格式: performance包含training_set, validation_set, test_set
         performance = summary.get('performance', {})
         if performance:
             result['train_metrics'] = self.parse_performance_metrics(
@@ -255,27 +322,23 @@ class ModelAnalyzer:
                 performance.get('test_set', {})
             )
         else:
-            # 旧格式兼容
             test_metrics = summary.get('test_metrics', {})
             result['test_metrics'] = self.parse_performance_metrics(test_metrics)
             result['train_metrics'] = PerformanceMetrics()
             result['val_metrics'] = PerformanceMetrics()
         
-        # 数据集统计
         dataset_stats = summary.get('dataset_statistics', {})
         if dataset_stats:
             result['dataset_stats'] = self.parse_dataset_statistics(dataset_stats)
         else:
             result['dataset_stats'] = DatasetStatistics()
         
-        # 过拟合分析
         overfitting = summary.get('overfitting_analysis', {})
         if overfitting:
             result['overfitting'] = self.parse_overfitting_analysis(overfitting)
         else:
             result['overfitting'] = OverfittingAnalysis()
         
-        # 训练进度
         training_progress = summary.get('training_progress', {})
         result['best_val_auPRC'] = summary.get('best_val_auPRC', 
             result['val_metrics'].auPRC if result['val_metrics'].auPRC > 0 else 0.0)
@@ -288,6 +351,83 @@ class ModelAnalyzer:
             summary.get('total_training_time', 0.0))
         
         return result
+    
+    def evaluate_sample_level(self, model_info: ModelInfo) -> Tuple[SampleLevelMetrics, SampleLevelMetrics, SampleLevelMetrics]:
+        """Evaluate model at sample level (circular detection)"""
+        if self.data_df is None or self.sample_splits is None:
+            return SampleLevelMetrics(), SampleLevelMetrics(), SampleLevelMetrics()
+        
+        model_path = Path(model_info.model_path)
+        if not model_path.exists():
+            return SampleLevelMetrics(), SampleLevelMetrics(), SampleLevelMetrics()
+        
+        try:
+            sys.path.insert(0, str(self.models_dir.parent.parent / "src"))
+            from otk.predict.predictor import Predictor
+            
+            predictor = Predictor(str(model_info.config_path), str(model_path.parent))
+            
+            feature_cols = [col for col in self.data_df.columns if col not in ['sample', 'gene_id', 'y']]
+            
+            def evaluate_split(split_name: str) -> SampleLevelMetrics:
+                split_samples = self.sample_splits[split_name]
+                split_df = self.data_df[self.data_df['sample'].isin(split_samples)].copy()
+                
+                if len(split_df) == 0:
+                    return SampleLevelMetrics()
+                
+                X = split_df[feature_cols].values
+                y_true_gene = split_df['y'].values
+                samples = split_df['sample'].values
+                
+                probs = predictor.predict_proba(X)
+                
+                split_df['prob'] = probs
+                sample_predictions = split_df.groupby('sample').agg({
+                    'y': 'max',
+                    'prob': 'max'
+                }).reset_index()
+                
+                y_true = sample_predictions['y'].values
+                y_prob = sample_predictions['prob'].values
+                y_pred = (y_prob >= 0.5).astype(int)
+                
+                precision, recall, _ = precision_recall_curve(y_true, y_prob)
+                auprc = auc(recall, precision)
+                auc_score = roc_auc_score(y_true, y_prob) if len(np.unique(y_true)) > 1 else 0.0
+                
+                tp = ((y_pred == 1) & (y_true == 1)).sum()
+                fp = ((y_pred == 1) & (y_true == 0)).sum()
+                fn = ((y_pred == 0) & (y_true == 1)).sum()
+                tn = ((y_pred == 0) & (y_true == 0)).sum()
+                
+                prec = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+                rec = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+                f1 = 2 * prec * rec / (prec + rec) if (prec + rec) > 0 else 0.0
+                acc = (tp + tn) / len(y_true)
+                
+                return SampleLevelMetrics(
+                    auPRC=auprc,
+                    AUC=auc_score,
+                    Accuracy=acc,
+                    Precision=prec,
+                    Recall=rec,
+                    F1=f1,
+                    total_samples=len(y_true),
+                    positive_samples=int(y_true.sum()),
+                    predicted_positive=int(y_pred.sum()),
+                    true_positive=int(tp)
+                )
+            
+            train_metrics = evaluate_split('train')
+            val_metrics = evaluate_split('val')
+            test_metrics = evaluate_split('test')
+            
+            return train_metrics, val_metrics, test_metrics
+            
+        except Exception as e:
+            print(f"Error evaluating sample level for {model_info.name}: {e}")
+            return SampleLevelMetrics(), SampleLevelMetrics(), SampleLevelMetrics()
     
     def analyze_model(self, model_name: str) -> Optional[ModelInfo]:
         """分析单个模型"""
@@ -314,7 +454,9 @@ class ModelAnalyzer:
             "suitable_for": "N/A"
         })
         
-        return ModelInfo(
+        is_trained = summary_info['test_metrics'].auPRC > 0
+        
+        model_info = ModelInfo(
             name=model_name,
             model_type=model_type,
             input_dim=config_info['input_dim'],
@@ -336,9 +478,12 @@ class ModelAnalyzer:
             val_metrics=summary_info['val_metrics'],
             test_metrics=summary_info['test_metrics'],
             overfitting=summary_info['overfitting'],
+            is_trained=is_trained
         )
+        
+        return model_info
     
-    def analyze_all(self) -> List[ModelInfo]:
+    def analyze_all(self, include_untrained: bool = False) -> List[ModelInfo]:
         """分析所有模型"""
         self.models = []
         model_names = self.scan_models()
@@ -346,25 +491,46 @@ class ModelAnalyzer:
         for name in model_names:
             model_info = self.analyze_model(name)
             if model_info:
-                self.models.append(model_info)
+                if include_untrained or model_info.is_trained:
+                    self.models.append(model_info)
         
         return self.models
+    
+    def evaluate_all_sample_level(self):
+        """Evaluate all models at sample level"""
+        if self.data_df is None:
+            self.load_data()
+        
+        if self.data_df is None:
+            print("Cannot load data, skipping sample-level evaluation")
+            return
+        
+        print("\nEvaluating sample-level performance...")
+        for model_info in self.models:
+            if model_info.is_trained and model_info.model_path:
+                print(f"  Evaluating {model_info.name}...")
+                train_m, val_m, test_m = self.evaluate_sample_level(model_info)
+                model_info.sample_train_metrics = train_m
+                model_info.sample_val_metrics = val_m
+                model_info.sample_test_metrics = test_m
     
     def generate_sci_report(self) -> str:
         """生成SCI论文级别的分析报告"""
         if not self.models:
             self.analyze_all()
         
+        trained_models = [m for m in self.models if m.is_trained]
+        
         lines = []
         
-        # 标题
         lines.append("# Model Performance Analysis Report")
         lines.append("")
         lines.append(f"**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        lines.append(f"**Total Models**: {len(self.models)}")
+        lines.append(f"**Total Models**: {len(trained_models)} trained models")
+        if len(self.models) > len(trained_models):
+            lines.append(f"**Note**: {len(self.models) - len(trained_models)} models excluded (training incomplete)")
         lines.append("")
         
-        # 摘要
         lines.append("## Abstract")
         lines.append("")
         lines.append("This report presents a comprehensive analysis of multiple deep learning models")
@@ -373,11 +539,10 @@ class ModelAnalyzer:
         lines.append("performance metrics including auPRC, AUC, Precision, Recall, and F1-score.")
         lines.append("")
         
-        # 数据集描述
         lines.append("## Dataset Description")
         lines.append("")
-        if self.models and self.models[0].dataset_stats.train_samples > 0:
-            stats = self.models[0].dataset_stats
+        if trained_models and trained_models[0].dataset_stats.train_samples > 0:
+            stats = trained_models[0].dataset_stats
             lines.append("### Sample Distribution")
             lines.append("")
             lines.append("| Dataset | Total Samples | Positive Samples | Positive Rate |")
@@ -394,47 +559,43 @@ class ModelAnalyzer:
             lines.append("which presents significant challenges for model training and evaluation.")
             lines.append("")
         
-        # 模型架构对比
         lines.append("## Model Architecture Comparison")
         lines.append("")
         lines.append("### Overview")
         lines.append("")
         lines.append("| Model | Architecture | Network Structure | Loss Function | Optimizer |")
         lines.append("|-------|--------------|-------------------|---------------|-----------|")
-        for m in self.models:
+        for m in trained_models:
             lines.append(f"| {m.name} | {m.model_type} | {m.architecture_summary} | {m.loss_function} | {m.optimizer} |")
         lines.append("")
         
-        # 训练配置
         lines.append("### Training Configuration")
         lines.append("")
         lines.append("| Model | Learning Rate | Weight Decay | Batch Size | Epochs | Best Epoch | Early Stop |")
         lines.append("|-------|---------------|--------------|------------|--------|------------|------------|")
-        for m in self.models:
+        for m in trained_models:
             early_stop_str = "Yes" if m.early_stopped else "No"
             lines.append(f"| {m.name} | {m.learning_rate:.6f} | {m.weight_decay:.4f} | {m.batch_size} | {m.epochs_trained} | {m.best_epoch} | {early_stop_str} |")
         lines.append("")
         
-        # 性能指标
         lines.append("## Performance Metrics")
         lines.append("")
         lines.append("### Test Set Performance (Primary Evaluation)")
         lines.append("")
         lines.append("| Model | auPRC | AUC | Precision | Recall | F1-Score |")
         lines.append("|-------|-------|-----|-----------|--------|----------|")
-        for m in sorted(self.models, key=lambda x: x.test_metrics.auPRC, reverse=True):
+        for m in sorted(trained_models, key=lambda x: x.test_metrics.auPRC, reverse=True):
             tm = m.test_metrics
             lines.append(f"| {m.name} | **{tm.auPRC:.4f}** | {tm.AUC:.4f} | {tm.Precision:.4f} | {tm.Recall:.4f} | {tm.F1:.4f} |")
         lines.append("")
         
-        # 完整性能对比表 (Train/Val/Test)
         lines.append("### Complete Performance Comparison")
         lines.append("")
         lines.append("#### Training Set Performance")
         lines.append("")
         lines.append("| Model | auPRC | AUC | Precision | Recall | F1-Score |")
         lines.append("|-------|-------|-----|-----------|--------|----------|")
-        for m in self.models:
+        for m in trained_models:
             tm = m.train_metrics
             if tm.auPRC > 0:
                 lines.append(f"| {m.name} | {tm.auPRC:.4f} | {tm.AUC:.4f} | {tm.Precision:.4f} | {tm.Recall:.4f} | {tm.F1:.4f} |")
@@ -444,7 +605,7 @@ class ModelAnalyzer:
         lines.append("")
         lines.append("| Model | auPRC | AUC | Precision | Recall | F1-Score |")
         lines.append("|-------|-------|-----|-----------|--------|----------|")
-        for m in self.models:
+        for m in trained_models:
             vm = m.val_metrics
             if vm.auPRC > 0:
                 lines.append(f"| {m.name} | {vm.auPRC:.4f} | {vm.AUC:.4f} | {vm.Precision:.4f} | {vm.Recall:.4f} | {vm.F1:.4f} |")
@@ -454,33 +615,69 @@ class ModelAnalyzer:
         lines.append("")
         lines.append("| Model | auPRC | AUC | Precision | Recall | F1-Score |")
         lines.append("|-------|-------|-----|-----------|--------|----------|")
-        for m in self.models:
+        for m in trained_models:
             tm = m.test_metrics
             lines.append(f"| {m.name} | {tm.auPRC:.4f} | {tm.AUC:.4f} | {tm.Precision:.4f} | {tm.Recall:.4f} | {tm.F1:.4f} |")
         lines.append("")
         
-        # 过拟合分析
+        sample_evaluated = any(m.sample_test_metrics.auPRC > 0 for m in trained_models)
+        if sample_evaluated:
+            lines.append("## Sample-Level Performance (Circular Detection)")
+            lines.append("")
+            lines.append("Sample-level evaluation determines whether a sample contains circular ecDNA.")
+            lines.append("A sample is predicted as circular if any gene in the sample is predicted positive.")
+            lines.append("")
+            
+            lines.append("### Test Set Sample-Level Performance")
+            lines.append("")
+            lines.append("| Model | auPRC | AUC | Accuracy | Precision | Recall | F1 | Samples |")
+            lines.append("|-------|-------|-----|----------|-----------|--------|-----|---------|")
+            for m in sorted(trained_models, key=lambda x: x.sample_test_metrics.auPRC, reverse=True):
+                sm = m.sample_test_metrics
+                if sm.auPRC > 0:
+                    lines.append(f"| {m.name} | **{sm.auPRC:.4f}** | {sm.AUC:.4f} | {sm.Accuracy:.4f} | {sm.Precision:.4f} | {sm.Recall:.4f} | {sm.F1:.4f} | {sm.total_samples} |")
+            lines.append("")
+            
+            lines.append("### Validation Set Sample-Level Performance")
+            lines.append("")
+            lines.append("| Model | auPRC | AUC | Accuracy | Precision | Recall | F1 | Samples |")
+            lines.append("|-------|-------|-----|----------|-----------|--------|-----|---------|")
+            for m in trained_models:
+                sm = m.sample_val_metrics
+                if sm.auPRC > 0:
+                    lines.append(f"| {m.name} | {sm.auPRC:.4f} | {sm.AUC:.4f} | {sm.Accuracy:.4f} | {sm.Precision:.4f} | {sm.Recall:.4f} | {sm.F1:.4f} | {sm.total_samples} |")
+            lines.append("")
+            
+            lines.append("### Training Set Sample-Level Performance")
+            lines.append("")
+            lines.append("| Model | auPRC | AUC | Accuracy | Precision | Recall | F1 | Samples |")
+            lines.append("|-------|-------|-----|----------|-----------|--------|-----|---------|")
+            for m in trained_models:
+                sm = m.sample_train_metrics
+                if sm.auPRC > 0:
+                    lines.append(f"| {m.name} | {sm.auPRC:.4f} | {sm.AUC:.4f} | {sm.Accuracy:.4f} | {sm.Precision:.4f} | {sm.Recall:.4f} | {sm.F1:.4f} | {sm.total_samples} |")
+            lines.append("")
+        
         lines.append("### Overfitting Analysis")
         lines.append("")
         lines.append("| Model | Train-Val auPRC Gap | Severity | Precision Gap | Recall Gap |")
         lines.append("|-------|---------------------|----------|---------------|------------|")
-        for m in self.models:
+        for m in trained_models:
             of = m.overfitting
             severity_emoji = {"low": "✅", "medium": "⚠️", "high": "❌"}.get(of.overfitting_severity, "❓")
             lines.append(f"| {m.name} | {of.train_val_auPRC_gap:.4f} | {severity_emoji} {of.overfitting_severity} | {of.train_val_precision_gap:.4f} | {of.train_val_recall_gap:.4f} |")
         lines.append("")
         
-        # 最佳模型推荐
         lines.append("## Best Model Recommendations")
         lines.append("")
         
-        if self.models:
-            best_auprc = max(self.models, key=lambda m: m.test_metrics.auPRC)
-            best_auc = max(self.models, key=lambda m: m.test_metrics.AUC)
-            best_f1 = max(self.models, key=lambda m: m.test_metrics.F1)
-            best_precision = max(self.models, key=lambda m: m.test_metrics.Precision)
-            best_recall = max(self.models, key=lambda m: m.test_metrics.Recall)
-            best_generalization = min(self.models, key=lambda m: m.overfitting.train_val_auPRC_gap)
+        if trained_models:
+            best_auprc = max(trained_models, key=lambda m: m.test_metrics.auPRC)
+            best_auc = max(trained_models, key=lambda m: m.test_metrics.AUC)
+            best_f1 = max(trained_models, key=lambda m: m.test_metrics.F1)
+            best_precision = max(trained_models, key=lambda m: m.test_metrics.Precision)
+            best_recall = max(trained_models, key=lambda m: m.test_metrics.Recall)
+            best_generalization = min(trained_models, key=lambda m: m.overfitting.train_val_auPRC_gap)
             
             lines.append("| Metric | Best Model | Value |")
             lines.append("|--------|------------|-------|")
@@ -490,12 +687,16 @@ class ModelAnalyzer:
             lines.append(f"| **Best Precision** | {best_precision.name} | {best_precision.test_metrics.Precision:.4f} |")
             lines.append(f"| **Best Recall** | {best_recall.name} | {best_recall.test_metrics.Recall:.4f} |")
             lines.append(f"| **Best Generalization** | {best_generalization.name} | Gap: {best_generalization.overfitting.train_val_auPRC_gap:.4f} |")
+            
+            if sample_evaluated:
+                best_sample = max(trained_models, key=lambda m: m.sample_test_metrics.auPRC)
+                if best_sample.sample_test_metrics.auPRC > 0:
+                    lines.append(f"| **Best Sample-Level auPRC** | {best_sample.name} | {best_sample.sample_test_metrics.auPRC:.4f} |")
         lines.append("")
         
-        # 架构详情
         lines.append("## Architecture Details")
         lines.append("")
-        for m in self.models:
+        for m in trained_models:
             arch_info = self.MODEL_ARCHITECTURE_INFO.get(m.model_type, {})
             lines.append(f"### {m.name}")
             lines.append("")
@@ -515,7 +716,6 @@ class ModelAnalyzer:
             lines.append(f"- **Optimizer**: `{m.optimizer}` (lr={m.learning_rate}, weight_decay={m.weight_decay})")
             lines.append("")
         
-        # 统计显著性说明
         lines.append("## Statistical Considerations")
         lines.append("")
         lines.append("### Evaluation Metrics")
@@ -531,6 +731,12 @@ class ModelAnalyzer:
         lines.append("")
         lines.append("- **F1-Score**: Harmonic mean of Precision and Recall.")
         lines.append("")
+        lines.append("### Sample-Level vs Gene-Level Evaluation")
+        lines.append("")
+        lines.append("- **Gene-Level**: Each gene is evaluated independently for ecDNA presence.")
+        lines.append("- **Sample-Level**: A sample is predicted as circular if any gene is predicted positive.")
+        lines.append("  This reflects the clinical question: 'Does this sample contain circular ecDNA?'")
+        lines.append("")
         lines.append("### Class Imbalance")
         lines.append("")
         lines.append("The dataset exhibits severe class imbalance (positive rate ~0.35%). This presents")
@@ -538,12 +744,11 @@ class ModelAnalyzer:
         lines.append("specialized loss functions and techniques to handle this imbalance effectively.")
         lines.append("")
         
-        # 结论
         lines.append("## Conclusions")
         lines.append("")
-        if self.models:
-            best = max(self.models, key=lambda m: m.test_metrics.auPRC)
-            lines.append(f"Among the {len(self.models)} models evaluated, **{best.name}** achieved the highest")
+        if trained_models:
+            best = max(trained_models, key=lambda m: m.test_metrics.auPRC)
+            lines.append(f"Among the {len(trained_models)} models evaluated, **{best.name}** achieved the highest")
             lines.append(f"test auPRC of **{best.test_metrics.auPRC:.4f}**, demonstrating superior performance")
             lines.append("for ecDNA prediction on this challenging imbalanced dataset.")
             lines.append("")
@@ -553,7 +758,6 @@ class ModelAnalyzer:
                 lines.append("reducing false positives in clinical applications.")
         lines.append("")
         
-        # 方法论
         lines.append("## Methods")
         lines.append("")
         lines.append("### Data Splitting")
@@ -588,15 +792,17 @@ class ModelAnalyzer:
         if not self.models:
             self.analyze_all()
         
+        trained_models = [m for m in self.models if m.is_trained]
+        
         print("\n" + "=" * 120)
-        print("Model Performance Comparison Table")
+        print("Model Performance Comparison Table (Trained Models Only)")
         print("=" * 120)
         
         header = f"{'Model':<20} {'Type':<25} {'auPRC':>8} {'AUC':>8} {'Prec':>8} {'Recall':>8} {'F1':>8}"
         print(header)
         print("-" * 120)
         
-        for m in sorted(self.models, key=lambda x: x.test_metrics.auPRC, reverse=True):
+        for m in sorted(trained_models, key=lambda x: x.test_metrics.auPRC, reverse=True):
             tm = m.test_metrics
             row = f"{m.name:<20} {m.model_type:<25} {tm.auPRC:>8.4f} {tm.AUC:>8.4f} {tm.Precision:>8.4f} {tm.Recall:>8.4f} {tm.F1:>8.4f}"
             print(row)
@@ -606,16 +812,24 @@ class ModelAnalyzer:
 
 def main():
     """主函数"""
+    import argparse
+    parser = argparse.ArgumentParser(description='Model Analyzer')
+    parser.add_argument('--sample-level', action='store_true', help='Evaluate at sample level')
+    args = parser.parse_args()
+    
     analyzer = ModelAnalyzer()
     
     print("\nAnalyzing models...")
-    models = analyzer.analyze_all()
+    models = analyzer.analyze_all(include_untrained=False)
     
     if not models:
-        print("No models found!")
+        print("No trained models found!")
         return
     
-    print(f"\nFound {len(models)} models\n")
+    print(f"\nFound {len(models)} trained models\n")
+    
+    if args.sample_level:
+        analyzer.evaluate_all_sample_level()
     
     analyzer.print_comparison_table()
     

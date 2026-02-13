@@ -1,7 +1,7 @@
 # Model Performance Analysis Report
 
-**Generated**: 2026-02-13 04:30:56
-**Total Models**: 5
+**Generated**: 2026-02-13 04:41:58
+**Total Models**: 4 trained models
 
 ## Abstract
 
@@ -33,7 +33,6 @@ which presents significant challenges for model training and evaluation.
 |-------|--------------|-------------------|---------------|-----------|
 | baseline_mlp | Baseline | 57→256→128→64→1 | BCEWithLogitsLoss | Adam |
 | deep_residual | PrecisionFocusedEcDNA | 57→512→256→128→64→32→1 | auPRCOptimizedLoss | AdamW |
-| dgit_super | DGITSuper | N/A | DGITSuperLoss | AdamW |
 | optimized_residual | OptimizedEcDNA | 57→128→64→32→16→1 | CombinedLoss | AdamW |
 | transformer | TransformerEcDNA | 57→128(embedding)→Attention→64→32→1 | auPRCOptimizedLoss | Adam |
 
@@ -43,7 +42,6 @@ which presents significant challenges for model training and evaluation.
 |-------|---------------|--------------|------------|--------|------------|------------|
 | baseline_mlp | 0.001000 | 0.0001 | 512 | 11 | 1 | Yes |
 | deep_residual | 0.000100 | 0.0100 | 1024 | 17 | 2 | Yes |
-| dgit_super | 0.000200 | 0.0001 | 2048 | 0 | 0 | No |
 | optimized_residual | 0.001000 | 0.1000 | 1024 | 98 | 63 | Yes |
 | transformer | 0.000100 | 0.0001 | 1024 | 19 | 9 | Yes |
 
@@ -57,7 +55,6 @@ which presents significant challenges for model training and evaluation.
 | deep_residual | **0.7384** | 0.9797 | 0.7685 | 0.6862 | 0.7250 |
 | baseline_mlp | **0.7208** | 0.9690 | 0.8860 | 0.5860 | 0.7054 |
 | optimized_residual | **0.6218** | 0.9729 | 0.8713 | 0.4869 | 0.6247 |
-| dgit_super | **0.0000** | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
 
 ### Complete Performance Comparison
 
@@ -85,7 +82,6 @@ which presents significant challenges for model training and evaluation.
 |-------|-------|-----|-----------|--------|----------|
 | baseline_mlp | 0.7208 | 0.9690 | 0.8860 | 0.5860 | 0.7054 |
 | deep_residual | 0.7384 | 0.9797 | 0.7685 | 0.6862 | 0.7250 |
-| dgit_super | 0.0000 | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
 | optimized_residual | 0.6218 | 0.9729 | 0.8713 | 0.4869 | 0.6247 |
 | transformer | 0.7484 | 0.9746 | 0.9150 | 0.5868 | 0.7150 |
 
@@ -95,7 +91,6 @@ which presents significant challenges for model training and evaluation.
 |-------|---------------------|----------|---------------|------------|
 | baseline_mlp | -0.1408 | ✅ low | -0.0501 | -0.2362 |
 | deep_residual | 0.1323 | ⚠️ medium | 0.1309 | 0.0619 |
-| dgit_super | 0.0000 | ❓ unknown | 0.0000 | 0.0000 |
 | optimized_residual | -0.1969 | ✅ low | -0.2082 | -0.1431 |
 | transformer | 0.1576 | ❌ high | 0.1077 | 0.1350 |
 
@@ -144,22 +139,6 @@ which presents significant challenges for model training and evaluation.
 
 - **Optimizer**: `AdamW` (lr=0.0001, weight_decay=0.01)
 
-### dgit_super
-
-- **Type**: `DGITSuper`
-
-- **Description**: N/A
-
-- **Structure**: `N/A`
-
-- **Key Features**: 
-
-- **Suitable For**: N/A
-
-- **Loss Function**: `DGITSuperLoss`
-
-- **Optimizer**: `AdamW` (lr=0.0002, weight_decay=0.0001)
-
 ### optimized_residual
 
 - **Type**: `OptimizedEcDNA`
@@ -207,6 +186,12 @@ which presents significant challenges for model training and evaluation.
 
 - **F1-Score**: Harmonic mean of Precision and Recall.
 
+### Sample-Level vs Gene-Level Evaluation
+
+- **Gene-Level**: Each gene is evaluated independently for ecDNA presence.
+- **Sample-Level**: A sample is predicted as circular if any gene is predicted positive.
+  This reflects the clinical question: 'Does this sample contain circular ecDNA?'
+
 ### Class Imbalance
 
 The dataset exhibits severe class imbalance (positive rate ~0.35%). This presents
@@ -215,7 +200,7 @@ specialized loss functions and techniques to handle this imbalance effectively.
 
 ## Conclusions
 
-Among the 5 models evaluated, **transformer** achieved the highest
+Among the 4 models evaluated, **transformer** achieved the highest
 test auPRC of **0.7484**, demonstrating superior performance
 for ecDNA prediction on this challenging imbalanced dataset.
 
