@@ -291,17 +291,19 @@ class ECDNA_Model:
         """Get the built model"""
         return self.model
     
-    def save(self, path):
+    def save(self, path, optimal_threshold=None):
         """Save the model"""
-        # Ensure the directory exists
         os.makedirs(os.path.dirname(path), exist_ok=True)
         
-        # Save the model state dict and configuration
-        torch.save({
+        save_dict = {
             'model_state_dict': self.model.state_dict(),
             'config': self.config
-        }, path)
-        print(f"Model saved to {path}")
+        }
+        if optimal_threshold is not None:
+            save_dict['optimal_threshold'] = optimal_threshold
+        
+        torch.save(save_dict, path)
+        logger.info(f"Model saved to {path}")
     
     @classmethod
     def load(cls, path, map_location=None):
@@ -320,5 +322,5 @@ class ECDNA_Model:
         finally:
             os.unlink(temp_config_path)
         
-        print(f"Model loaded from {path}")
+        logger.info(f"Model loaded from {path}")
         return model

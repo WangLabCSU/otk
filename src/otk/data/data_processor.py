@@ -6,6 +6,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 import yaml
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ECDNA_Dataset(Dataset):
     def __init__(self, features, targets):
@@ -14,6 +17,7 @@ class ECDNA_Dataset(Dataset):
         if hasattr(targets, 'values'):
             targets = targets.values
         self.targets = torch.tensor(targets, dtype=torch.float32)
+        self.labels = self.targets  # Alias for compatibility
     
     def __len__(self):
         return len(self.features)
@@ -35,9 +39,9 @@ class DataProcessor:
         sorted_data_path = os.path.join(os.path.dirname(__file__), 'sorted_modeling_data.csv.gz')
         
         if os.path.exists(sorted_data_path):
-            print(f"Loading preprocessed sorted data from {sorted_data_path}")
+            logger.info(f"Loading preprocessed sorted data from {sorted_data_path}")
             df = pd.read_csv(sorted_data_path)
-            print(f"Preprocessed data loaded successfully with shape: {df.shape}")
+            logger.info(f"Preprocessed data loaded successfully with shape: {df.shape}")
             return df
         
         # Fallback to original data path if preprocessed data not available
@@ -48,9 +52,9 @@ class DataProcessor:
         if not os.path.isabs(data_path):
             data_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), data_path)
         
-        print(f"Loading data from {data_path}")
+        logger.info(f"Loading data from {data_path}")
         df = pd.read_csv(data_path)
-        print(f"Data loaded successfully with shape: {df.shape}")
+        logger.info(f"Data loaded successfully with shape: {df.shape}")
         
         return df
     
@@ -67,7 +71,7 @@ class DataProcessor:
                     df['age'] = df['age'].fillna(df['age'].median())
                 elif strategy == 'mode':
                     df['age'] = df['age'].fillna(df['age'].mode()[0])
-                print(f"Handled missing values in 'age' column using {strategy} strategy")
+                logger.info(f"Handled missing values in 'age' column using {strategy} strategy")
         
         # Select features and target
         features = df[self.data_config['features']]
@@ -81,19 +85,19 @@ class DataProcessor:
         """Split data into train, validation, and test sets by sample"""
         # Get unique samples
         unique_samples = samples.unique()
-        print(f"Number of unique samples: {len(unique_samples)}")
+        logger.info(f"Number of unique samples: {len(unique_samples)}")
         
         # Load precomputed sample y sum if available
         sample_y_sum_path = os.path.join(os.path.dirname(__file__), 'sample_y_sum.csv')
         
         if os.path.exists(sample_y_sum_path):
-            print(f"Loading precomputed sample y sum from {sample_y_sum_path}")
+            logger.info(f"Loading precomputed sample y sum from {sample_y_sum_path}")
             sample_y_sum_df = pd.read_csv(sample_y_sum_path)
             sample_y_sum = dict(zip(sample_y_sum_df['sample'], sample_y_sum_df['y_sum']))
-            print(f"Loaded y sum for {len(sample_y_sum)} samples")
+            logger.info(f"Loaded y sum for {len(sample_y_sum)} samples")
         else:
             # Calculate sum of y for each sample
-            print("Calculating sum of y for each sample...")
+            logger.info("Calculating sum of y for each sample...")
             sample_y_sum = {}
             for sample in unique_samples:
                 sample_mask = samples == sample
@@ -101,7 +105,7 @@ class DataProcessor:
         
         # Sort samples by y sum
         sorted_samples = sorted(unique_samples, key=lambda x: sample_y_sum[x])
-        print(f"Sorted samples by y sum: {len(sorted_samples)} samples")
+        logger.info(f"Sorted samples by y sum: {len(sorted_samples)} samples")
         
         # Calculate split indices for even distribution
         total_samples = len(sorted_samples)
@@ -126,7 +130,7 @@ class DataProcessor:
         val_samples = [sorted_samples[i] for i in val_indices]
         test_samples = [sorted_samples[i] for i in test_indices]
         
-        print(f"Train samples: {len(train_samples)}, Validation samples: {len(val_samples)}, Test samples: {len(test_samples)}")
+        logger.info(f"Train samples: {len(train_samples)}, Validation samples: {len(val_samples)}, Test samples: {len(test_samples)}")
         
         # Create masks for each split
         train_mask = samples.isin(train_samples)
@@ -142,9 +146,9 @@ class DataProcessor:
         y_test = target[test_mask]
         
         # Print class distribution for each split
-        print(f"Train set shape: {X_train.shape}, Positive samples: {y_train.sum()}, Positive rate: {y_train.sum()/len(y_train):.4f}")
-        print(f"Validation set shape: {X_val.shape}, Positive samples: {y_val.sum()}, Positive rate: {y_val.sum()/len(y_val):.4f}")
-        print(f"Test set shape: {X_test.shape}, Positive samples: {y_test.sum()}, Positive rate: {y_test.sum()/len(y_test):.4f}")
+        logger.info(f"Train set shape: {X_train.shape}, Positive samples: {int(y_train.sum())}, Positive rate: {y_train.sum()/len(y_train):.4f}")
+        logger.info(f"Validation set shape: {X_val.shape}, Positive samples: {int(y_val.sum())}, Positive rate: {y_val.sum()/len(y_val):.4f}")
+        logger.info(f"Test set shape: {X_test.shape}, Positive samples: {int(y_test.sum())}, Positive rate: {y_test.sum()/len(y_test):.4f}")
         return X_train, y_train, X_val, y_val, X_test, y_test
     
     def normalize(self, X_train, X_val, X_test):
@@ -177,8 +181,8 @@ class DataProcessor:
             shuffle=False
         )
         
-        print(f"Created DataLoaders with batch size: {self.training_config['batch_size']}")
-        print(f"Train batches: {len(train_loader)}, Validation batches: {len(val_loader)}, Test batches: {len(test_loader)}")
+        logger.info(f"Created DataLoaders with batch size: {self.training_config['batch_size']}")
+        logger.info(f"Train batches: {len(train_loader)}, Validation batches: {len(val_loader)}, Test batches: {len(test_loader)}")
         
         return train_loader, val_loader, test_loader
     

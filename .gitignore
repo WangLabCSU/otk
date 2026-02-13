@@ -162,4 +162,7 @@ out_*
 output_*
 logs/
 
+# OTK API model files - only exclude temporary files, track models
+otk_api/models/*/temp_*
+
 temp_config*

@@ -3,9 +3,12 @@ import pandas as pd
 import numpy as np
 import os
 import yaml
+import logging
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler
+
+logger = logging.getLogger(__name__)
 
 class Prediction_Dataset(Dataset):
     def __init__(self, features):
@@ -21,21 +24,30 @@ class Predictor:
     def __init__(self, model_path, gpu=-1):
         self.model_path = model_path
         self.gpu = gpu
+        self.optimal_threshold = None
         
         # Set device
         if torch.cuda.is_available() and gpu >= 0:
             self.device = torch.device(f'cuda:{gpu}')
-            print(f"Using GPU: {gpu}")
+            logger.info(f"Using GPU: {gpu}")
         else:
             self.device = torch.device('cpu')
-            print("Using CPU")
+            logger.info("Using CPU")
         
-        # Load model
-        self.model = self._load_model()
-        
-        # Load configuration from model checkpoint
+        # Load model and config together
         checkpoint = torch.load(model_path, map_location=self.device)
         self.config = checkpoint['config']
+        self.optimal_threshold = checkpoint.get('optimal_threshold')
+        if self.optimal_threshold is not None:
+            logger.info(f"Using optimal threshold from model: {self.optimal_threshold:.4f}")
+        
+        # Build model architecture
+        model = self._build_model(self.config)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        model.to(self.device)
+        model.eval()
+        self.model = model
+        logger.info(f"Model loaded from {self.model_path}")
         
         # Load precomputed gene frequencies
         self.gene_freqs = self._load_gene_frequencies()
@@ -57,7 +69,7 @@ class Predictor:
         gene_freq_path = os.path.join(script_dir, '..', 'data', 'gene_frequencies.csv')
         
         if os.path.exists(gene_freq_path):
-            print(f"Loading gene frequencies from {gene_freq_path}")
+            logger.info(f"Loading gene frequencies from {gene_freq_path}")
             gene_freqs = pd.read_csv(gene_freq_path)
             # Create a dictionary for quick lookup
             gene_freq_dict = {}
@@ -68,23 +80,11 @@ class Predictor:
                     'freq_Circular': row['freq_Circular'],
                     'freq_HR': row['freq_HR']
                 }
-            print(f"Loaded frequencies for {len(gene_freq_dict)} genes")
+            logger.info(f"Loaded frequencies for {len(gene_freq_dict)} genes")
             return gene_freq_dict
         else:
-            print(f"Warning: Gene frequencies file not found at {gene_freq_path}")
+            logger.warning(f"Gene frequencies file not found at {gene_freq_path}")
             return {}
-    
-    def _load_model(self):
-        """Load the model from a saved file"""
-        checkpoint = torch.load(self.model_path, map_location=self.device)
-        
-        # Create model architecture based on configuration
-        model = self._build_model(checkpoint['config'])
-        model.load_state_dict(checkpoint['model_state_dict'])
-        model.to(self.device)
-        model.eval()
-        print(f"Model loaded from {self.model_path}")
-        return model
     
     def _build_model(self, config):
         """Build the model based on configuration"""
@@ -119,14 +119,31 @@ class Predictor:
             return PrecisionFocusedEcDNAModel(config)
         elif model_type == 'EnsembleEcDNA':
             return EnsembleEcDNAModel(config)
+        elif model_type == 'OptimizedEcDNA':
+            from otk.models.optimized_ecdna_model import OptimizedEcDNA
+            arch = config['model']['architecture']
+            return OptimizedEcDNA(
+                input_dim=arch.get('input_dim', 57),
+                hidden_dims=arch.get('hidden_dims', [128, 64, 32]),
+                dropout_rate=arch.get('dropout_rate', 0.4),
+                use_residual=arch.get('use_residual', True)
+            )
+        elif model_type == 'EnsembleOptimizedEcDNA':
+            from otk.models.optimized_ecdna_model import EnsembleOptimizedEcDNA
+            arch = config['model']['architecture']
+            return EnsembleOptimizedEcDNA(
+                input_dim=arch.get('input_dim', 57),
+                hidden_dims=arch.get('hidden_dims', [128, 64, 32]),
+                dropout_rate=arch.get('dropout_rate', 0.4)
+            )
         else:
             raise ValueError(f"Unsupported model type: {model_type}")
     
     def load_data(self, data_path):
         """Load data for prediction"""
-        print(f"Loading data from {data_path}")
+        logger.info(f"Loading data from {data_path}")
         df = pd.read_csv(data_path)
-        print(f"Data loaded successfully with shape: {df.shape}")
+        logger.info(f"Data loaded successfully with shape: {df.shape}")
         return df
     
     def preprocess(self, df):
@@ -149,7 +166,7 @@ class Predictor:
         missing_cols = [col for col in required_features if col not in df.columns]
         
         if missing_cols:
-            print(f"Filling missing columns with default values: {missing_cols}")
+            logger.info(f"Filling missing columns with default values: {missing_cols}")
             for col in missing_cols:
                 if col in DEFAULT_VALUES:
                     df[col] = DEFAULT_VALUES[col]
@@ -159,7 +176,7 @@ class Predictor:
                     df[col] = 0
                 else:
                     df[col] = 0
-                    print(f"Warning: No default value for column '{col}', using 0")
+                    logger.warning(f"No default value for column '{col}', using 0")
         
         if 'age' in df.columns:
             if df['age'].isnull().sum() > 0:
@@ -170,26 +187,26 @@ class Predictor:
                     df['age'] = df['age'].fillna(df['age'].median())
                 elif strategy == 'mode':
                     df['age'] = df['age'].fillna(df['age'].mode()[0])
-                print(f"Handled missing values in 'age' column using {strategy} strategy")
+                logger.info(f"Handled missing values in 'age' column using {strategy} strategy")
         
         if 'gene_id' in df.columns:
-            print("Adding gene level frequency features...")
+            logger.info("Adding gene level frequency features...")
             for gene_freq_col in ['freq_Linear', 'freq_BFB', 'freq_Circular', 'freq_HR']:
                 df[gene_freq_col] = df['gene_id'].apply(lambda x: self.gene_freqs.get(x, {}).get(gene_freq_col, 0) if self.gene_freqs else 0)
-            print("Gene frequency features added successfully")
+            logger.info("Gene frequency features added successfully")
         else:
-            print("Warning: 'gene_id' column not found, cannot add gene frequency features")
+            logger.warning("'gene_id' column not found, cannot add gene frequency features")
         
         if 'type' in df.columns:
-            print("Processing cancer type...")
+            logger.info("Processing cancer type...")
             for cancer_type in self.cancer_types:
                 col_name = f'type_{cancer_type}'
                 df[col_name] = df['type'].apply(lambda x: 1 if str(x).strip() == cancer_type else 0)
-            print("Cancer type one-hot encoding completed")
+            logger.info("Cancer type one-hot encoding completed")
         else:
             has_type_cols = any(col.startswith('type_') for col in df.columns)
             if not has_type_cols:
-                print("Warning: No 'type' column and no type_* columns found, setting all type_* to 0")
+                logger.warning("No 'type' column and no type_* columns found, setting all type_* to 0")
                 for cancer_type in self.cancer_types:
                     col_name = f'type_{cancer_type}'
                     if col_name not in df.columns:
@@ -220,7 +237,7 @@ class Predictor:
         dataset = Prediction_Dataset(features)
         batch_size = self.config.get('prediction', {}).get('batch_size', 32)
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-        print(f"Created DataLoader with batch size: {batch_size}")
+        logger.info(f"Created DataLoader with batch size: {batch_size}")
         return dataloader
     
     def predict(self, dataloader):
@@ -256,7 +273,7 @@ class Predictor:
             results[self.config['data']['gene_id']] = gene_info
         
         # Add gene-level predictions
-        threshold = self.config.get('prediction', {}).get('threshold', 0.5)
+        threshold = self.optimal_threshold if self.optimal_threshold is not None else self.config.get('prediction', {}).get('threshold', 0.5)
         results['prediction_prob'] = predictions.flatten()
         results['prediction'] = (predictions.flatten() > threshold).astype(int)
         
@@ -292,7 +309,7 @@ class Predictor:
                         ploidy = ploidy_values[0]
                         # Check if any gene has segVal > ploidy + 2
                         has_segval_threshold = any(sample_data['segVal'] > (ploidy + 2))
-                        print(f"Sample {sample}: ploidy = {ploidy}, has_segval_threshold = {has_segval_threshold}")
+                        logger.debug(f"Sample {sample}: ploidy = {ploidy}, has_segval_threshold = {has_segval_threshold}")
             
             # Apply sample classification rules
             if has_ecdna_cargo:
@@ -335,11 +352,11 @@ class Predictor:
         os.makedirs(output_dir, exist_ok=True)
         output_path = os.path.join(output_dir, 'predictions.csv')
         results.to_csv(output_path, index=False)
-        print(f"Predictions saved to {output_path}")
+        logger.info(f"Predictions saved to {output_path}")
         
         # Sample-level predictions are already included in the main results file
         # No need for separate calculation as rules-based classification is already applied
-        print(f"Sample-level predictions included in main results file")
+        logger.info("Sample-level predictions included in main results file")
         
         return results
     

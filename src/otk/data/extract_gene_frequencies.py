@@ -1,5 +1,8 @@
 import pandas as pd
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 """
 Extract gene level frequency features from modeling data and store them in a gene-specific file.
@@ -14,9 +17,9 @@ def extract_gene_frequencies(data_path, output_path):
         output_path (str): Path to save the gene frequency data
     """
     # Load the modeling data
-    print(f"Loading modeling data from {data_path}")
+    logger.info(f"Loading modeling data from {data_path}")
     df = pd.read_csv(data_path)
-    print(f"Data loaded with shape: {df.shape}")
+    logger.info(f"Data loaded with shape: {df.shape}")
     
     # Extract gene level frequency features
     gene_freq_cols = ['freq_Linear', 'freq_BFB', 'freq_Circular', 'freq_HR']
@@ -25,16 +28,16 @@ def extract_gene_frequencies(data_path, output_path):
     # Using mean as the aggregation method - this assumes the frequencies are consistent per gene
     gene_freqs = df.groupby('gene_id')[gene_freq_cols].mean().reset_index()
     
-    print(f"Extracted gene frequencies for {len(gene_freqs)} genes")
-    print(f"Sample gene frequencies:")
-    print(gene_freqs.head())
+    logger.info(f"Extracted gene frequencies for {len(gene_freqs)} genes")
+    logger.info(f"Sample gene frequencies:")
+    logger.info(gene_freqs.head().to_string())
     
     # Ensure the output directory exists
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     
     # Save the gene frequencies to a CSV file
     gene_freqs.to_csv(output_path, index=False)
-    print(f"Gene frequencies saved to {output_path}")
+    logger.info(f"Gene frequencies saved to {output_path}")
 
 if __name__ == "__main__":
     # Define paths

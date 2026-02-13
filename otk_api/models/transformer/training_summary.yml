@@ -1,13 +1,55 @@
-best_val_auPRC: 0.7599071994138223
-data_processing_time: 51.31701445579529
-early_stopped: true
-epochs_trained: 17
-test_evaluation_time: 31.793079614639282
-test_metrics:
-  AUC: 0.9795140448390645
-  F1: 0.7263671477942671
-  Precision: 0.7569915254237288
-  Recall: 0.6981242672919109
-  auPRC: 0.7483746888446252
-  optimal_threshold: 0.9393939393939394
-total_training_time: 3170.8221061229706
+best_val_auPRC: 0.7710496240650434
+dataset_statistics:
+  test_positive: 5118
+  test_positive_rate: 0.0035221590660512447
+  test_samples: 1453086
+  train_positive: 17925
+  train_positive_rate: 0.0035079431254416704
+  train_samples: 5109832
+  val_positive: 2681
+  val_positive_rate: 0.00374282943084836
+  val_samples: 716303
+model_info:
+  batch_size: 1024
+  dropout_rate: N/A
+  hidden_dims: N/A
+  input_dim: N/A
+  learning_rate: 0.0001
+  loss_function: auPRCOptimizedLoss
+  model_type: TransformerEcDNA
+  optimizer: Adam
+  weight_decay: 0.0001
+overfitting_analysis:
+  overfitting_severity: medium
+  train_val_auPRC_gap: 0.11535695714009964
+  train_val_precision_gap: 0.08116161451253401
+  train_val_recall_gap: 0.08148598771144844
+performance:
+  test_set:
+    AUC: 0.9726157706605405
+    F1: 0.6652673442333186
+    Precision: 0.7653787493645144
+    Recall: 0.588315748339195
+    auPRC: 0.7206504281332968
+    optimal_threshold: 0.98989898989899
+  training_set:
+    AUC: 0.9984648824192254
+    F1: 0.8366446536461992
+    Precision: 0.8429218573046433
+    Recall: 0.830460251046025
+    auPRC: 0.886406581205143
+    optimal_threshold: 0.9292929292929294
+  validation_set:
+    AUC: 0.9780681093990029
+    F1: 0.7553131465111905
+    Precision: 0.7617602427921093
+    Recall: 0.7489742633345766
+    auPRC: 0.7710496240650434
+    optimal_threshold: 0.9393939393939394
+training_progress:
+  best_epoch: 10
+  data_processing_time_seconds: 47.88080382347107
+  early_stopped: true
+  epochs_trained: 20
+  test_evaluation_time_seconds: 29.315757751464844
+  total_training_time_seconds: 3558.9451978206635

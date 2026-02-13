@@ -94,13 +94,17 @@ class Trainer:
         self.output_dir = output_dir
         self.gpu = gpu
         
+        # Set random seed for reproducibility
+        seed = self.config.get('training', {}).get('seed', 2026)
+        self._set_seed(seed)
+        
         # Set device
         if torch.cuda.is_available() and gpu >= 0:
             self.device = torch.device(f'cuda:{gpu}')
-            print(f"Using GPU: {gpu}")
+            logger.info(f"Using GPU: {gpu}")
         else:
             self.device = torch.device('cpu')
-            print("Using CPU")
+            logger.info("Using CPU")
         
         # Initialize data processor
         self.data_processor = DataProcessor(config_path)
@@ -125,6 +129,17 @@ class Trainer:
         
         # Initialize metrics
         self.metrics = []
+
+    def _set_seed(self, seed):
+        """Set random seed for reproducibility"""
+        import random
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        np.random.seed(seed)
+        random.seed(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        logger.info(f"Random seed set to {seed} for reproducibility")
 
     def _get_loss_function(self):
         """Get loss function based on configuration"""
@@ -151,9 +166,13 @@ class Trainer:
                 weights = torch.tensor(weights, dtype=torch.float32).to(self.device)
                 return nn.BCEWithLogitsLoss(pos_weight=weights[1])
             else:
-                # Use calculated pos_weight for imbalanced data
-                config_pos_weight = self.config['model']['loss_function'].get('pos_weight', pos_weight)
-                return nn.BCEWithLogitsLoss(pos_weight=torch.tensor([config_pos_weight], device=self.device))
+                # Only use pos_weight if explicitly specified in config
+                config_pos_weight = self.config['model']['loss_function'].get('pos_weight', None)
+                if config_pos_weight is not None:
+                    return nn.BCEWithLogitsLoss(pos_weight=torch.tensor([config_pos_weight], device=self.device))
+                else:
+                    # No pos_weight - use standard BCE loss (matches original behavior)
+                    return nn.BCEWithLogitsLoss()
         elif loss_type == 'CrossEntropyLoss':
             return nn.CrossEntropyLoss()
         elif loss_type == 'FocalLoss':
@@ -366,7 +385,7 @@ class Trainer:
         
         # Check if predictions are logits (not in [0, 1]) and apply sigmoid
         if preds.min() < 0 or preds.max() > 1:
-            print("Applying sigmoid to logits for metric calculation")
+            logger.info("Applying sigmoid to logits for metric calculation")
             # Apply sigmoid using numpy
             preds = 1 / (1 + np.exp(-preds))
         
@@ -388,44 +407,44 @@ class Trainer:
         
         # Debug: Print prediction statistics
         if len(preds) > 0:
-            print(f"Prediction stats: min={preds.min()}, max={preds.max()}, mean={preds.mean()}, std={preds.std()}")
-            print(f"Binary prediction stats: sum={binary_preds.sum()}, count={len(binary_preds)}")
-            print(f"Label stats: sum={labels.sum()}, count={len(labels)}")
-            print(f"Optimal threshold: {optimal_threshold}")
+            logger.info(f"Prediction stats: min={preds.min():.4f}, max={preds.max():.4f}, mean={preds.mean():.4f}, std={preds.std():.4f}")
+            logger.info(f"Binary prediction stats: sum={int(binary_preds.sum())}, count={len(binary_preds)}")
+            logger.info(f"Label stats: sum={int(labels.sum())}, count={len(labels)}")
+            logger.info(f"Optimal threshold: {optimal_threshold:.4f}")
         
         # Calculate auPRC
         try:
             metrics['auPRC'] = average_precision_score(labels, preds)
         except Exception as e:
-            print(f"Error calculating auPRC: {e}")
+            logger.error(f"Error calculating auPRC: {e}")
             metrics['auPRC'] = 0.0
         
         # Calculate AUC
         try:
             metrics['AUC'] = roc_auc_score(labels, preds)
         except Exception as e:
-            print(f"Error calculating AUC: {e}")
+            logger.error(f"Error calculating AUC: {e}")
             metrics['AUC'] = 0.0
         
         # Calculate F1 score
         try:
             metrics['F1'] = f1_score(labels, binary_preds, zero_division=0)
         except Exception as e:
-            print(f"Error calculating F1: {e}")
+            logger.error(f"Error calculating F1: {e}")
             metrics['F1'] = 0.0
         
         # Calculate precision
         try:
             metrics['Precision'] = precision_score(labels, binary_preds, zero_division=0)
         except Exception as e:
-            print(f"Error calculating Precision: {e}")
+            logger.error(f"Error calculating Precision: {e}")
             metrics['Precision'] = 0.0
         
         # Calculate recall
         try:
             metrics['Recall'] = recall_score(labels, binary_preds, zero_division=0)
         except Exception as e:
-            print(f"Error calculating Recall: {e}")
+            logger.error(f"Error calculating Recall: {e}")
             metrics['Recall'] = 0.0
         
         return metrics
@@ -508,9 +527,9 @@ class Trainer:
                 best_train_metrics = train_metrics.copy()
                 best_epoch = epoch
                 epochs_no_improve = 0
-                # Save best model
-                self.ecdna_model.save(best_model_path)
-                logger.info(f"New best model saved with auPRC: {best_val_auPRC:.4f} at {best_model_path}")
+                optimal_threshold = best_val_metrics.get('optimal_threshold')
+                self.ecdna_model.save(best_model_path, optimal_threshold)
+                logger.info(f"New best model saved with auPRC: {best_val_auPRC:.4f}, threshold: {optimal_threshold:.4f if optimal_threshold else 'N/A'}")
             else:
                 epochs_no_improve += 1
                 logger.info(f"No improvement in validation auPRC for {epochs_no_improve} epochs")
@@ -631,5 +650,5 @@ def train_model(config_path, output_dir, gpu=0):
     """Train the model"""
     trainer = Trainer(config_path, output_dir, gpu)
     best_val_auPRC, test_metrics = trainer.train()
-    print(f"Training completed. Best validation auPRC: {best_val_auPRC:.4f}")
+    logger.info(f"Training completed. Best validation auPRC: {best_val_auPRC:.4f}")
     return best_val_auPRC, test_metrics

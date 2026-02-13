@@ -60,12 +60,8 @@ data:
   gene_id: gene_id
   missing_value_strategy:
     age: mean
-  path: ../data/gcap_modeling_data.csv.gz
-  random_state: 42
   sample_id: sample
   target: y
-  test_size: 0.2
-  val_size: 0.1
 model:
   architecture:
     layers:

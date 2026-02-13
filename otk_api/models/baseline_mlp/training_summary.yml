@@ -1,13 +1,55 @@
-best_val_auPRC: 0.8189385879496834
-data_processing_time: 56.02734446525574
-early_stopped: true
-epochs_trained: 16
-test_evaluation_time: 28.75942897796631
-test_metrics:
-  AUC: 0.9737294587400112
-  F1: 0.6823616418094416
-  Precision: 0.9242070116861436
-  Recall: 0.5408362641656898
-  auPRC: 0.7327505003717235
-  optimal_threshold: 0.8181818181818182
-total_training_time: 2225.6553971767426
+best_val_auPRC: 0.8164112971423673
+dataset_statistics:
+  test_positive: 5118
+  test_positive_rate: 0.0035221590660512447
+  test_samples: 1453086
+  train_positive: 17925
+  train_positive_rate: 0.0035079431254416704
+  train_samples: 5109832
+  val_positive: 2681
+  val_positive_rate: 0.00374282943084836
+  val_samples: 716303
+model_info:
+  batch_size: 512
+  dropout_rate: N/A
+  hidden_dims: N/A
+  input_dim: N/A
+  learning_rate: 0.001
+  loss_function: BCEWithLogitsLoss
+  model_type: Baseline
+  optimizer: Adam
+  weight_decay: 0.0001
+overfitting_analysis:
+  overfitting_severity: low
+  train_val_auPRC_gap: 0.033041504554621404
+  train_val_precision_gap: 0.020883497345911994
+  train_val_recall_gap: 0.05775386169631114
+performance:
+  test_set:
+    AUC: 0.9719055060646318
+    F1: 0.6947594604273606
+    Precision: 0.8929119361767414
+    Recall: 0.5685814771395076
+    auPRC: 0.7031342050244728
+    optimal_threshold: 0.3535353535353536
+  training_set:
+    AUC: 0.9766843052043667
+    F1: 0.8391149620919078
+    Precision: 0.9421820708825573
+    Recall: 0.756373779637378
+    auPRC: 0.8494528016969887
+    optimal_threshold: 0.17171717171717174
+  validation_set:
+    AUC: 0.9498565278344888
+    F1: 0.7946542214679677
+    Precision: 0.9212985735366453
+    Recall: 0.6986199179410668
+    auPRC: 0.8164112971423673
+    optimal_threshold: 0.43434343434343436
+training_progress:
+  best_epoch: 6
+  data_processing_time_seconds: 51.581336975097656
+  early_stopped: true
+  epochs_trained: 16
+  test_evaluation_time_seconds: 21.691046714782715
+  total_training_time_seconds: 1725.7562384605408

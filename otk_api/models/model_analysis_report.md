@@ -1,87 +1,193 @@
-================================================================================
-OTK API 模型分析报告
-生成时间: 2026-02-12 11:49:59
-模型目录: /data/home/wsx/Projects/otk/otk/otk_api/models
-================================================================================
+# Model Performance Analysis Report
 
-## 模型概览
+**Generated**: 2026-02-12 22:34:16
+**Models Directory**: `/data/home/wsx/Projects/otk/otk/otk_api/models`
+**Total Models**: 4
 
-共发现 4 个模型:
-  - baseline_mlp (Baseline)
-  - deep_residual (PrecisionFocusedEcDNA)
-  - optimized_residual (OptimizedEcDNA)
-  - transformer (TransformerEcDNA)
+## Abstract
 
-## 架构对比
+This report presents a comprehensive analysis of multiple deep learning models
+developed for extrachromosomal DNA (ecDNA) prediction. The models were trained on
+a large-scale dataset with severe class imbalance and evaluated using multiple
+performance metrics including auPRC, AUC, Precision, Recall, and F1-score.
 
-| 模型名称 | 架构类型 | 网络结构 | 损失函数 | 优化器 |
-|----------|----------|----------|----------|--------|
+## Dataset Description
+
+### Sample Distribution
+
+| Dataset | Total Samples | Positive Samples | Positive Rate |
+|---------|---------------|------------------|---------------|
+| Training | 5,109,832 | 17,925 | 0.3508% |
+| Validation | 716,303 | 2,681 | 0.3743% |
+| Test | 1,453,086 | 5,118 | 0.3522% |
+
+**Total**: 7,279,221 samples, 25,724 positive (0.3534%)
+
+**Note**: The dataset exhibits severe class imbalance with only ~0.35% positive samples,
+which presents significant challenges for model training and evaluation.
+
+## Model Architecture Comparison
+
+### Overview
+
+| Model | Architecture | Network Structure | Loss Function | Optimizer |
+|-------|--------------|-------------------|---------------|-----------|
 | baseline_mlp | Baseline | 57→256→128→64→1 | BCEWithLogitsLoss | Adam |
 | deep_residual | PrecisionFocusedEcDNA | 57→512→256→128→64→32→1 | auPRCOptimizedLoss | AdamW |
 | optimized_residual | OptimizedEcDNA | 57→128→64→32→16→1 | CombinedLoss | AdamW |
 | transformer | TransformerEcDNA | 57→128(embedding)→Attention→64→32→1 | auPRCOptimizedLoss | Adam |
 
-## 训练配置
+### Training Configuration
 
-| 模型名称 | 学习率 | Weight Decay | Batch Size | 训练轮数 | 早停 |
-|----------|--------|--------------|------------|----------|------|
-| baseline_mlp | 0.001 | 0.0001 | 512 | 16 | 是 |
-| deep_residual | 0.0001 | 0.01 | 1024 | 19 | 是 |
-| optimized_residual | 0.001 | 0.1 | 1024 | 43 | 是 |
-| transformer | 0.0001 | 0.0001 | 1024 | 17 | 是 |
+| Model | Learning Rate | Weight Decay | Batch Size | Epochs | Best Epoch | Early Stop |
+|-------|---------------|--------------|------------|--------|------------|------------|
+| baseline_mlp | 0.001000 | 0.0001 | 512 | 16 | 6 | Yes |
+| deep_residual | 0.000100 | 0.0100 | 1024 | 17 | 2 | Yes |
+| optimized_residual | 0.001000 | 0.1000 | 1024 | 38 | 3 | Yes |
+| transformer | 0.000100 | 0.0001 | 1024 | 20 | 10 | Yes |
 
-## 性能指标
+## Performance Metrics
 
-| 模型名称 | AUC | val_auPRC | test_auPRC | F1 | Precision | Recall |
-|----------|-----|-----------|------------|-----|-----------|--------|
-| baseline_mlp | 0.9737 | 0.8189 | 0.7328 | 0.6824 | 0.9242 | 0.5408 |
-| deep_residual | 0.9813 | 0.7422 | 0.7363 | 0.6888 | 0.7513 | 0.6358 |
-| optimized_residual | 0.9842 | 0.7374 | 0.7393 | 0.7186 | 0.8583 | 0.6180 |
-| transformer | 0.9795 | 0.7599 | 0.7484 | 0.7264 | 0.7570 | 0.6981 |
+### Test Set Performance (Primary Evaluation)
 
-## 最佳模型推荐
+| Model | auPRC | AUC | Precision | Recall | F1-Score |
+|-------|-------|-----|-----------|--------|----------|
+| deep_residual | **0.7505** | 0.9780 | 0.7153 | 0.7141 | 0.7147 |
+| transformer | **0.7207** | 0.9726 | 0.7654 | 0.5883 | 0.6653 |
+| baseline_mlp | **0.7031** | 0.9719 | 0.8929 | 0.5686 | 0.6948 |
+| optimized_residual | **0.7004** | 0.9733 | 0.8528 | 0.5748 | 0.6867 |
 
-- **最佳 test_auPRC**: transformer (0.7484)
-- **最佳 val_auPRC**: baseline_mlp (0.8189)
-- **最佳 AUC**: optimized_residual (0.9842)
-- **最佳 F1**: transformer (0.7264)
-- **最佳 Precision**: baseline_mlp (0.9242)
-- **最佳 Recall**: transformer (0.6981)
+### Complete Performance Comparison
 
-## 架构详情
+#### Training Set Performance
+
+| Model | auPRC | AUC | Precision | Recall | F1-Score |
+|-------|-------|-----|-----------|--------|----------|
+| baseline_mlp | 0.8495 | 0.9767 | 0.9422 | 0.7564 | 0.8391 |
+| deep_residual | 0.8581 | 0.9977 | 0.8183 | 0.7857 | 0.8017 |
+| optimized_residual | 0.4764 | 0.9514 | 0.5812 | 0.4335 | 0.4966 |
+| transformer | 0.8864 | 0.9985 | 0.8429 | 0.8305 | 0.8366 |
+
+#### Validation Set Performance
+
+| Model | auPRC | AUC | Precision | Recall | F1-Score |
+|-------|-------|-----|-----------|--------|----------|
+| baseline_mlp | 0.8164 | 0.9499 | 0.9213 | 0.6986 | 0.7947 |
+| deep_residual | 0.7592 | 0.9882 | 0.7703 | 0.7128 | 0.7404 |
+| optimized_residual | 0.7542 | 0.9895 | 0.6537 | 0.8060 | 0.7219 |
+| transformer | 0.7710 | 0.9781 | 0.7618 | 0.7490 | 0.7553 |
+
+#### Test Set Performance
+
+| Model | auPRC | AUC | Precision | Recall | F1-Score |
+|-------|-------|-----|-----------|--------|----------|
+| baseline_mlp | 0.7031 | 0.9719 | 0.8929 | 0.5686 | 0.6948 |
+| deep_residual | 0.7505 | 0.9780 | 0.7153 | 0.7141 | 0.7147 |
+| optimized_residual | 0.7004 | 0.9733 | 0.8528 | 0.5748 | 0.6867 |
+| transformer | 0.7207 | 0.9726 | 0.7654 | 0.5883 | 0.6653 |
+
+### Overfitting Analysis
+
+| Model | Train-Val auPRC Gap | Severity | Precision Gap | Recall Gap |
+|-------|---------------------|----------|---------------|------------|
+| baseline_mlp | 0.0330 | ✅ low | 0.0209 | 0.0578 |
+| deep_residual | 0.0989 | ⚠️ medium | 0.0480 | 0.0729 |
+| optimized_residual | -0.2778 | ✅ low | -0.0724 | -0.3726 |
+| transformer | 0.1154 | ⚠️ medium | 0.0812 | 0.0815 |
+
+## Best Model Recommendations
+
+| Metric | Best Model | Value |
+|--------|------------|-------|
+| **Best auPRC** | deep_residual | 0.7505 |
+| **Best AUC** | deep_residual | 0.9780 |
+| **Best F1-Score** | deep_residual | 0.7147 |
+| **Best Precision** | baseline_mlp | 0.8929 |
+| **Best Recall** | deep_residual | 0.7141 |
+| **Best Generalization** | optimized_residual | Gap: -0.2778 |
+
+## Architecture Details
 
 ### baseline_mlp
 
-- **类型**: Baseline
-- **描述**: 简单MLP网络
-- **结构**: 57→256→128→64→1
-- **特性**: ReLU激活, Sigmoid输出, 无正则化
-- **适用场景**: 基准模型, 高精度低召回场景
+- **Type**: `Baseline`
+- **Description**: Simple MLP Network
+- **Structure**: `57→256→128→64→1`
+- **Key Features**: ReLU activation, Sigmoid output, No regularization
+- **Suitable For**: Baseline model, high precision low recall scenarios
+- **Loss Function**: `BCEWithLogitsLoss`
+- **Optimizer**: `Adam` (lr=0.001, weight_decay=0.0001)
 
 ### deep_residual
 
-- **类型**: PrecisionFocusedEcDNA
-- **描述**: 深度残差网络
-- **结构**: 57→512→256→128→64→32→1
-- **特性**: 残差连接, LayerNorm, GELU激活, 渐进降维
-- **适用场景**: 深度特征学习, 高精度场景
+- **Type**: `PrecisionFocusedEcDNA`
+- **Description**: Deep Residual Network
+- **Structure**: `57→512→256→128→64→32→1`
+- **Key Features**: Residual connections, LayerNorm, GELU activation, Progressive dimension reduction
+- **Suitable For**: Deep feature learning, high precision scenarios
+- **Loss Function**: `auPRCOptimizedLoss`
+- **Optimizer**: `AdamW` (lr=0.0001, weight_decay=0.01)
 
 ### optimized_residual
 
-- **类型**: OptimizedEcDNA
-- **描述**: 优化残差网络
-- **结构**: 57→128→64→32→16→1
-- **特性**: 残差块, BatchNorm, 组合损失函数
-- **适用场景**: 平衡训练, 稳定收敛
+- **Type**: `OptimizedEcDNA`
+- **Description**: Optimized Residual Network
+- **Structure**: `57→128→64→32→16→1`
+- **Key Features**: Residual blocks, BatchNorm, Combined loss function
+- **Suitable For**: Balanced training, stable convergence
+- **Loss Function**: `CombinedLoss`
+- **Optimizer**: `AdamW` (lr=0.001, weight_decay=0.1)
 
 ### transformer
 
-- **类型**: TransformerEcDNA
-- **描述**: Transformer注意力模型
-- **结构**: 57→128(embedding)→Attention→64→32→1
-- **特性**: 自注意力机制, LayerNorm, GELU激活, Dropout正则化
-- **适用场景**: 特征交互学习, 平衡精度召回
+- **Type**: `TransformerEcDNA`
+- **Description**: Transformer Attention Model
+- **Structure**: `57→128(embedding)→Attention→64→32→1`
+- **Key Features**: Self-attention mechanism, LayerNorm, GELU activation, Dropout regularization
+- **Suitable For**: Feature interaction learning, balanced precision-recall
+- **Loss Function**: `auPRCOptimizedLoss`
+- **Optimizer**: `Adam` (lr=0.0001, weight_decay=0.0001)
 
-================================================================================
-报告结束
-================================================================================
+## Statistical Considerations
+
+### Evaluation Metrics
+
+- **auPRC (Area under Precision-Recall Curve)**: Primary metric for imbalanced classification.
+  More informative than AUC when positive class is rare (~0.35% in this dataset).
+- **AUC (Area under ROC Curve)**: Measures overall discriminative ability.
+- **Precision**: Proportion of predicted positives that are true positives.
+- **Recall (Sensitivity)**: Proportion of actual positives correctly identified.
+- **F1-Score**: Harmonic mean of Precision and Recall.
+
+### Class Imbalance
+
+The dataset exhibits severe class imbalance (positive rate ~0.35%). This presents
+significant challenges for model training and evaluation. Models were trained using
+specialized loss functions and techniques to handle this imbalance effectively.
+
+## Conclusions
+
+Among the 4 models evaluated, **deep_residual** achieved the highest
+test auPRC of **0.7505**, demonstrating superior performance
+for ecDNA prediction on this challenging imbalanced dataset.
+
+
+## Methods
+
+### Data Splitting
+
+Samples were stratified by positive sample count per patient to ensure balanced
+distribution across training, validation, and test sets. The splitting was performed
+at the sample level (not gene level) to prevent data leakage.
+
+### Model Training
+
+All models were trained using PyTorch with the following common practices:
+- Early stopping based on validation auPRC with patience of 5-35 epochs
+- Learning rate scheduling (ReduceLROnPlateau or CosineAnnealingWarmRestarts)
+- Gradient clipping for training stability
+- Model checkpointing to save best performing weights
+
+---
+
+*Report generated by OTK Model Analyzer*

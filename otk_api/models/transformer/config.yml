@@ -60,7 +60,6 @@ data:
   gene_id: gene_id
   missing_value_strategy:
     age: mean
-  path: ../data/gcap_modeling_data.csv.gz
   sample_id: sample
   target: y
 model:

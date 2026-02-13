@@ -1,13 +1,55 @@
-best_val_auPRC: 0.7421642087627294
-data_processing_time: 51.62092924118042
-early_stopped: true
-epochs_trained: 19
-test_evaluation_time: 30.309656620025635
-test_metrics:
-  AUC: 0.9813098376248661
-  F1: 0.6887501322891312
-  Precision: 0.7513276379589009
-  Recall: 0.6357952325127003
-  auPRC: 0.7362513917922912
-  optimal_threshold: 0.9494949494949496
-total_training_time: 3685.555049419403
+best_val_auPRC: 0.7591530381659937
+dataset_statistics:
+  test_positive: 5118
+  test_positive_rate: 0.0035221590660512447
+  test_samples: 1453086
+  train_positive: 17925
+  train_positive_rate: 0.0035079431254416704
+  train_samples: 5109832
+  val_positive: 2681
+  val_positive_rate: 0.00374282943084836
+  val_samples: 716303
+model_info:
+  batch_size: 1024
+  dropout_rate: N/A
+  hidden_dims: N/A
+  input_dim: N/A
+  learning_rate: 0.0001
+  loss_function: auPRCOptimizedLoss
+  model_type: PrecisionFocusedEcDNA
+  optimizer: AdamW
+  weight_decay: 0.01
+overfitting_analysis:
+  overfitting_severity: medium
+  train_val_auPRC_gap: 0.09891757726195494
+  train_val_precision_gap: 0.0480493821609016
+  train_val_recall_gap: 0.07286874888478612
+performance:
+  test_set:
+    AUC: 0.9780412274034523
+    F1: 0.714704732107939
+    Precision: 0.7152641878669276
+    Recall: 0.714146150840172
+    auPRC: 0.7505171971634482
+    optimal_threshold: 0.9191919191919192
+  training_set:
+    AUC: 0.9977048946744151
+    F1: 0.801650775579906
+    Precision: 0.8183033120278908
+    Recall: 0.7856624825662483
+    auPRC: 0.8580706154279486
+    optimal_threshold: 0.9292929292929294
+  validation_set:
+    AUC: 0.9881959622364128
+    F1: 0.7404106935296397
+    Precision: 0.7702539298669892
+    Recall: 0.7127937336814621
+    auPRC: 0.7591530381659937
+    optimal_threshold: 0.9595959595959597
+training_progress:
+  best_epoch: 2
+  data_processing_time_seconds: 48.869993448257446
+  early_stopped: true
+  epochs_trained: 17
+  test_evaluation_time_seconds: 29.674667835235596
+  total_training_time_seconds: 3139.419426202774

@@ -62,6 +62,9 @@ api.db
 *.pth
 *.ckpt
 
+# Allow tracking best_model.pth files
+!best_model.pth
+
 test_data/
 test_results/
 
