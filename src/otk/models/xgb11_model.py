@@ -351,20 +351,25 @@ class XGB11Model:
         return importance_df
 
 
-class XGBFullModel(XGB11Model):
+class XGBNewModel(XGB11Model):
     """
-    XGB Full - Optimized version using ALL available features
-    Not limited to 11 features, uses comprehensive feature engineering
+    XGB New - Optimized version with corrected feature engineering
+    
+    Understanding of features:
+    - CN1-CN19: Copy Number Signatures (not copy number values)
+    - freq_*: Amplicon overlap frequency (x1000 for scaling)
+    - segVal: Total copy number from ASCAT
+    - minor_cn: Minor allele copy number
     """
     
-    # Use paper params as base but can be tuned
+    # Optimized hyperparameters
     DEFAULT_PARAMS = {
-        'eta': 0.05,  # Lower learning rate for better generalization
-        'max_depth': 6,  # Deeper trees for complex patterns
-        'gamma': 5,
+        'eta': 0.05,
+        'max_depth': 6,
+        'gamma': 3,
         'subsample': 0.8,
         'max_delta_step': 1,
-        'min_child_weight': 3,
+        'min_child_weight': 2,
         'alpha': 0.1,
         'lambda': 2,
         'objective': 'binary:logistic',
@@ -375,103 +380,104 @@ class XGBFullModel(XGB11Model):
     }
     
     def __init__(self, params: Optional[Dict[str, Any]] = None):
-        """Initialize with full feature set"""
+        """Initialize with optimized feature set"""
         super().__init__(params, use_original_params=False)
         if params is None:
             self.params = self.DEFAULT_PARAMS.copy()
     
     def prepare_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Prepare ALL available features with comprehensive engineering
+        Prepare features with biologically-informed engineering
         """
         feature_df = pd.DataFrame()
         
-        # Core copy number features
-        cn_features = ['segVal', 'minor_cn', 'CN1', 'CN2', 'CN3', 'CN4', 'CN5', 
-                       'CN6', 'CN7', 'CN8', 'CN9', 'CN10', 'CN11', 'CN12', 
-                       'CN13', 'CN14', 'CN15', 'CN16', 'CN17', 'CN18', 'CN19']
-        for feat in cn_features:
+        # === CORE 7 FEATURES (from ASCAT) ===
+        core_features = ['segVal', 'minor_cn', 'purity', 'ploidy', 'pLOH', 'AScore', 'cna_burden']
+        for feat in core_features:
             if feat in df.columns:
                 feature_df[feat] = df[feat].fillna(0)
         
-        # Sample quality features
-        quality_features = ['purity', 'ploidy', 'AScore', 'pLOH', 'cna_burden', 'intersect_ratio']
-        for feat in quality_features:
-            if feat in df.columns:
-                feature_df[feat] = df[feat].fillna(0)
-        
-        # Amplicon type frequencies
+        # === AMPLICON FREQUENCY FEATURES ===
+        # These represent how often a gene overlaps with amplicon types
         freq_features = ['freq_Linear', 'freq_BFB', 'freq_Circular', 'freq_HR']
         for feat in freq_features:
             if feat in df.columns:
                 feature_df[feat] = df[feat].fillna(0)
         
-        # Clinical features
-        clinical_features = ['age', 'gender']
-        for feat in clinical_features:
+        # === COPY NUMBER SIGNATURES (CN1-CN19) ===
+        # These are signature exposures, not CN values
+        cn_sig_cols = [f'CN{i}' for i in range(1, 20)]
+        for feat in cn_sig_cols:
             if feat in df.columns:
-                if feat == 'age':
-                    feature_df[feat] = df[feat].fillna(df[feat].mean())
-                else:
-                    feature_df[feat] = df[feat].fillna(0)
+                feature_df[feat] = df[feat].fillna(0)
         
-        # Cancer type features (one-hot encoded)
+        # === CLINICAL FEATURES ===
+        if 'age' in df.columns:
+            feature_df['age'] = df['age'].fillna(df['age'].mean())
+        if 'gender' in df.columns:
+            feature_df['gender'] = df['gender'].fillna(0)
+        
+        # === CANCER TYPE FEATURES ===
         cancer_types = [col for col in df.columns if col.startswith('type_')]
         for feat in cancer_types:
             feature_df[feat] = df[feat].fillna(0)
         
-        # === FEATURE ENGINEERING ===
+        # === FEATURE ENGINEERING (Biologically Meaningful) ===
         
-        # 1. CN relative to ploidy (most important)
+        # 1. Copy number imbalance (segVal vs ploidy)
+        # High CN relative to ploidy suggests amplification
         if 'segVal' in df.columns and 'ploidy' in df.columns:
-            feature_df['cn_ploidy_ratio'] = df['segVal'] / (df['ploidy'] + 1e-6)
+            feature_df['cn_imbalance'] = df['segVal'] / (df['ploidy'] + 1e-6)
         
-        # 2. Total CN (sum of all CN states)
-        cn_cols = [c for c in df.columns if c.startswith('CN') and c[2:].isdigit()]
-        if cn_cols:
-            feature_df['total_cn_sum'] = df[cn_cols].sum(axis=1)
-        
-        # 3. CN diversity (number of non-zero CN states)
-        if cn_cols:
-            feature_df['cn_diversity'] = (df[cn_cols] > 0).sum(axis=1)
-        
-        # 4. CNA burden normalized
-        if 'cna_burden' in df.columns and 'purity' in df.columns:
-            feature_df['cna_burden_norm'] = df['cna_burden'] * df['purity']
-        
-        # 5. Minor CN ratio
+        # 2. Allele imbalance (minor_cn / segVal)
+        # Low ratio suggests LOH or allelic imbalance
         if 'minor_cn' in df.columns and 'segVal' in df.columns:
-            feature_df['minor_cn_ratio'] = df['minor_cn'] / (df['segVal'] + 1e-6)
+            feature_df['allele_imbalance_ratio'] = df['minor_cn'] / (df['segVal'] + 1e-6)
         
-        # 6. Total amplification frequency
-        freq_cols = ['freq_Linear', 'freq_BFB', 'freq_Circular', 'freq_HR']
-        if all(c in df.columns for c in freq_cols):
-            feature_df['total_freq'] = df[freq_cols].sum(axis=1)
+        # 3. CNA burden adjusted by purity
+        # Higher purity = more reliable CNA calls
+        if 'cna_burden' in df.columns and 'purity' in df.columns:
+            feature_df['cna_burden_adj'] = df['cna_burden'] * df['purity']
         
-        # 7. Circular dominance
-        if 'freq_Circular' in df.columns and 'total_freq' in feature_df.columns:
-            feature_df['circular_dominance'] = df['freq_Circular'] / (feature_df['total_freq'] + 1e-6)
-        
-        # 8. Linear vs Circular ratio
-        if 'freq_Linear' in df.columns and 'freq_Circular' in df.columns:
-            feature_df['linear_circular_ratio'] = df['freq_Linear'] / (df['freq_Circular'] + 1e-6)
-        
-        # 9. HR involvement
-        if 'freq_HR' in df.columns and 'total_freq' in feature_df.columns:
-            feature_df['hr_involvement'] = df['freq_HR'] / (feature_df['total_freq'] + 1e-6)
-        
-        # 10. Purity-ploidy interaction
-        if 'purity' in df.columns and 'ploidy' in df.columns:
-            feature_df['purity_ploidy'] = df['purity'] * df['ploidy']
-        
-        # 11. High CN indicator (CN > 4)
-        high_cn_cols = [c for c in df.columns if c.startswith('CN') and c[2:].isdigit() and int(c[2:]) > 4]
-        if high_cn_cols:
-            feature_df['high_cn_sum'] = df[high_cn_cols].sum(axis=1)
-        
-        # 12. AScore normalized
+        # 4. Aneuploidy score adjusted by purity
         if 'AScore' in df.columns and 'purity' in df.columns:
-            feature_df['ascore_norm'] = df['AScore'] / (df['purity'] + 1e-6)
+            feature_df['ascore_adj'] = df['AScore'] * df['purity']
+        
+        # 5. Circular amplicon indicator
+        # Direct indicator of ecDNA potential
+        if 'freq_Circular' in df.columns:
+            feature_df['has_circular'] = (df['freq_Circular'] > 0).astype(int)
+        
+        # 6. BFB indicator (breakage-fusion-bridge)
+        if 'freq_BFB' in df.columns:
+            feature_df['has_bfb'] = (df['freq_BFB'] > 0).astype(int)
+        
+        # 7. HR indicator (homologous recombination)
+        if 'freq_HR' in df.columns:
+            feature_df['has_hr'] = (df['freq_HR'] > 0).astype(int)
+        
+        # 8. Multiple amplicon types
+        # Genes involved in multiple amplicon mechanisms
+        if all(c in df.columns for c in freq_features):
+            feature_df['amplicon_type_count'] = (df[freq_features] > 0).sum(axis=1)
+        
+        # 9. CN signature diversity
+        # Number of active CN signatures
+        if cn_sig_cols:
+            feature_df['cn_sig_diversity'] = (df[cn_sig_cols] > 0).sum(axis=1)
+        
+        # 10. Dominant CN signature
+        # The strongest CN signature for this gene
+        if cn_sig_cols:
+            feature_df['max_cn_sig'] = df[cn_sig_cols].max(axis=1)
+        
+        # 11. Purity-ploidy interaction
+        if 'purity' in df.columns and 'ploidy' in df.columns:
+            feature_df['purity_x_ploidy'] = df['purity'] * df['ploidy']
+        
+        # 12. LOH indicator
+        if 'pLOH' in df.columns:
+            feature_df['has_loh'] = (df['pLOH'] > 0.1).astype(int)
         
         return feature_df
 
@@ -504,9 +510,12 @@ class XGB11Trainer:
         elif model_type == 'original':
             # Use actual R model hyperparameters
             self.model = XGB11Model(use_original_params=True)
-        else:  # 'full'
+        elif model_type == 'new':
+            # Use new optimized model with corrected feature engineering
+            self.model = XGBNewModel()
+        else:  # 'full' - deprecated, use 'new' instead
             # Use all features with optimized hyperparameters
-            self.model = XGBFullModel()
+            self.model = XGBNewModel()
         
     def load_data(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """Load and split data"""
