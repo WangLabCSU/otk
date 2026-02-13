@@ -10,6 +10,7 @@ Model Analyzer - 自动分析 otk_api/models 下的模型架构和性能
 """
 
 import yaml
+import sys
 import torch
 import numpy as np
 import pandas as pd
@@ -365,7 +366,7 @@ class ModelAnalyzer:
             sys.path.insert(0, str(self.models_dir.parent.parent / "src"))
             from otk.predict.predictor import Predictor
             
-            predictor = Predictor(str(model_info.config_path), str(model_path.parent))
+            predictor = Predictor(str(model_path), gpu=0)
             
             feature_cols = [col for col in self.data_df.columns if col not in ['sample', 'gene_id', 'y']]
             
@@ -376,11 +377,18 @@ class ModelAnalyzer:
                 if len(split_df) == 0:
                     return SampleLevelMetrics()
                 
-                X = split_df[feature_cols].values
+                X = split_df[feature_cols].values.astype(np.float32)
                 y_true_gene = split_df['y'].values
                 samples = split_df['sample'].values
                 
-                probs = predictor.predict_proba(X)
+                import torch
+                from otk.predict.predictor import Prediction_Dataset
+                from torch.utils.data import DataLoader
+                
+                dataset = Prediction_Dataset(X)
+                dataloader = DataLoader(dataset, batch_size=4096, shuffle=False)
+                
+                probs = predictor.predict(dataloader).flatten()
                 
                 split_df['prob'] = probs
                 sample_predictions = split_df.groupby('sample').agg({
@@ -426,7 +434,9 @@ class ModelAnalyzer:
             return train_metrics, val_metrics, test_metrics
             
         except Exception as e:
+            import traceback
             print(f"Error evaluating sample level for {model_info.name}: {e}")
+            traceback.print_exc()
             return SampleLevelMetrics(), SampleLevelMetrics(), SampleLevelMetrics()
     
     def analyze_model(self, model_name: str) -> Optional[ModelInfo]:
@@ -814,7 +824,7 @@ def main():
     """主函数"""
     import argparse
     parser = argparse.ArgumentParser(description='Model Analyzer')
-    parser.add_argument('--sample-level', action='store_true', help='Evaluate at sample level')
+    parser.add_argument('--no-sample-level', action='store_true', help='Skip sample-level evaluation')
     args = parser.parse_args()
     
     analyzer = ModelAnalyzer()
@@ -828,7 +838,7 @@ def main():
     
     print(f"\nFound {len(models)} trained models\n")
     
-    if args.sample_level:
+    if not args.no_sample_level:
         analyzer.evaluate_all_sample_level()
     
     analyzer.print_comparison_table()

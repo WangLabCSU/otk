@@ -1,6 +1,6 @@
 # Model Performance Analysis Report
 
-**Generated**: 2026-02-13 04:41:58
+**Generated**: 2026-02-13 04:57:31
 **Total Models**: 4 trained models
 
 ## Abstract
@@ -85,6 +85,35 @@ which presents significant challenges for model training and evaluation.
 | optimized_residual | 0.6218 | 0.9729 | 0.8713 | 0.4869 | 0.6247 |
 | transformer | 0.7484 | 0.9746 | 0.9150 | 0.5868 | 0.7150 |
 
+## Sample-Level Performance (Circular Detection)
+
+Sample-level evaluation determines whether a sample contains circular ecDNA.
+A sample is predicted as circular if any gene in the sample is predicted positive.
+
+### Test Set Sample-Level Performance
+
+| Model | auPRC | AUC | Accuracy | Precision | Recall | F1 | Samples |
+|-------|-------|-----|----------|-----------|--------|-----|---------|
+| transformer | **0.9560** | 0.8568 | 0.6000 | 1.0000 | 0.4615 | 0.6316 | 70 |
+| deep_residual | **0.9480** | 0.8344 | 0.5571 | 1.0000 | 0.4038 | 0.5753 | 70 |
+| baseline_mlp | **0.9000** | 0.7201 | 0.6000 | 0.7609 | 0.6731 | 0.7143 | 70 |
+
+### Validation Set Sample-Level Performance
+
+| Model | auPRC | AUC | Accuracy | Precision | Recall | F1 | Samples |
+|-------|-------|-----|----------|-----------|--------|-----|---------|
+| baseline_mlp | 0.9339 | 0.7553 | 0.5652 | 0.8696 | 0.5405 | 0.6667 | 46 |
+| deep_residual | 0.9777 | 0.9099 | 0.5217 | 1.0000 | 0.4054 | 0.5769 | 46 |
+| transformer | 0.9720 | 0.8889 | 0.5217 | 1.0000 | 0.4054 | 0.5769 | 46 |
+
+### Training Set Sample-Level Performance
+
+| Model | auPRC | AUC | Accuracy | Precision | Recall | F1 | Samples |
+|-------|-------|-----|----------|-----------|--------|-----|---------|
+| baseline_mlp | 0.8902 | 0.6613 | 0.5778 | 0.8054 | 0.5854 | 0.6780 | 270 |
+| deep_residual | 0.9333 | 0.7886 | 0.5148 | 1.0000 | 0.3610 | 0.5305 | 270 |
+| transformer | 0.9439 | 0.8146 | 0.5037 | 1.0000 | 0.3463 | 0.5145 | 270 |
+
 ### Overfitting Analysis
 
 | Model | Train-Val auPRC Gap | Severity | Precision Gap | Recall Gap |
@@ -104,6 +133,7 @@ which presents significant challenges for model training and evaluation.
 | **Best Precision** | transformer | 0.9150 |
 | **Best Recall** | deep_residual | 0.6862 |
 | **Best Generalization** | optimized_residual | Gap: -0.1969 |
+| **Best Sample-Level auPRC** | transformer | 0.9560 |
 
 ## Architecture Details
 
