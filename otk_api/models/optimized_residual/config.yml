@@ -58,69 +58,42 @@ data:
   - freq_Circular
   - freq_HR
   gene_id: gene_id
-  missing_value_strategy:
-    age: mean
-  preprocessing:
-    normalize: true
-    scale: true
   sample_id: sample
   target: y
-model:
-  architecture:
-    dropout_rate: 0.6
-    hidden_dims:
-    - 64
-    - 32
-    input_dim: 57
-    type: OptimizedEcDNA
-    use_residual: true
-  loss_function:
-    alpha: 0.8
-    bce_weight: 0.2
-    dice_weight: 0.3
-    focal_weight: 0.5
-    gamma: 2.5
-    pos_weight: 150.0
-    type: CombinedLoss
-  metrics:
-  - auPRC
-  - AUC
-  - F1
-  - Precision
-  - Recall
-  optimizer:
-    lr: 0.001
-    type: AdamW
-    weight_decay: 0.1
-prediction:
-  batch_size: 64
-  threshold: 0.5
+  missing_value_strategy:
+    age: mean
 training:
-  batch_size: 1024
-  checkpoint:
-    save_best: true
-    save_last: false
-  data:
-    num_workers: 4
-    pin_memory: true
-    seed: 2026
-    shuffle: true
-  device:
-    gpu: 0
+  seed: 2026
+  batch_size: 4096
+  epochs: 150
   early_stopping:
-    min_delta: 0.0005
-    patience: 35
-  epochs: 200
-  gradient_clipping:
-    enabled: true
-    max_norm: 0.5
-  learning_rate_scheduler:
-    T_0: 15
-    T_mult: 2
-    eta_min: 1.0e-07
-    type: CosineAnnealingWarmRestarts
-  logging:
-    level: INFO
-    save_interval: 1
-  test_split: 0.2
-  validation_split: 0.1
+    patience: 50
+    min_delta: 0.001
+prediction:
+  threshold: 0.5
+model:
+  type: NeuralNetwork
+  variant: OptimizedResidual
+  architecture:
+    input_dim: 57
+    hidden_dim: 128
+    num_residual_blocks: 8
+    dropout: 0.3
+    classifier:
+    - input_dim: 128
+      output_dim: 64
+      activation: ReLU
+      dropout: 0.3
+    - input_dim: 64
+      output_dim: 1
+      activation: null
+  optimizer:
+    type: AdamW
+    lr: 0.001
+    weight_decay: 0.01
+  loss_function:
+    type: BCEWithLogitsLoss
+    pos_weight: 10.0
+  scheduler:
+    type: ReduceLROnPlateau
+    patience: 10

@@ -58,52 +58,47 @@ data:
   - freq_Circular
   - freq_HR
   gene_id: gene_id
-  missing_value_strategy:
-    age: mean
-  path: ../data/gcap_modeling_data.csv.gz
   sample_id: sample
   target: y
-model:
-  architecture:
-    dropout_rate: 0.3
-    hidden_dim: 256
-    input_dim: 57
-    num_heads: 8
-    num_residual_blocks: 6
-    num_transformer_layers: 4
-    type: DGITSuper
-    use_contrastive: true
-    use_density: true
-  loss_function:
-    contrastive_temp: 0.1
-    contrastive_weight: 0.15
-    density_weight: 0.05
-    focal_gamma: 2.0
-    focal_weight: 0.4
-    pos_weight: 150.0
-    ranking_margin: 0.5
-    ranking_weight: 0.4
-    type: DGITSuperLoss
-  name: DGIT_Super
-  optimizer:
-    lr: 0.0002
-    type: AdamW
-    weight_decay: 0.0001
-prediction:
-  batch_size: 1024
-  output_format: csv
-  threshold: 0.5
+  missing_value_strategy:
+    age: mean
 training:
-  batch_size: 2048
-  early_stopping:
-    min_delta: 0.001
-    patience: 30
-  epochs: 200
-  learning_rate_scheduler:
-    T_0: 25
-    T_mult: 2
-    eta_min: 1.0e-05
-    type: CosineAnnealingWarmRestarts
   seed: 2026
-  test_split: 0.18
-  validation_split: 0.12
+  batch_size: 4096
+  epochs: 150
+  early_stopping:
+    patience: 50
+    min_delta: 0.001
+prediction:
+  threshold: 0.5
+model:
+  type: NeuralNetwork
+  variant: DGITSuper
+  architecture:
+    input_dim: 57
+    hidden_dim: 256
+    num_heads: 8
+    num_layers: 6
+    dropout: 0.3
+    classifier:
+    - input_dim: 256
+      output_dim: 128
+      activation: ReLU
+      dropout: 0.3
+    - input_dim: 128
+      output_dim: 64
+      activation: ReLU
+      dropout: 0.3
+    - input_dim: 64
+      output_dim: 1
+      activation: null
+  optimizer:
+    type: AdamW
+    lr: 0.001
+    weight_decay: 0.01
+  loss_function:
+    type: BCEWithLogitsLoss
+    pos_weight: 10.0
+  scheduler:
+    type: ReduceLROnPlateau
+    patience: 10

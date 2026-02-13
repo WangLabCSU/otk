@@ -58,34 +58,39 @@ data:
   - freq_Circular
   - freq_HR
   gene_id: gene_id
-  missing_value_strategy:
-    age: mean
   sample_id: sample
   target: y
+  missing_value_strategy:
+    age: mean
+training:
+  seed: 2026
+  batch_size: 4096
+  epochs: 150
+  early_stopping:
+    patience: 50
+    min_delta: 0.001
+prediction:
+  threshold: 0.5
 model:
+  type: NeuralNetwork
+  variant: BaselineMLP
   architecture:
     layers:
     - input_dim: 57
-    type: Baseline
+      output_dim: 128
+      activation: ReLU
+      dropout: 0.3
+    - input_dim: 128
+      output_dim: 64
+      activation: ReLU
+      dropout: 0.3
+    - input_dim: 64
+      output_dim: 1
+      activation: null
+  optimizer:
+    type: Adam
+    lr: 0.001
+    weight_decay: 0.0001
   loss_function:
     type: BCEWithLogitsLoss
-  optimizer:
-    lr: 0.001
-    type: Adam
-    weight_decay: 0.0001
-prediction:
-  threshold: 0.5
-training:
-  batch_size: 512
-  early_stopping:
-    min_delta: 0.001
-    patience: 10
-  epochs: 50
-  learning_rate_scheduler:
-    factor: 0.5
-    min_lr: 1.0e-05
-    patience: 5
-    type: ReduceLROnPlateau
-  seed: 2026
-  test_split: 0.2
-  validation_split: 0.1
+    pos_weight: 10.0

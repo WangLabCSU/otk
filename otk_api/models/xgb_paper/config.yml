@@ -72,28 +72,31 @@ training:
 prediction:
   threshold: 0.5
 model:
-  type: NeuralNetwork
-  variant: DeepResidual
-  architecture:
-    input_dim: 57
-    hidden_dim: 128
-    num_residual_blocks: 6
-    dropout: 0.3
-    classifier:
-    - input_dim: 128
-      output_dim: 64
-      activation: ReLU
-      dropout: 0.3
-    - input_dim: 64
-      output_dim: 1
-      activation: null
-  optimizer:
-    type: AdamW
-    lr: 0.001
-    weight_decay: 0.01
-  loss_function:
-    type: BCEWithLogitsLoss
-    pos_weight: 10.0
-  scheduler:
-    type: ReduceLROnPlateau
-    patience: 10
+  type: XGBoost
+  variant: XGB11
+  params:
+    eta: 0.1
+    max_depth: 4
+    gamma: 10
+    subsample: 0.6
+    max_delta_step: 0
+    min_child_weight: 1
+    alpha: 0
+    lambda: 1
+    objective: binary:logistic
+    eval_metric: aucpr
+    tree_method: hist
+    device: cuda
+features:
+  core_11:
+  - total_cn
+  - minor_cn
+  - purity
+  - ploidy
+  - AScore
+  - pLOH
+  - cna_burden
+  - freq_Linear
+  - freq_BFB
+  - freq_Circular
+  - freq_HR
