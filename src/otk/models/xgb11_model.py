@@ -518,44 +518,13 @@ class XGB11Trainer:
             self.model = XGBNewModel()
         
     def load_data(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-        """Load and split data"""
-        import gzip
+        """Load and split data using unified split"""
+        from otk.data.data_split import load_split
         
         logger.info(f"Loading data from {self.data_path}")
+        logger.info(f"Using unified data split (seed=2026)")
         
-        with gzip.open(self.data_path, 'rt') as f:
-            df = pd.read_csv(f)
-        
-        logger.info(f"Loaded {len(df)} rows")
-        
-        # Split by sample using stratified sampling
-        unique_samples = df['sample'].unique()
-        
-        # Stratified split based on positive count per sample
-        sample_pos_counts = df.groupby('sample')['y'].sum().sort_values()
-        sorted_samples = sample_pos_counts.index.tolist()
-        
-        n_samples = len(sorted_samples)
-        test_size = int(n_samples * self.test_split)
-        val_size = int(n_samples * self.validation_split)
-        train_size = n_samples - val_size - test_size
-        
-        # Equidistant sampling for balanced distribution
-        train_indices = np.linspace(0, n_samples-1, train_size, dtype=int)
-        remaining = list(set(range(n_samples)) - set(train_indices))
-        remaining.sort()
-        
-        val_indices = np.linspace(0, len(remaining)-1, val_size, dtype=int)
-        val_indices = [remaining[i] for i in val_indices]
-        test_indices = list(set(remaining) - set(val_indices))
-        
-        train_samples = [sorted_samples[i] for i in train_indices]
-        val_samples = [sorted_samples[i] for i in val_indices]
-        test_samples = [sorted_samples[i] for i in test_indices]
-        
-        train_df = df[df['sample'].isin(train_samples)]
-        val_df = df[df['sample'].isin(val_samples)]
-        test_df = df[df['sample'].isin(test_samples)]
+        train_df, val_df, test_df = load_split(self.data_path)
         
         logger.info(f"Train: {len(train_df)} rows, {train_df['y'].sum()} positive")
         logger.info(f"Val: {len(val_df)} rows, {val_df['y'].sum()} positive")
