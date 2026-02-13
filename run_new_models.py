@@ -5,7 +5,6 @@ Train DGIT Super and TabPFN models in parallel
 import sys
 import os
 import time
-import multiprocessing as mp
 from datetime import datetime
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
@@ -74,7 +73,14 @@ def train_tabpfn():
         return {'name': 'TabPFN', 'status': 'failed', 'error': str(e)}
 
 
+def run_task(task_func):
+    """Wrapper for multiprocessing"""
+    return task_func()
+
+
 def main():
+    import multiprocessing as mp
+    
     print("=" * 60)
     print("Training DGIT Super and TabPFN models")
     print(f"Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -82,9 +88,11 @@ def main():
     
     total_start = time.time()
     
-    # Run in parallel
+    # Run in parallel using starmap
+    tasks = [train_dgit_super, train_tabpfn]
+    
     with mp.Pool(processes=2) as pool:
-        results = pool.map(lambda f: f(), [train_dgit_super, train_tabpfn])
+        results = pool.map(run_task, tasks)
     
     total_elapsed = time.time() - total_start
     
@@ -98,7 +106,7 @@ def main():
         if result['status'] == 'success':
             tm = result.get('test_metrics', {})
             print(f"  Status: SUCCESS")
-            print(f"  Test auPRC: {tm.get('auPRC', tm.get('auPRC', 0)):.4f}")
+            print(f"  Test auPRC: {tm.get('auPRC', 0):.4f}")
             print(f"  Test Precision: {tm.get('Precision', 0):.4f}")
             print(f"  Test Recall: {tm.get('Recall', 0):.4f}")
             print(f"  Training Time: {result['elapsed']/60:.1f} min")
