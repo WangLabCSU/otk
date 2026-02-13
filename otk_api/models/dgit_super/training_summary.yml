@@ -1,0 +1,55 @@
+best_val_auPRC: 0.5711429809135742
+dataset_statistics:
+  test_positive: 4633
+  test_positive_rate: 0.0035596813540905714
+  test_samples: 1301521
+  train_positive: 17925
+  train_positive_rate: 0.0035079431254416704
+  train_samples: 5109832
+  val_positive: 3166
+  val_positive_rate: 0.0036480200942605734
+  val_samples: 867868
+model_info:
+  batch_size: 2048
+  dropout_rate: 0.3
+  hidden_dims: N/A
+  input_dim: 57
+  learning_rate: 0.0002
+  loss_function: DGITSuperLoss
+  model_type: DGITSuper
+  optimizer: AdamW
+  weight_decay: 0.0001
+overfitting_analysis:
+  overfitting_severity: low
+  train_val_auPRC_gap: -0.19374576704746727
+  train_val_precision_gap: -0.5034542207391117
+  train_val_recall_gap: 0.3178090432603737
+performance:
+  test_set:
+    AUC: 0.9389082417744686
+    F1: 0.5030517185994218
+    Precision: 0.9830508474576272
+    Recall: 0.3380099287718541
+    auPRC: 0.6199250610044046
+    optimal_threshold: 0.393939393939394
+  training_set:
+    AUC: 0.8863057023872437
+    F1: 0.5176881134133042
+    Precision: 0.4249955237242614
+    Recall: 0.662092050209205
+    auPRC: 0.3773972138661069
+    optimal_threshold: 0.7272727272727273
+  validation_set:
+    AUC: 0.9181379179596733
+    F1: 0.5023041474654378
+    Precision: 0.9284497444633731
+    Recall: 0.34428300694883135
+    auPRC: 0.5711429809135742
+    optimal_threshold: 0.4040404040404041
+training_progress:
+  best_epoch: 3
+  data_processing_time_seconds: 54.59344840049744
+  early_stopped: true
+  epochs_trained: 33
+  test_evaluation_time_seconds: 23.254430055618286
+  total_training_time_seconds: 11643.119948387146
