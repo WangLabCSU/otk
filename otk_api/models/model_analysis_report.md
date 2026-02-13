@@ -1,6 +1,6 @@
 # Model Performance Analysis Report
 
-**Generated**: 2026-02-13 04:57:31
+**Generated**: 2026-02-13 05:07:51
 **Total Models**: 4 trained models
 
 ## Abstract
@@ -94,25 +94,28 @@ A sample is predicted as circular if any gene in the sample is predicted positiv
 
 | Model | auPRC | AUC | Accuracy | Precision | Recall | F1 | Samples |
 |-------|-------|-----|----------|-----------|--------|-----|---------|
-| transformer | **0.9560** | 0.8568 | 0.6000 | 1.0000 | 0.4615 | 0.6316 | 70 |
-| deep_residual | **0.9480** | 0.8344 | 0.5571 | 1.0000 | 0.4038 | 0.5753 | 70 |
-| baseline_mlp | **0.9000** | 0.7201 | 0.6000 | 0.7609 | 0.6731 | 0.7143 | 70 |
+| deep_residual | **0.9701** | 0.8962 | 0.5072 | 1.0000 | 0.3585 | 0.5278 | 69 |
+| transformer | **0.9648** | 0.8774 | 0.4783 | 1.0000 | 0.3208 | 0.4857 | 69 |
+| baseline_mlp | **0.9251** | 0.7465 | 0.6377 | 0.8500 | 0.6415 | 0.7312 | 69 |
+| optimized_residual | **0.9070** | 0.7134 | 0.6232 | 0.8462 | 0.6226 | 0.7174 | 69 |
 
 ### Validation Set Sample-Level Performance
 
 | Model | auPRC | AUC | Accuracy | Precision | Recall | F1 | Samples |
 |-------|-------|-----|----------|-----------|--------|-----|---------|
-| baseline_mlp | 0.9339 | 0.7553 | 0.5652 | 0.8696 | 0.5405 | 0.6667 | 46 |
-| deep_residual | 0.9777 | 0.9099 | 0.5217 | 1.0000 | 0.4054 | 0.5769 | 46 |
-| transformer | 0.9720 | 0.8889 | 0.5217 | 1.0000 | 0.4054 | 0.5769 | 46 |
+| baseline_mlp | 0.8391 | 0.5429 | 0.4783 | 0.7619 | 0.4571 | 0.5714 | 46 |
+| deep_residual | 0.9246 | 0.7481 | 0.4565 | 1.0000 | 0.2857 | 0.4444 | 46 |
+| optimized_residual | 0.8347 | 0.5442 | 0.5000 | 0.7727 | 0.4857 | 0.5965 | 46 |
+| transformer | 0.9426 | 0.8052 | 0.3913 | 1.0000 | 0.2000 | 0.3333 | 46 |
 
 ### Training Set Sample-Level Performance
 
 | Model | auPRC | AUC | Accuracy | Precision | Recall | F1 | Samples |
 |-------|-------|-----|----------|-----------|--------|-----|---------|
-| baseline_mlp | 0.8902 | 0.6613 | 0.5778 | 0.8054 | 0.5854 | 0.6780 | 270 |
-| deep_residual | 0.9333 | 0.7886 | 0.5148 | 1.0000 | 0.3610 | 0.5305 | 270 |
-| transformer | 0.9439 | 0.8146 | 0.5037 | 1.0000 | 0.3463 | 0.5145 | 270 |
+| baseline_mlp | 0.8959 | 0.6783 | 0.5904 | 0.8065 | 0.6068 | 0.6925 | 271 |
+| deep_residual | 0.9387 | 0.8043 | 0.4539 | 1.0000 | 0.2816 | 0.4394 | 271 |
+| optimized_residual | 0.9049 | 0.7179 | 0.6089 | 0.8788 | 0.5631 | 0.6864 | 271 |
+| transformer | 0.9482 | 0.8263 | 0.4133 | 1.0000 | 0.2282 | 0.3715 | 271 |
 
 ### Overfitting Analysis
 
@@ -133,7 +136,7 @@ A sample is predicted as circular if any gene in the sample is predicted positiv
 | **Best Precision** | transformer | 0.9150 |
 | **Best Recall** | deep_residual | 0.6862 |
 | **Best Generalization** | optimized_residual | Gap: -0.1969 |
-| **Best Sample-Level auPRC** | transformer | 0.9560 |
+| **Best Sample-Level auPRC** | deep_residual | 0.9701 |
 
 ## Architecture Details
 

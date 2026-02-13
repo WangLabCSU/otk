@@ -204,19 +204,43 @@ class ModelAnalyzer:
             self.data_df = pd.read_csv(f)
         print(f"Loaded {len(self.data_df)} rows")
         
-        unique_samples = self.data_df['sample'].unique()
-        np.random.seed(42)
-        np.random.shuffle(unique_samples)
+        sample_y_sum_path = self.models_dir.parent.parent / "src/otk/data/sample_y_sum.csv"
+        if sample_y_sum_path.exists():
+            sample_y_sum_df = pd.read_csv(sample_y_sum_path)
+            sample_y_sum = dict(zip(sample_y_sum_df['sample'], sample_y_sum_df['y_sum']))
+        else:
+            sample_y_sum = self.data_df.groupby('sample')['y'].sum().to_dict()
         
-        n_samples = len(unique_samples)
-        train_end = int(n_samples * 0.7)
-        val_end = int(n_samples * 0.82)
+        unique_samples = list(self.data_df['sample'].unique())
+        sorted_samples = sorted(unique_samples, key=lambda x: sample_y_sum.get(x, 0))
+        
+        total_samples = len(sorted_samples)
+        val_split = 0.12
+        test_split = 0.18
+        
+        test_size = int(total_samples * test_split)
+        val_size = int(total_samples * val_split)
+        train_size = total_samples - val_size - test_size
+        
+        train_indices = np.linspace(0, total_samples-1, train_size, dtype=int)
+        remaining_indices = list(set(range(total_samples)) - set(train_indices))
+        remaining_indices.sort()
+        
+        val_indices = np.linspace(0, len(remaining_indices)-1, val_size, dtype=int)
+        val_indices = [remaining_indices[i] for i in val_indices]
+        test_indices = list(set(remaining_indices) - set(val_indices))
+        
+        train_samples = [sorted_samples[i] for i in train_indices]
+        val_samples = [sorted_samples[i] for i in val_indices]
+        test_samples = [sorted_samples[i] for i in test_indices]
         
         self.sample_splits = {
-            'train': set(unique_samples[:train_end]),
-            'val': set(unique_samples[train_end:val_end]),
-            'test': set(unique_samples[val_end:])
+            'train': set(train_samples),
+            'val': set(val_samples),
+            'test': set(test_samples)
         }
+        
+        print(f"Sample splits: train={len(train_samples)}, val={len(val_samples)}, test={len(test_samples)}")
     
     def scan_models(self) -> List[str]:
         """扫描模型目录,返回所有模型名称"""
@@ -368,6 +392,8 @@ class ModelAnalyzer:
             
             predictor = Predictor(str(model_path), gpu=0)
             
+            optimal_threshold = predictor.optimal_threshold if predictor.optimal_threshold else 0.5
+            
             feature_cols = [col for col in self.data_df.columns if col not in ['sample', 'gene_id', 'y']]
             
             def evaluate_split(split_name: str) -> SampleLevelMetrics:
@@ -390,6 +416,10 @@ class ModelAnalyzer:
                 
                 probs = predictor.predict(dataloader).flatten()
                 
+                if np.any(np.isnan(probs)):
+                    print(f"  Warning: NaN values in predictions, replacing with 0.5")
+                    probs = np.nan_to_num(probs, nan=0.5)
+                
                 split_df['prob'] = probs
                 sample_predictions = split_df.groupby('sample').agg({
                     'y': 'max',
@@ -398,11 +428,15 @@ class ModelAnalyzer:
                 
                 y_true = sample_predictions['y'].values
                 y_prob = sample_predictions['prob'].values
-                y_pred = (y_prob >= 0.5).astype(int)
+                y_pred = (y_prob >= optimal_threshold).astype(int)
+                
+                if len(np.unique(y_true)) < 2:
+                    print(f"  Warning: Only one class in {split_name} set")
+                    return SampleLevelMetrics()
                 
                 precision, recall, _ = precision_recall_curve(y_true, y_prob)
                 auprc = auc(recall, precision)
-                auc_score = roc_auc_score(y_true, y_prob) if len(np.unique(y_true)) > 1 else 0.0
+                auc_score = roc_auc_score(y_true, y_prob)
                 
                 tp = ((y_pred == 1) & (y_true == 1)).sum()
                 fp = ((y_pred == 1) & (y_true == 0)).sum()
