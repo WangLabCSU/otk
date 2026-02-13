@@ -189,7 +189,7 @@ class ModelAnalyzer:
         self.models: List[ModelInfo] = []
     
     def load_data(self):
-        """Load preprocessed data for sample-level evaluation"""
+        """Load preprocessed data for sample-level evaluation using unified split"""
         if self.data_df is not None:
             return
         
@@ -204,43 +204,19 @@ class ModelAnalyzer:
             self.data_df = pd.read_csv(f)
         print(f"Loaded {len(self.data_df)} rows")
         
-        sample_y_sum_path = self.models_dir.parent.parent / "src/otk/data/sample_y_sum.csv"
-        if sample_y_sum_path.exists():
-            sample_y_sum_df = pd.read_csv(sample_y_sum_path)
-            sample_y_sum = dict(zip(sample_y_sum_df['sample'], sample_y_sum_df['y_sum']))
-        else:
-            sample_y_sum = self.data_df.groupby('sample')['y'].sum().to_dict()
+        # Use unified data split (80/10/10, seed=2026)
+        sys.path.insert(0, str(self.models_dir.parent.parent / "src"))
+        from otk.data.data_split import get_data_splits
         
-        unique_samples = list(self.data_df['sample'].unique())
-        sorted_samples = sorted(unique_samples, key=lambda x: sample_y_sum.get(x, 0))
-        
-        total_samples = len(sorted_samples)
-        val_split = 0.12
-        test_split = 0.18
-        
-        test_size = int(total_samples * test_split)
-        val_size = int(total_samples * val_split)
-        train_size = total_samples - val_size - test_size
-        
-        train_indices = np.linspace(0, total_samples-1, train_size, dtype=int)
-        remaining_indices = list(set(range(total_samples)) - set(train_indices))
-        remaining_indices.sort()
-        
-        val_indices = np.linspace(0, len(remaining_indices)-1, val_size, dtype=int)
-        val_indices = [remaining_indices[i] for i in val_indices]
-        test_indices = list(set(remaining_indices) - set(val_indices))
-        
-        train_samples = [sorted_samples[i] for i in train_indices]
-        val_samples = [sorted_samples[i] for i in val_indices]
-        test_samples = [sorted_samples[i] for i in test_indices]
+        train_samples, val_samples, test_samples = get_data_splits()
         
         self.sample_splits = {
-            'train': set(train_samples),
-            'val': set(val_samples),
-            'test': set(test_samples)
+            'train': train_samples,
+            'val': val_samples,
+            'test': test_samples
         }
         
-        print(f"Sample splits: train={len(train_samples)}, val={len(val_samples)}, test={len(test_samples)}")
+        print(f"Sample splits (unified, seed=2026): train={len(train_samples)}, val={len(val_samples)}, test={len(test_samples)}")
     
     def scan_models(self) -> List[str]:
         """扫描模型目录,返回所有模型名称"""
