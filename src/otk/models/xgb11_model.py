@@ -68,7 +68,25 @@ class XGB11Model:
         'freq_HR',       # freq_HR
     ]
     
-    # Original hyperparameters from R model
+    # Hyperparameters from Nature Communications paper text
+    # (different from the saved R model's actual parameters)
+    PAPER_PARAMS = {
+        'eta': 0.1,
+        'max_depth': 4,
+        'gamma': 10,
+        'subsample': 0.6,
+        'max_delta_step': 0,
+        'min_child_weight': 1,
+        'alpha': 0,
+        'lambda': 1,
+        'objective': 'binary:logistic',
+        'eval_metric': 'aucpr',
+        'booster': 'gbtree',
+        'tree_method': 'hist',
+        'device': 'cuda',
+    }
+    
+    # Actual hyperparameters from saved R model
     ORIGINAL_PARAMS = {
         'eta': 0.3,
         'max_depth': 3,
@@ -334,39 +352,124 @@ class XGB11Model:
         return importance_df
 
 
-class XGB11OptimizedModel(XGB11Model):
+class XGBFullModel(XGB11Model):
     """
-    XGB11 Optimized - Enhanced version with feature engineering
-    Based on XGB11 but with additional engineered features
+    XGB Full - Optimized version using ALL available features
+    Not limited to 11 features, uses comprehensive feature engineering
     """
+    
+    # Use paper params as base but can be tuned
+    DEFAULT_PARAMS = {
+        'eta': 0.05,  # Lower learning rate for better generalization
+        'max_depth': 6,  # Deeper trees for complex patterns
+        'gamma': 5,
+        'subsample': 0.8,
+        'max_delta_step': 1,
+        'min_child_weight': 3,
+        'alpha': 0.1,
+        'lambda': 2,
+        'objective': 'binary:logistic',
+        'eval_metric': 'aucpr',
+        'booster': 'gbtree',
+        'tree_method': 'hist',
+        'device': 'cuda',
+    }
+    
+    def __init__(self, params: Optional[Dict[str, Any]] = None):
+        """Initialize with full feature set"""
+        super().__init__(params, use_original_params=False)
+        if params is None:
+            self.params = self.DEFAULT_PARAMS.copy()
     
     def prepare_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Prepare features with additional engineering
+        Prepare ALL available features with comprehensive engineering
         """
-        # Start with original 11 features
-        feature_df = super().prepare_features(df)
+        feature_df = pd.DataFrame()
         
-        # Add engineered features
-        # 1. CN relative to ploidy (important ratio)
-        feature_df['cn_ploidy_ratio'] = feature_df['total_cn'] / (feature_df['ploidy'] + 1e-6)
+        # Core copy number features
+        cn_features = ['segVal', 'minor_cn', 'CN1', 'CN2', 'CN3', 'CN4', 'CN5', 
+                       'CN6', 'CN7', 'CN8', 'CN9', 'CN10', 'CN11', 'CN12', 
+                       'CN13', 'CN14', 'CN15', 'CN16', 'CN17', 'CN18', 'CN19']
+        for feat in cn_features:
+            if feat in df.columns:
+                feature_df[feat] = df[feat].fillna(0)
         
-        # 2. CNA burden normalized by purity
-        feature_df['cna_burden_purity'] = feature_df['cna_burden'] * feature_df['purity']
+        # Sample quality features
+        quality_features = ['purity', 'ploidy', 'AScore', 'pLOH', 'cna_burden', 'intersect_ratio']
+        for feat in quality_features:
+            if feat in df.columns:
+                feature_df[feat] = df[feat].fillna(0)
         
-        # 3. Minor CN ratio
-        feature_df['minor_cn_ratio'] = feature_df['minor_cn'] / (feature_df['total_cn'] + 1e-6)
+        # Amplicon type frequencies
+        freq_features = ['freq_Linear', 'freq_BFB', 'freq_Circular', 'freq_HR']
+        for feat in freq_features:
+            if feat in df.columns:
+                feature_df[feat] = df[feat].fillna(0)
         
-        # 4. Total amplification frequency (sum of all freq types)
-        feature_df['total_freq'] = (
-            feature_df['freq_Linear'] + 
-            feature_df['freq_BFB'] + 
-            feature_df['freq_Circular'] + 
-            feature_df['freq_HR']
-        )
+        # Clinical features
+        clinical_features = ['age', 'gender']
+        for feat in clinical_features:
+            if feat in df.columns:
+                feature_df[feat] = df[feat].fillna(feature_df[feat].mean() if feat == 'age' else 0)
         
-        # 5. Circular dominance ratio
-        feature_df['circular_dominance'] = feature_df['freq_Circular'] / (feature_df['total_freq'] + 1e-6)
+        # Cancer type features (one-hot encoded)
+        cancer_types = [col for col in df.columns if col.startswith('type_')]
+        for feat in cancer_types:
+            feature_df[feat] = df[feat].fillna(0)
+        
+        # === FEATURE ENGINEERING ===
+        
+        # 1. CN relative to ploidy (most important)
+        if 'segVal' in df.columns and 'ploidy' in df.columns:
+            feature_df['cn_ploidy_ratio'] = df['segVal'] / (df['ploidy'] + 1e-6)
+        
+        # 2. Total CN (sum of all CN states)
+        cn_cols = [c for c in df.columns if c.startswith('CN') and c[2:].isdigit()]
+        if cn_cols:
+            feature_df['total_cn_sum'] = df[cn_cols].sum(axis=1)
+        
+        # 3. CN diversity (number of non-zero CN states)
+        if cn_cols:
+            feature_df['cn_diversity'] = (df[cn_cols] > 0).sum(axis=1)
+        
+        # 4. CNA burden normalized
+        if 'cna_burden' in df.columns and 'purity' in df.columns:
+            feature_df['cna_burden_norm'] = df['cna_burden'] * df['purity']
+        
+        # 5. Minor CN ratio
+        if 'minor_cn' in df.columns and 'segVal' in df.columns:
+            feature_df['minor_cn_ratio'] = df['minor_cn'] / (df['segVal'] + 1e-6)
+        
+        # 6. Total amplification frequency
+        freq_cols = ['freq_Linear', 'freq_BFB', 'freq_Circular', 'freq_HR']
+        if all(c in df.columns for c in freq_cols):
+            feature_df['total_freq'] = df[freq_cols].sum(axis=1)
+        
+        # 7. Circular dominance
+        if 'freq_Circular' in df.columns and 'total_freq' in feature_df.columns:
+            feature_df['circular_dominance'] = df['freq_Circular'] / (feature_df['total_freq'] + 1e-6)
+        
+        # 8. Linear vs Circular ratio
+        if 'freq_Linear' in df.columns and 'freq_Circular' in df.columns:
+            feature_df['linear_circular_ratio'] = df['freq_Linear'] / (df['freq_Circular'] + 1e-6)
+        
+        # 9. HR involvement
+        if 'freq_HR' in df.columns and 'total_freq' in feature_df.columns:
+            feature_df['hr_involvement'] = df['freq_HR'] / (feature_df['total_freq'] + 1e-6)
+        
+        # 10. Purity-ploidy interaction
+        if 'purity' in df.columns and 'ploidy' in df.columns:
+            feature_df['purity_ploidy'] = df['purity'] * df['ploidy']
+        
+        # 11. High CN indicator (CN > 4)
+        high_cn_cols = [c for c in df.columns if c.startswith('CN') and c[2:].isdigit() and int(c[2:]) > 4]
+        if high_cn_cols:
+            feature_df['high_cn_sum'] = df[high_cn_cols].sum(axis=1)
+        
+        # 12. AScore normalized
+        if 'AScore' in df.columns and 'purity' in df.columns:
+            feature_df['ascore_norm'] = df['AScore'] / (df['purity'] + 1e-6)
         
         return feature_df
 
@@ -378,7 +481,7 @@ class XGB11Trainer:
         self,
         data_path: str,
         output_dir: str,
-        model_type: str = 'original',  # 'original' or 'optimized'
+        model_type: str = 'paper',  # 'paper', 'original', or 'full'
         validation_split: float = 0.12,
         test_split: float = 0.18,
         random_state: int = 42
@@ -392,10 +495,16 @@ class XGB11Trainer:
         self.random_state = random_state
         
         # Choose model type
-        if model_type == 'original':
+        if model_type == 'paper':
+            # Use paper hyperparameters with 11 features
+            self.model = XGB11Model(use_original_params=False)
+            self.model.params = XGB11Model.PAPER_PARAMS.copy()
+        elif model_type == 'original':
+            # Use actual R model hyperparameters
             self.model = XGB11Model(use_original_params=True)
-        else:
-            self.model = XGB11OptimizedModel(use_original_params=True)
+        else:  # 'full'
+            # Use all features with optimized hyperparameters
+            self.model = XGBFullModel()
         
     def load_data(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """Load and split data"""
