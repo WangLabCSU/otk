@@ -71,7 +71,7 @@ CELERY_BROKER_URL = REDIS_URL
 CELERY_RESULT_BACKEND = REDIS_URL
 
 # Model Settings
-DEFAULT_MODEL = get_config_value("models.default_model", None)
+DEFAULT_MODEL = get_config_value("models.default_model", "baseline_mlp")
 # Only search in otk_api/models directory for released models
 MODEL_SEARCH_DIRS = get_config_value("models.search_dirs", [
     str(API_DIR / "models"),
@@ -85,8 +85,8 @@ MODEL_PRIORITY = get_config_value("models.priority", [
 ])
 
 # Resource Settings
-MAX_CONCURRENT_JOBS = get_config_value("resources.max_concurrent_jobs", 4, "MAX_CONCURRENT_JOBS")
-JOB_TIMEOUT = get_config_value("resources.job_timeout", 3600)
+MAX_CONCURRENT_JOBS = get_config_value("resources.max_concurrent_jobs", 100, "MAX_CONCURRENT_JOBS")
+JOB_TIMEOUT = get_config_value("resources.job_timeout", 7200)
 GPU_MEMORY_THRESHOLD = get_config_value("resources.gpu_memory_threshold", 0.8)
 PREFER_GPU = get_config_value("resources.prefer_gpu", True)
 

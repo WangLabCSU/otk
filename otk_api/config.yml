@@ -29,7 +29,7 @@ redis:
 # Model Settings
 models:
   # Default model to use (if not specified, will use priority order)
-  default_model: "baseline"
+  default_model: "baseline_mlp"
 
   # Model search directories - only otk_api/models for released models
   search_dirs:
@@ -42,10 +42,10 @@ models:
 # Resource Management Settings
 resources:
   # Maximum concurrent jobs
-  max_concurrent_jobs: 4
+  max_concurrent_jobs: 100
   
   # Job timeout in seconds
-  job_timeout: 3600
+  job_timeout: 7200
   
   # GPU memory threshold (0-1), switch to CPU if exceeded
   gpu_memory_threshold: 0.8

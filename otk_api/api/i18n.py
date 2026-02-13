@@ -93,6 +93,11 @@ TRANSLATIONS = {
         "use_case": "Use Case",
         "report_generated": "Report Generated",
         "model_directory": "Model Directory",
+        "list_models": "List available models",
+        "rescan_models": "Rescan models",
+        "get_config": "Get API configuration",
+        "recent_jobs": "Get recent jobs",
+        "sample_file_download": "Download sample CSV file",
     },
     "zh": {
         "description": "高性能科学计算API - ecDNA预测服务",
@@ -186,6 +191,11 @@ TRANSLATIONS = {
         "use_case": "适用场景",
         "report_generated": "报告生成时间",
         "model_directory": "模型目录",
+        "list_models": "列出可用模型",
+        "rescan_models": "重新扫描模型",
+        "get_config": "获取API配置",
+        "recent_jobs": "获取最近任务",
+        "sample_file_download": "下载示例CSV文件",
     }
 }
 

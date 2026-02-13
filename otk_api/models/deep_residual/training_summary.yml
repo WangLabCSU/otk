@@ -1,4 +1,4 @@
-best_val_auPRC: 0.7591530381659937
+best_val_auPRC: 0.7259635962012195
 dataset_statistics:
   test_positive: 5118
   test_positive_rate: 0.0035221590660512447
@@ -21,35 +21,35 @@ model_info:
   weight_decay: 0.01
 overfitting_analysis:
   overfitting_severity: medium
-  train_val_auPRC_gap: 0.09891757726195494
-  train_val_precision_gap: 0.0480493821609016
-  train_val_recall_gap: 0.07286874888478612
+  train_val_auPRC_gap: 0.13231617921843908
+  train_val_precision_gap: 0.1308613480291353
+  train_val_recall_gap: 0.061854540214547615
 performance:
   test_set:
-    AUC: 0.9780412274034523
-    F1: 0.714704732107939
-    Precision: 0.7152641878669276
-    Recall: 0.714146150840172
-    auPRC: 0.7505171971634482
+    AUC: 0.979655354765029
+    F1: 0.7250206440957886
+    Precision: 0.7684901531728665
+    Recall: 0.6862055490425948
+    auPRC: 0.7384370889317461
     optimal_threshold: 0.9191919191919192
   training_set:
-    AUC: 0.9977048946744151
-    F1: 0.801650775579906
-    Precision: 0.8183033120278908
-    Recall: 0.7856624825662483
-    auPRC: 0.8580706154279486
+    AUC: 0.9977765406773413
+    F1: 0.8055443023323109
+    Precision: 0.8368303974027536
+    Recall: 0.776513249651325
+    auPRC: 0.8582797754196586
     optimal_threshold: 0.9292929292929294
   validation_set:
-    AUC: 0.9881959622364128
-    F1: 0.7404106935296397
-    Precision: 0.7702539298669892
-    Recall: 0.7127937336814621
-    auPRC: 0.7591530381659937
-    optimal_threshold: 0.9595959595959597
+    AUC: 0.9885279997473915
+    F1: 0.7102873030583874
+    Precision: 0.7059690493736183
+    Recall: 0.7146587094367773
+    auPRC: 0.7259635962012195
+    optimal_threshold: 0.8989898989898991
 training_progress:
   best_epoch: 2
-  data_processing_time_seconds: 48.869993448257446
+  data_processing_time_seconds: 52.521687269210815
   early_stopped: true
   epochs_trained: 17
-  test_evaluation_time_seconds: 29.674667835235596
-  total_training_time_seconds: 3139.419426202774
+  test_evaluation_time_seconds: 32.071627378463745
+  total_training_time_seconds: 3363.7891969680786

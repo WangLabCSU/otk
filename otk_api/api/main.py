@@ -270,7 +270,6 @@ async def root(lang: str = Query(default="en", description="Language code")):
                 <a href="https://github.com/shixiangwang/gcap" target="_blank" class="gcap">GCAP</a>
             </div>
         </div>
-        <p>{t['description']}</p>
         
         <div class="endpoint" style="background: #e3f2fd; border-left: 4px solid #2196F3;">
             <h3 style="margin: 0 0 10px 0; color: #1976D2;">📖 Description</h3>
@@ -310,7 +309,7 @@ async def root(lang: str = Query(default="en", description="Language code")):
         </div>
         
         <div class="endpoint">
-            <span class="method get">GET</span> <code>/api/v1/jobs/{job_id}</code>
+            <span class="method get">GET</span> <code>/api/v1/jobs/{{job_id}}</code>
             <p>{t['query_status']}</p>
             <details>
                 <summary style="cursor:pointer; color:#666; font-size:12px;">Example / 示例</summary>
@@ -319,7 +318,7 @@ async def root(lang: str = Query(default="en", description="Language code")):
         </div>
         
         <div class="endpoint">
-            <span class="method get">GET</span> <code>/api/v1/jobs/{job_id}/download</code>
+            <span class="method get">GET</span> <code>/api/v1/jobs/{{job_id}}/download</code>
             <p>{t['download_result']}</p>
             <details>
                 <summary style="cursor:pointer; color:#666; font-size:12px;">Example / 示例</summary>
@@ -328,7 +327,7 @@ async def root(lang: str = Query(default="en", description="Language code")):
         </div>
         
         <div class="endpoint">
-            <span class="method get">GET</span> <code>/api/v1/validation-report/{job_id}</code>
+            <span class="method get">GET</span> <code>/api/v1/validation-report/{{job_id}}</code>
             <p>{t['validation_report']}</p>
             <details>
                 <summary style="cursor:pointer; color:#666; font-size:12px;">Example / 示例</summary>
@@ -351,6 +350,51 @@ async def root(lang: str = Query(default="en", description="Language code")):
             <details>
                 <summary style="cursor:pointer; color:#666; font-size:12px;">Example / 示例</summary>
                 <pre style="background:#f0f0f0; padding:10px; border-radius:5px; overflow-x:auto; font-size:12px; margin-top:5px;">curl "http://biotree.top:38123/otk/api/v1/health"</pre>
+            </details>
+        </div>
+
+        <div class="endpoint">
+            <span class="method get">GET</span> <code>/api/v1/jobs/recent</code>
+            <p>{t['recent_jobs']}</p>
+            <details>
+                <summary style="cursor:pointer; color:#666; font-size:12px;">Example / 示例</summary>
+                <pre style="background:#f0f0f0; padding:10px; border-radius:5px; overflow-x:auto; font-size:12px; margin-top:5px;">curl "http://biotree.top:38123/otk/api/v1/jobs/recent"</pre>
+            </details>
+        </div>
+
+        <div class="endpoint">
+            <span class="method get">GET</span> <code>/api/v1/sample-file</code>
+            <p>{t['sample_file_download']}</p>
+            <details>
+                <summary style="cursor:pointer; color:#666; font-size:12px;">Example / 示例</summary>
+                <pre style="background:#f0f0f0; padding:10px; border-radius:5px; overflow-x:auto; font-size:12px; margin-top:5px;">curl "http://biotree.top:38123/otk/api/v1/sample-file" --output sample.csv</pre>
+            </details>
+        </div>
+
+        <div class="endpoint">
+            <span class="method get">GET</span> <code>/api/v1/models</code>
+            <p>{t['list_models']}</p>
+            <details>
+                <summary style="cursor:pointer; color:#666; font-size:12px;">Example / 示例</summary>
+                <pre style="background:#f0f0f0; padding:10px; border-radius:5px; overflow-x:auto; font-size:12px; margin-top:5px;">curl "http://biotree.top:38123/otk/api/v1/models"</pre>
+            </details>
+        </div>
+
+        <div class="endpoint">
+            <span class="method post">POST</span> <code>/api/v1/models/rescan</code>
+            <p>{t['rescan_models']}</p>
+            <details>
+                <summary style="cursor:pointer; color:#666; font-size:12px;">Example / 示例</summary>
+                <pre style="background:#f0f0f0; padding:10px; border-radius:5px; overflow-x:auto; font-size:12px; margin-top:5px;">curl -X POST "http://biotree.top:38123/otk/api/v1/models/rescan"</pre>
+            </details>
+        </div>
+
+        <div class="endpoint">
+            <span class="method get">GET</span> <code>/api/v1/config</code>
+            <p>{t['get_config']}</p>
+            <details>
+                <summary style="cursor:pointer; color:#666; font-size:12px;">Example / 示例</summary>
+                <pre style="background:#f0f0f0; padding:10px; border-radius:5px; overflow-x:auto; font-size:12px; margin-top:5px;">curl "http://biotree.top:38123/otk/api/v1/config"</pre>
             </details>
         </div>
         

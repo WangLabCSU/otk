@@ -1,4 +1,4 @@
-best_val_auPRC: 0.7710496240650434
+best_val_auPRC: 0.7272372119223186
 dataset_statistics:
   test_positive: 5118
   test_positive_rate: 0.0035221590660512447
@@ -20,36 +20,36 @@ model_info:
   optimizer: Adam
   weight_decay: 0.0001
 overfitting_analysis:
-  overfitting_severity: medium
-  train_val_auPRC_gap: 0.11535695714009964
-  train_val_precision_gap: 0.08116161451253401
-  train_val_recall_gap: 0.08148598771144844
+  overfitting_severity: high
+  train_val_auPRC_gap: 0.15763658281298554
+  train_val_precision_gap: 0.10771170015883891
+  train_val_recall_gap: 0.13502530592625306
 performance:
   test_set:
-    AUC: 0.9726157706605405
-    F1: 0.6652673442333186
-    Precision: 0.7653787493645144
-    Recall: 0.588315748339195
-    auPRC: 0.7206504281332968
+    AUC: 0.974642841321333
+    F1: 0.715
+    Precision: 0.9149908592321755
+    Recall: 0.5867526377491208
+    auPRC: 0.7484319799115693
     optimal_threshold: 0.98989898989899
   training_set:
-    AUC: 0.9984648824192254
-    F1: 0.8366446536461992
-    Precision: 0.8429218573046433
-    Recall: 0.830460251046025
-    auPRC: 0.886406581205143
+    AUC: 0.9984610650891876
+    F1: 0.8328970699991556
+    Precision: 0.8404907975460123
+    Recall: 0.825439330543933
+    auPRC: 0.8848737947353041
     optimal_threshold: 0.9292929292929294
   validation_set:
-    AUC: 0.9780681093990029
-    F1: 0.7553131465111905
-    Precision: 0.7617602427921093
-    Recall: 0.7489742633345766
-    auPRC: 0.7710496240650434
-    optimal_threshold: 0.9393939393939394
+    AUC: 0.983160924148996
+    F1: 0.7109660072978683
+    Precision: 0.7327790973871734
+    Recall: 0.69041402461768
+    auPRC: 0.7272372119223186
+    optimal_threshold: 0.9797979797979799
 training_progress:
-  best_epoch: 10
-  data_processing_time_seconds: 47.88080382347107
+  best_epoch: 9
+  data_processing_time_seconds: 52.694844245910645
   early_stopped: true
-  epochs_trained: 20
-  test_evaluation_time_seconds: 29.315757751464844
-  total_training_time_seconds: 3558.9451978206635
+  epochs_trained: 19
+  test_evaluation_time_seconds: 29.67542552947998
+  total_training_time_seconds: 3641.0591611862183
