@@ -95,13 +95,26 @@ RETENTION_DAYS = get_config_value("retention.days", 3)
 CLEANUP_INTERVAL_HOURS = get_config_value("retention.cleanup_interval", 24)
 
 # Validation Settings
+# Minimal required columns for prediction (others can be auto-filled)
 REQUIRED_COLUMNS = get_config_value("validation.required_columns", [
-    "sample", "gene_id", "segVal", "minor_cn",
-    "purity", "ploidy", "AScore", "pLOH", "cna_burden",
+    "sample", "gene_id", "segVal"
 ])
 CN_COLUMNS = get_config_value("validation.cn_columns", [f"CN{i}" for i in range(1, 20)])
-OPTIONAL_COLUMNS = get_config_value("validation.optional_columns", ["age", "gender", "y", "type", "intersect_ratio"])
-DEFAULT_COLUMN_VALUES = get_config_value("validation.default_values", {"intersect_ratio": 1.0})
+OPTIONAL_COLUMNS = get_config_value("validation.optional_columns", [
+    "minor_cn", "purity", "ploidy", "AScore", "pLOH", "cna_burden",
+    "age", "gender", "y", "type", "intersect_ratio"
+])
+DEFAULT_COLUMN_VALUES = get_config_value("validation.default_values", {
+    "minor_cn": 0,
+    "purity": 0.8,
+    "ploidy": 2.0,
+    "AScore": 10.0,
+    "pLOH": 0.1,
+    "cna_burden": 0.2,
+    "age": 60,
+    "gender": 0,
+    "intersect_ratio": 1.0,
+})
 VALID_CANCER_TYPES = get_config_value("validation.valid_cancer_types", [
     'BLCA', 'BRCA', 'CESC', 'COAD', 'DLBC', 'ESCA', 'GBM', 'HNSC',
     'KICH', 'KIRC', 'KIRP', 'LGG', 'LIHC', 'LUAD', 'LUSC', 'OV',
