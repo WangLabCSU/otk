@@ -529,7 +529,8 @@ class Trainer:
                 epochs_no_improve = 0
                 optimal_threshold = best_val_metrics.get('optimal_threshold')
                 self.ecdna_model.save(best_model_path, optimal_threshold)
-                logger.info(f"New best model saved with auPRC: {best_val_auPRC:.4f}, threshold: {optimal_threshold:.4f if optimal_threshold else 'N/A'}")
+                threshold_str = f"{optimal_threshold:.4f}" if optimal_threshold is not None else "N/A"
+                logger.info(f"New best model saved with auPRC: {best_val_auPRC:.4f}, threshold: {threshold_str}")
             else:
                 epochs_no_improve += 1
                 logger.info(f"No improvement in validation auPRC for {epochs_no_improve} epochs")
