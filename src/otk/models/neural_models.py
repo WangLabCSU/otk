@@ -176,7 +176,7 @@ class TransformerEcDNAModel(BaseEcDNAModel):
                 batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
                 optimizer.zero_grad()
                 outputs = self.model(batch_x)
-                loss = criterion(outputs, batch_y)
+                loss = criterion(outputs.squeeze(-1), batch_y.squeeze(-1))
                 loss.backward()
                 optimizer.step()
                 epoch_loss += loss.item()
@@ -269,10 +269,365 @@ class TransformerModel(nn.Module):
         return output.squeeze(-1)  # [batch]
 
 
+class DeepResidualModel(BaseEcDNAModel):
+    """Deep Residual Network model"""
+    
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        super().__init__(config)
+        self.config = config or {}
+        self.model = None
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    def prepare_features(self, df: pd.DataFrame) -> np.ndarray:
+        feature_cols = [c for c in df.columns if c not in ['sample', 'gene_id', 'y']]
+        return df[feature_cols].fillna(0).values.astype(np.float32)
+    
+    def fit(self, X_train, y_train, X_val=None, y_val=None, **kwargs):
+        from torch.utils.data import DataLoader, TensorDataset
+        
+        X_train_arr = self.prepare_features(X_train)
+        y_train_arr = y_train.values.astype(np.float32)
+        
+        input_dim = X_train_arr.shape[1]
+        self.model = DeepResidualNet(input_dim).to(self.device)
+        
+        train_dataset = TensorDataset(
+            torch.tensor(X_train_arr),
+            torch.tensor(y_train_arr).unsqueeze(1)
+        )
+        train_loader = DataLoader(train_dataset, batch_size=4096, shuffle=True)
+        
+        optimizer = torch.optim.AdamW(self.model.parameters(), lr=0.001, weight_decay=0.01)
+        criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([10.0]).to(self.device))
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10)
+        
+        self.model.train()
+        for epoch in range(150):
+            epoch_loss = 0
+            for batch_x, batch_y in train_loader:
+                batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
+                optimizer.zero_grad()
+                outputs = self.model(batch_x)
+                loss = criterion(outputs.squeeze(-1), batch_y.squeeze(-1))
+                loss.backward()
+                optimizer.step()
+                epoch_loss += loss.item()
+            scheduler.step(epoch_loss)
+        
+        self.is_fitted = True
+        if X_val is not None and y_val is not None:
+            val_probs = self.predict_proba(X_val)
+            self.optimal_threshold = self._find_optimal_threshold(y_val.values, val_probs)
+        return self
+    
+    def _find_optimal_threshold(self, y_true, y_prob):
+        from sklearn.metrics import precision_recall_curve
+        precision, recall, thresholds = precision_recall_curve(y_true, y_prob)
+        f1_scores = 2 * (precision * recall) / (precision + recall + 1e-10)
+        optimal_idx = np.argmax(f1_scores)
+        return thresholds[optimal_idx] if optimal_idx < len(thresholds) else 0.5
+    
+    def predict_proba(self, X):
+        if not self.is_fitted:
+            raise ValueError("Model not fitted")
+        from torch.utils.data import DataLoader, TensorDataset
+        X_arr = self.prepare_features(X)
+        dataset = TensorDataset(torch.tensor(X_arr))
+        loader = DataLoader(dataset, batch_size=4096, shuffle=False)
+        self.model.eval()
+        probs = []
+        with torch.no_grad():
+            for batch in loader:
+                batch_x = batch[0].to(self.device)
+                outputs = torch.sigmoid(self.model(batch_x))
+                probs.extend(outputs.cpu().numpy().flatten())
+        return np.array(probs)
+    
+    def save(self, path):
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        torch.save({'model_state': self.model.state_dict(), 'config': self.config,
+                    'optimal_threshold': self.optimal_threshold}, path)
+    
+    def load(self, path):
+        checkpoint = torch.load(path, map_location=self.device)
+        self.optimal_threshold = checkpoint['optimal_threshold']
+        self.is_fitted = True
+        return self
+
+
+class OptimizedResidualModel(BaseEcDNAModel):
+    """Optimized Residual Network model"""
+    
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        super().__init__(config)
+        self.config = config or {}
+        self.model = None
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    def prepare_features(self, df: pd.DataFrame) -> np.ndarray:
+        feature_cols = [c for c in df.columns if c not in ['sample', 'gene_id', 'y']]
+        return df[feature_cols].fillna(0).values.astype(np.float32)
+    
+    def fit(self, X_train, y_train, X_val=None, y_val=None, **kwargs):
+        from torch.utils.data import DataLoader, TensorDataset
+        
+        X_train_arr = self.prepare_features(X_train)
+        y_train_arr = y_train.values.astype(np.float32)
+        
+        input_dim = X_train_arr.shape[1]
+        self.model = OptimizedResidualNet(input_dim).to(self.device)
+        
+        train_dataset = TensorDataset(
+            torch.tensor(X_train_arr),
+            torch.tensor(y_train_arr).unsqueeze(1)
+        )
+        train_loader = DataLoader(train_dataset, batch_size=4096, shuffle=True)
+        
+        optimizer = torch.optim.AdamW(self.model.parameters(), lr=0.001, weight_decay=0.01)
+        criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([10.0]).to(self.device))
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10)
+        
+        self.model.train()
+        for epoch in range(150):
+            epoch_loss = 0
+            for batch_x, batch_y in train_loader:
+                batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
+                optimizer.zero_grad()
+                outputs = self.model(batch_x)
+                loss = criterion(outputs.squeeze(-1), batch_y.squeeze(-1))
+                loss.backward()
+                optimizer.step()
+                epoch_loss += loss.item()
+            scheduler.step(epoch_loss)
+        
+        self.is_fitted = True
+        if X_val is not None and y_val is not None:
+            val_probs = self.predict_proba(X_val)
+            self.optimal_threshold = self._find_optimal_threshold(y_val.values, val_probs)
+        return self
+    
+    def _find_optimal_threshold(self, y_true, y_prob):
+        from sklearn.metrics import precision_recall_curve
+        precision, recall, thresholds = precision_recall_curve(y_true, y_prob)
+        f1_scores = 2 * (precision * recall) / (precision + recall + 1e-10)
+        optimal_idx = np.argmax(f1_scores)
+        return thresholds[optimal_idx] if optimal_idx < len(thresholds) else 0.5
+    
+    def predict_proba(self, X):
+        if not self.is_fitted:
+            raise ValueError("Model not fitted")
+        from torch.utils.data import DataLoader, TensorDataset
+        X_arr = self.prepare_features(X)
+        dataset = TensorDataset(torch.tensor(X_arr))
+        loader = DataLoader(dataset, batch_size=4096, shuffle=False)
+        self.model.eval()
+        probs = []
+        with torch.no_grad():
+            for batch in loader:
+                batch_x = batch[0].to(self.device)
+                outputs = torch.sigmoid(self.model(batch_x))
+                probs.extend(outputs.cpu().numpy().flatten())
+        return np.array(probs)
+    
+    def save(self, path):
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        torch.save({'model_state': self.model.state_dict(), 'config': self.config,
+                    'optimal_threshold': self.optimal_threshold}, path)
+    
+    def load(self, path):
+        checkpoint = torch.load(path, map_location=self.device)
+        self.optimal_threshold = checkpoint['optimal_threshold']
+        self.is_fitted = True
+        return self
+
+
+class DGITSuperModel(BaseEcDNAModel):
+    """DGIT Super model"""
+    
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        super().__init__(config)
+        self.config = config or {}
+        self.model = None
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    def prepare_features(self, df: pd.DataFrame) -> np.ndarray:
+        feature_cols = [c for c in df.columns if c not in ['sample', 'gene_id', 'y']]
+        return df[feature_cols].fillna(0).values.astype(np.float32)
+    
+    def fit(self, X_train, y_train, X_val=None, y_val=None, **kwargs):
+        from torch.utils.data import DataLoader, TensorDataset
+        
+        X_train_arr = self.prepare_features(X_train)
+        y_train_arr = y_train.values.astype(np.float32)
+        
+        input_dim = X_train_arr.shape[1]
+        self.model = DGITSuperNet(input_dim).to(self.device)
+        
+        train_dataset = TensorDataset(
+            torch.tensor(X_train_arr),
+            torch.tensor(y_train_arr).unsqueeze(1)
+        )
+        train_loader = DataLoader(train_dataset, batch_size=4096, shuffle=True)
+        
+        optimizer = torch.optim.AdamW(self.model.parameters(), lr=0.001, weight_decay=0.01)
+        criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([10.0]).to(self.device))
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10)
+        
+        self.model.train()
+        for epoch in range(150):
+            epoch_loss = 0
+            for batch_x, batch_y in train_loader:
+                batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
+                optimizer.zero_grad()
+                outputs = self.model(batch_x)
+                loss = criterion(outputs.squeeze(-1), batch_y.squeeze(-1))
+                loss.backward()
+                optimizer.step()
+                epoch_loss += loss.item()
+            scheduler.step(epoch_loss)
+        
+        self.is_fitted = True
+        if X_val is not None and y_val is not None:
+            val_probs = self.predict_proba(X_val)
+            self.optimal_threshold = self._find_optimal_threshold(y_val.values, val_probs)
+        return self
+    
+    def _find_optimal_threshold(self, y_true, y_prob):
+        from sklearn.metrics import precision_recall_curve
+        precision, recall, thresholds = precision_recall_curve(y_true, y_prob)
+        f1_scores = 2 * (precision * recall) / (precision + recall + 1e-10)
+        optimal_idx = np.argmax(f1_scores)
+        return thresholds[optimal_idx] if optimal_idx < len(thresholds) else 0.5
+    
+    def predict_proba(self, X):
+        if not self.is_fitted:
+            raise ValueError("Model not fitted")
+        from torch.utils.data import DataLoader, TensorDataset
+        X_arr = self.prepare_features(X)
+        dataset = TensorDataset(torch.tensor(X_arr))
+        loader = DataLoader(dataset, batch_size=4096, shuffle=False)
+        self.model.eval()
+        probs = []
+        with torch.no_grad():
+            for batch in loader:
+                batch_x = batch[0].to(self.device)
+                outputs = torch.sigmoid(self.model(batch_x))
+                probs.extend(outputs.cpu().numpy().flatten())
+        return np.array(probs)
+    
+    def save(self, path):
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        torch.save({'model_state': self.model.state_dict(), 'config': self.config,
+                    'optimal_threshold': self.optimal_threshold}, path)
+    
+    def load(self, path):
+        checkpoint = torch.load(path, map_location=self.device)
+        self.optimal_threshold = checkpoint['optimal_threshold']
+        self.is_fitted = True
+        return self
+
+
+# Network architectures
+class DeepResidualNet(nn.Module):
+    """Deep Residual Network"""
+    def __init__(self, input_dim: int):
+        super().__init__()
+        self.input_proj = nn.Linear(input_dim, 128)
+        self.res_blocks = nn.ModuleList([
+            ResidualBlock(128) for _ in range(6)
+        ])
+        self.classifier = nn.Sequential(
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(64, 1)
+        )
+    
+    def forward(self, x):
+        h = self.input_proj(x)
+        for block in self.res_blocks:
+            h = block(h)
+        return self.classifier(h)
+
+
+class OptimizedResidualNet(nn.Module):
+    """Optimized Residual Network"""
+    def __init__(self, input_dim: int):
+        super().__init__()
+        self.input_proj = nn.Linear(input_dim, 128)
+        self.res_blocks = nn.ModuleList([
+            ResidualBlock(128) for _ in range(8)
+        ])
+        self.classifier = nn.Sequential(
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(64, 1)
+        )
+    
+    def forward(self, x):
+        h = self.input_proj(x)
+        for block in self.res_blocks:
+            h = block(h)
+        return self.classifier(h)
+
+
+class DGITSuperNet(nn.Module):
+    """DGIT Super Network"""
+    def __init__(self, input_dim: int):
+        super().__init__()
+        self.input_proj = nn.Linear(input_dim, 256)
+        self.transformer = nn.TransformerEncoder(
+            nn.TransformerEncoderLayer(256, 8, 1024, 0.3, batch_first=True),
+            num_layers=6
+        )
+        self.classifier = nn.Sequential(
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(64, 1)
+        )
+    
+    def forward(self, x):
+        x = x.unsqueeze(1)
+        h = self.input_proj(x)
+        h = self.transformer(h)
+        h = h.squeeze(1)
+        return self.classifier(h)
+
+
+class ResidualBlock(nn.Module):
+    """Residual Block"""
+    def __init__(self, dim: int):
+        super().__init__()
+        self.fc1 = nn.Linear(dim, dim)
+        self.bn1 = nn.BatchNorm1d(dim)
+        self.fc2 = nn.Linear(dim, dim)
+        self.bn2 = nn.BatchNorm1d(dim)
+        self.dropout = nn.Dropout(0.3)
+    
+    def forward(self, x):
+        residual = x
+        h = self.fc1(x)
+        h = self.bn1(h)
+        h = torch.relu(h)
+        h = self.dropout(h)
+        h = self.fc2(h)
+        h = self.bn2(h)
+        h = h + residual
+        return torch.relu(h)
+
+
 # Model registry
 NEURAL_MODELS = {
     'baseline_mlp': BaselineMLPModel,
     'transformer': TransformerEcDNAModel,
+    'deep_residual': DeepResidualModel,
+    'optimized_residual': OptimizedResidualModel,
+    'dgit_super': DGITSuperModel,
 }
 
 

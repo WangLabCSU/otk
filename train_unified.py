@@ -73,19 +73,23 @@ def train_neural_model(model_name: str):
 
 def main():
     parser = argparse.ArgumentParser(description='Train ecDNA models')
-    parser.add_argument('--model', type=str, help='Model name (xgb_paper, xgb_new, transformer, baseline_mlp)')
+    parser.add_argument('--model', type=str, help='Model name (xgb_paper, xgb_new, transformer, baseline_mlp, deep_residual, optimized_residual, dgit_super)')
     parser.add_argument('--all', action='store_true', help='Train all models')
     args = parser.parse_args()
     
+    # All 8 models
+    all_models = [
+        ('xgb', 'new'),
+        ('xgb', 'paper'),
+        ('nn', 'transformer'),
+        ('nn', 'baseline_mlp'),
+        ('nn', 'deep_residual'),
+        ('nn', 'optimized_residual'),
+        ('nn', 'dgit_super'),
+    ]
+    
     if args.all:
-        models = [
-            ('xgb', 'new'),
-            ('xgb', 'paper'),
-            ('nn', 'transformer'),
-            ('nn', 'baseline_mlp'),
-        ]
-        
-        for model_type, model_name in models:
+        for model_type, model_name in all_models:
             try:
                 if model_type == 'xgb':
                     train_xgb_model(model_name, f'otk_api/models/xgb_{model_name}')
@@ -93,6 +97,8 @@ def main():
                     train_neural_model(model_name)
             except Exception as e:
                 logger.error(f"Failed to train {model_name}: {e}")
+                import traceback
+                traceback.print_exc()
     
     elif args.model:
         if args.model.startswith('xgb_'):
