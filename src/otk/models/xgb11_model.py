@@ -69,7 +69,6 @@ class XGB11Model:
     ]
     
     # Hyperparameters from Nature Communications paper text
-    # (different from the saved R model's actual parameters)
     PAPER_PARAMS = {
         'eta': 0.1,
         'max_depth': 4,
@@ -411,7 +410,10 @@ class XGBFullModel(XGB11Model):
         clinical_features = ['age', 'gender']
         for feat in clinical_features:
             if feat in df.columns:
-                feature_df[feat] = df[feat].fillna(feature_df[feat].mean() if feat == 'age' else 0)
+                if feat == 'age':
+                    feature_df[feat] = df[feat].fillna(df[feat].mean())
+                else:
+                    feature_df[feat] = df[feat].fillna(0)
         
         # Cancer type features (one-hot encoded)
         cancer_types = [col for col in df.columns if col.startswith('type_')]
@@ -609,19 +611,34 @@ class XGB11Trainer:
         model_path = self.output_dir / f'xgb11_{self.model_type}_model.pkl'
         self.model.save(str(model_path))
         
-        # Save metrics
+        # Save metrics - convert numpy types to Python native types
+        def convert_to_native(obj):
+            """Convert numpy types to Python native types for YAML serialization"""
+            if isinstance(obj, dict):
+                return {k: convert_to_native(v) for k, v in obj.items()}
+            elif isinstance(obj, (list, tuple)):
+                return [convert_to_native(v) for v in obj]
+            elif isinstance(obj, np.integer):
+                return int(obj)
+            elif isinstance(obj, np.floating):
+                return float(obj)
+            elif isinstance(obj, np.ndarray):
+                return obj.tolist()
+            else:
+                return obj
+        
         import yaml
         summary = {
             'model': f'XGB11_{self.model_type}',
             'gene_level': {
-                'train': train_metrics,
-                'val': val_metrics,
-                'test': test_metrics
+                'train': convert_to_native(train_metrics),
+                'val': convert_to_native(val_metrics),
+                'test': convert_to_native(test_metrics)
             },
             'sample_level': {
-                'train': train_sample_metrics,
-                'val': val_sample_metrics,
-                'test': test_sample_metrics
+                'train': convert_to_native(train_sample_metrics),
+                'val': convert_to_native(val_sample_metrics),
+                'test': convert_to_native(test_sample_metrics)
             }
         }
         
