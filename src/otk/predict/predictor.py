@@ -131,6 +131,12 @@ class Predictor:
         elif model_type == 'EnsembleDGIT':
             from otk.models.dgit_model import EnsembleDGIT
             return EnsembleDGIT(config)
+        elif model_type == 'DGITSuper':
+            from otk.models.dgit_super_model import DGITSuper
+            return DGITSuper(config)
+        elif model_type == 'EnsembleDGITSuper':
+            from otk.models.dgit_super_model import EnsembleDGITSuper
+            return EnsembleDGITSuper(config)
         else:
             raise ValueError(f"Unsupported model type: {model_type}")
     

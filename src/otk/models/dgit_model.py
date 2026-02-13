@@ -178,6 +178,9 @@ class TripleMarginRankingLoss(nn.Module):
         logits: torch.Tensor,
         targets: torch.Tensor
     ) -> torch.Tensor:
+        if targets.dim() > 1:
+            targets = targets.squeeze(-1)
+        
         pos_mask = targets == 1
         neg_mask = targets == 0
         

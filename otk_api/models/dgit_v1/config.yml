@@ -1,8 +1,4 @@
 data:
-  path: ../data/gcap_modeling_data.csv.gz
-  target: y
-  gene_id: gene_id
-  sample_id: sample
   features:
   - segVal
   - minor_cn
@@ -61,44 +57,45 @@ data:
   - freq_BFB
   - freq_Circular
   - freq_HR
+  gene_id: gene_id
   missing_value_strategy:
     age: mean
-
+  path: ../data/gcap_modeling_data.csv.gz
+  sample_id: sample
+  target: y
 model:
-  name: ecDNA_DGIT_Predictor
   architecture:
-    type: DeepGatedInteractionTransformer
-    input_dim: 57
+    dropout_rate: 0.3
     hidden_dim: 128
+    input_dim: 57
     num_heads: 4
     num_layers: 4
-    dropout_rate: 0.3
+    type: DeepGatedInteractionTransformer
   loss_function:
-    type: TripleMarginRankingLoss
     margin: 0.5
-    ranking_weight: 0.7
     pos_weight: 150.0
+    ranking_weight: 0.7
+    type: TripleMarginRankingLoss
+  name: ecDNA_DGIT_Predictor
   optimizer:
-    type: AdamW
     lr: 0.0003
+    type: AdamW
     weight_decay: 0.0001
-
-training:
-  batch_size: 2048
-  epochs: 150
-  validation_split: 0.12
-  test_split: 0.18
-  early_stopping:
-    patience: 25
-    min_delta: 0.001
-  learning_rate_scheduler:
-    type: CosineAnnealingWarmRestarts
-    T_0: 20
-    T_mult: 2
-    eta_min: 0.00001
-  seed: 2026
-
 prediction:
   batch_size: 1024
   output_format: csv
   threshold: 0.5
+training:
+  batch_size: 2048
+  early_stopping:
+    min_delta: 0.001
+    patience: 25
+  epochs: 150
+  learning_rate_scheduler:
+    T_0: 20
+    T_mult: 2
+    eta_min: 1.0e-05
+    type: CosineAnnealingWarmRestarts
+  seed: 2026
+  test_split: 0.18
+  validation_split: 0.12

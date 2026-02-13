@@ -10,6 +10,7 @@ from otk.models.transformer_ecdna_model import TransformerEcDNAModel, EnhancedTr
 from otk.models.advanced_ecdna_model import AdvancedEcDNAModel, PrecisionFocusedEcDNAModel, EnsembleEcDNAModel
 from otk.models.optimized_ecdna_model import OptimizedEcDNA, EnsembleOptimizedEcDNA
 from otk.models.dgit_model import DeepGatedInteractionTransformer, EnsembleDGIT
+from otk.models.dgit_super_model import DGITSuper, EnsembleDGITSuper
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -280,6 +281,12 @@ class ECDNA_Model:
         elif model_type == 'EnsembleDGIT':
             from otk.models.dgit_model import EnsembleDGIT
             model = EnsembleDGIT(self.config)
+        elif model_type == 'DGITSuper':
+            from otk.models.dgit_super_model import DGITSuper
+            model = DGITSuper(self.config)
+        elif model_type == 'EnsembleDGITSuper':
+            from otk.models.dgit_super_model import EnsembleDGITSuper
+            model = EnsembleDGITSuper(self.config)
         else:
             raise ValueError(f"Unsupported model type: {model_type}")
         return model

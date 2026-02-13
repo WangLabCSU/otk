@@ -233,6 +233,19 @@ class Trainer:
                 ranking_weight=ranking_weight,
                 pos_weight=config_pos_weight
             )
+        elif loss_type == 'DGITSuperLoss':
+            from otk.models.dgit_super_model import DGITSuperLoss
+            loss_config = self.config['model']['loss_function']
+            return DGITSuperLoss(
+                focal_gamma=loss_config.get('focal_gamma', 2.0),
+                ranking_margin=loss_config.get('ranking_margin', 0.5),
+                contrastive_temp=loss_config.get('contrastive_temp', 0.1),
+                pos_weight=loss_config.get('pos_weight', 150.0),
+                focal_weight=loss_config.get('focal_weight', 0.4),
+                ranking_weight=loss_config.get('ranking_weight', 0.4),
+                contrastive_weight=loss_config.get('contrastive_weight', 0.15),
+                density_weight=loss_config.get('density_weight', 0.05)
+            )
         elif loss_type in ['RecallBiasedTverskyLoss', 'HardNegativeMiningLoss', 'auPRCProxyLoss', 
                           'CostSensitiveRecallLoss', 'LabelSmoothingBCELoss', 'ecDNAOptimizedLoss', 
                           'BalancedPrecisionRecallLoss', 'auPRCOptimizedLoss']:
@@ -294,44 +307,41 @@ class Trainer:
             inputs = inputs.to(self.device)
             labels = labels.to(self.device)
             
-            # Forward pass
             outputs = self.model(inputs)
             
-            # Zero the parameter gradients
             self.optimizer.zero_grad()
             
-            # Calculate loss
-            gene_outputs = outputs
-            loss = self.loss_fn(gene_outputs, labels.unsqueeze(1))
+            if isinstance(outputs, dict):
+                gene_outputs = outputs['logits']
+                if hasattr(self.loss_fn, '__call__') and 'projection' in outputs:
+                    loss, loss_dict = self.loss_fn(outputs, labels)
+                else:
+                    loss = self.loss_fn(gene_outputs, labels.unsqueeze(1) if labels.dim() == 1 else labels)
+            else:
+                gene_outputs = outputs
+                loss = self.loss_fn(gene_outputs, labels.unsqueeze(1) if labels.dim() == 1 else labels)
             
-            # Backward pass and optimize
             loss.backward()
             
-            # Gradient clipping if enabled
             if self.config['training'].get('gradient_clipping', {}).get('enabled', False):
                 max_norm = self.config['training']['gradient_clipping'].get('max_norm', 1.0)
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm)
             
             self.optimizer.step()
             
-            # Accumulate loss
             total_loss += loss.item() * inputs.size(0)
             
-            # Collect predictions and labels
             all_preds.extend(gene_outputs.cpu().detach().numpy())
             all_labels.extend(labels.cpu().numpy())
             
-            # Log batch progress every 50 batches for better real-time feedback
             if (batch_idx + 1) % 50 == 0:
                 batch_loss = loss.item()
                 current_lr = self.optimizer.param_groups[0]['lr']
                 logger.info(f"Epoch {epoch}, Batch {batch_idx + 1}/{len(train_loader)}, Loss: {batch_loss:.4f}, LR: {current_lr:.6f}")
         
-        # Calculate metrics
         epoch_loss = total_loss / len(train_loader.dataset)
         epoch_metrics = self._calculate_metrics(np.array(all_preds), np.array(all_labels))
         
-        # Log epoch results
         epoch_time = time.time() - start_time
         current_lr = self.optimizer.param_groups[0]['lr']
         logger.info(f"Epoch {epoch} completed in {epoch_time:.2f} seconds")
@@ -356,25 +366,26 @@ class Trainer:
                 inputs = inputs.to(self.device)
                 labels = labels.to(self.device)
                 
-                # Forward pass
                 outputs = self.model(inputs)
                 
-                # Calculate loss
-                gene_outputs = outputs
-                loss = self.loss_fn(gene_outputs, labels.unsqueeze(1))
+                if isinstance(outputs, dict):
+                    gene_outputs = outputs['logits']
+                    if hasattr(self.loss_fn, '__call__') and 'projection' in outputs:
+                        loss, _ = self.loss_fn(outputs, labels)
+                    else:
+                        loss = self.loss_fn(gene_outputs, labels.unsqueeze(1) if labels.dim() == 1 else labels)
+                else:
+                    gene_outputs = outputs
+                    loss = self.loss_fn(gene_outputs, labels.unsqueeze(1) if labels.dim() == 1 else labels)
                 
-                # Accumulate loss
                 total_loss += loss.item() * inputs.size(0)
                 
-                # Collect predictions and labels
                 all_preds.extend(gene_outputs.cpu().detach().numpy())
                 all_labels.extend(labels.cpu().numpy())
         
-        # Calculate metrics
         val_loss = total_loss / len(val_loader.dataset)
         val_metrics = self._calculate_metrics(np.array(all_preds), np.array(all_labels))
         
-        # Log validation results
         val_time = time.time() - start_time
         logger.info(f"Validation completed in {val_time:.2f} seconds")
         logger.info(f"Val Loss: {val_loss:.4f}")

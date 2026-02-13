@@ -65,35 +65,43 @@ data:
     age: mean
 
 model:
-  name: ecDNA_DGIT_Predictor
+  name: DGIT_Super
   architecture:
-    type: DeepGatedInteractionTransformer
+    type: DGITSuper
     input_dim: 57
-    hidden_dim: 128
-    num_heads: 4
-    num_layers: 4
+    hidden_dim: 256
+    num_heads: 8
+    num_transformer_layers: 4
+    num_residual_blocks: 6
     dropout_rate: 0.3
+    use_contrastive: true
+    use_density: true
   loss_function:
-    type: TripleMarginRankingLoss
-    margin: 0.5
-    ranking_weight: 0.7
+    type: DGITSuperLoss
+    focal_gamma: 2.0
+    ranking_margin: 0.5
+    contrastive_temp: 0.1
     pos_weight: 150.0
+    focal_weight: 0.4
+    ranking_weight: 0.4
+    contrastive_weight: 0.15
+    density_weight: 0.05
   optimizer:
     type: AdamW
-    lr: 0.0003
+    lr: 0.0002
     weight_decay: 0.0001
 
 training:
   batch_size: 2048
-  epochs: 150
+  epochs: 200
   validation_split: 0.12
   test_split: 0.18
   early_stopping:
-    patience: 25
+    patience: 30
     min_delta: 0.001
   learning_rate_scheduler:
     type: CosineAnnealingWarmRestarts
-    T_0: 20
+    T_0: 25
     T_mult: 2
     eta_min: 0.00001
   seed: 2026
