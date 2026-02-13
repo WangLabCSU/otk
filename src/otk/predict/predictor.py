@@ -125,6 +125,12 @@ class Predictor:
         elif model_type == 'EnsembleOptimizedEcDNA':
             from otk.models.optimized_ecdna_model import EnsembleOptimizedEcDNA
             return EnsembleOptimizedEcDNA(config)
+        elif model_type == 'DeepGatedInteractionTransformer':
+            from otk.models.dgit_model import DeepGatedInteractionTransformer
+            return DeepGatedInteractionTransformer(config)
+        elif model_type == 'EnsembleDGIT':
+            from otk.models.dgit_model import EnsembleDGIT
+            return EnsembleDGIT(config)
         else:
             raise ValueError(f"Unsupported model type: {model_type}")
     

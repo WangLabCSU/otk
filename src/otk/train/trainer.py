@@ -222,8 +222,17 @@ class Trainer:
             gamma_pos = self.config['model']['loss_function'].get('gamma_pos', 1)
             return AsymmetricLoss(gamma_neg=gamma_neg, gamma_pos=gamma_pos)
         elif loss_type == 'LDAMLoss':
-            cls_num_list = self.config['model']['loss_function'].get('cls_num_list', None)
-            return LDAMLoss(cls_num_list=cls_num_list)
+            return LDAMLoss()
+        elif loss_type == 'TripleMarginRankingLoss':
+            from otk.models.dgit_model import TripleMarginRankingLoss
+            margin = self.config['model']['loss_function'].get('margin', 0.5)
+            ranking_weight = self.config['model']['loss_function'].get('ranking_weight', 0.7)
+            config_pos_weight = self.config['model']['loss_function'].get('pos_weight', pos_weight)
+            return TripleMarginRankingLoss(
+                margin=margin,
+                ranking_weight=ranking_weight,
+                pos_weight=config_pos_weight
+            )
         elif loss_type in ['RecallBiasedTverskyLoss', 'HardNegativeMiningLoss', 'auPRCProxyLoss', 
                           'CostSensitiveRecallLoss', 'LabelSmoothingBCELoss', 'ecDNAOptimizedLoss', 
                           'BalancedPrecisionRecallLoss', 'auPRCOptimizedLoss']:
