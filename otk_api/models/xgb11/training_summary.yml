@@ -1,0 +1,146 @@
+gene_level:
+  test:
+    AUC: 0.99262715386852
+    F1: !!python/object/apply:numpy._core.multiarray.scalar
+    - &id001 !!python/object/apply:numpy.dtype
+      args:
+      - f8
+      - false
+      - true
+      state: !!python/tuple
+      - 3
+      - <
+      - null
+      - null
+      - null
+      - -1
+      - -1
+      - 0
+    - !!binary |
+      h0nh2XqY5D8=
+    Precision: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      tslZdVvB7T8=
+    Recall: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      P/vFKex+3z8=
+    auPRC: 0.7826696012048147
+    threshold: &id002 !!python/object/apply:numpy._core.multiarray.scalar
+    - !!python/object/apply:numpy.dtype
+      args:
+      - f4
+      - false
+      - true
+      state: !!python/tuple
+      - 3
+      - <
+      - null
+      - null
+      - null
+      - -1
+      - -1
+      - 0
+    - !!binary |
+      dqR9Pw==
+  train:
+    AUC: 0.9991377405245534
+    F1: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      v/0LJRZE6j8=
+    Precision: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      1qm87AKX7D8=
+    Recall: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      RBLNlZtK6D8=
+    auPRC: 0.9068422097249591
+    threshold: *id002
+  val:
+    AUC: 0.9917621533034939
+    F1: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      eszEhkdq5j8=
+    Precision: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      OEmQWAHd7T8=
+    Recall: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      trdwaczw4T8=
+    auPRC: 0.7571925352884273
+    threshold: *id002
+model: XGB11
+sample_level:
+  test:
+    AUC: 0.9363207547169811
+    Accuracy: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      velNb3rT6z8=
+    F1: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      HRX44uoH7T8=
+    Precision: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      AAAAAAAA8D8=
+    Recall: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      CsZb2eeQ6j8=
+    auPRC: 0.9827237308928153
+    positive_samples: 53
+    predicted_positive: 44
+    total_samples: 69
+  train:
+    AUC: 0.9649738610903659
+    Accuracy: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      NsklqNLP7D8=
+    F1: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      7KiS4E/K7T8=
+    Precision: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      s/c1ISh77z8=
+    Recall: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      UCCVnJdF7D8=
+    auPRC: 0.9896963787916027
+    positive_samples: 206
+    predicted_positive: 185
+    total_samples: 271
+  val:
+    AUC: 0.9064935064935065
+    Accuracy: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      pze96U1v6j8=
+    F1: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      H3zwwQcf7D8=
+    Precision: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      77333nvv7T8=
+    Recall: !!python/object/apply:numpy._core.multiarray.scalar
+    - *id001
+    - !!binary |
+      O6iDOqiD6j8=
+    auPRC: 0.9728539053078795
+    positive_samples: 35
+    predicted_positive: 31
+    total_samples: 46

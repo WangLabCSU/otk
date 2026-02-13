@@ -5,29 +5,27 @@ XGB11 Model - XGBoost-based ecDNA Prediction Model
 Based on Nature Communications 2024 paper:
 "Machine learning-based extrachromosomal DNA identification in large-scale cohorts"
 
-Features (11 predictive features):
-1. segVal (segment value/total copy number)
-2. purity (tumor purity)
-3. ploidy (tumor ploidy)
-4. cna_burden (copy number alteration burden)
-5. minor_cn (minor copy number)
-6. AScore (allelic score)
-7. pLOH (percentage of LOH)
-8. intersect_ratio (intersection ratio)
-9. CN1-CN4 (copy number states 1-4)
-10. freq_Linear (linear amplification frequency)
-11. freq_Circular (circular amplification frequency)
+Original R model features (exactly 11 features):
+1. total_cn (segVal in our data)
+2. minor_cn
+3. purity
+4. ploidy
+5. AScore
+6. pLOH
+7. cna_burden
+8. freq_Linear
+9. freq_BFB
+10. freq_Circular
+11. freq_HR
 
-Hyperparameters (from paper):
-- eta: 0.1
-- max_depth: 4
+Original hyperparameters from R model:
+- eta: 0.3
+- max_depth: 3
+- gamma: 1
+- subsample: 0.5
+- max_delta_step: 1
 - min_child_weight: 1
-- alpha: 0
-- lambda: 1
-- gamma: 10
-- subsample: 0.6
-- colsample_bytree: 1
-- objective: logistic
+- objective: binary:logistic
 - eval_metric: aucpr
 
 Target Performance:
@@ -51,82 +49,89 @@ logger = logging.getLogger(__name__)
 
 class XGB11Model:
     """
-    XGB11 Model for ecDNA prediction
-    
-    Implementation based on Nature Communications 2024 paper.
-    Uses 11 key predictive features with optimized hyperparameters.
+    XGB11 Model - Exact reproduction of Nature Communications 2024 paper
+    Uses exactly 11 features with original hyperparameters
     """
     
-    # 11 predictive features as described in the paper
+    # Exact 11 features from the original R model
     FEATURES = [
-        'segVal',           # Total copy number
-        'purity',           # Tumor purity
-        'ploidy',           # Tumor ploidy
-        'cna_burden',       # Copy number alteration burden
-        'minor_cn',         # Minor copy number
-        'AScore',           # Allelic score
-        'pLOH',             # Percentage of LOH
-        'intersect_ratio',  # Intersection ratio
-        'CN1',              # Copy number state 1
-        'CN2',              # Copy number state 2
-        'freq_Circular',    # Circular amplification frequency
+        'total_cn',      # Maps to segVal
+        'minor_cn',      # minor_cn
+        'purity',        # purity
+        'ploidy',        # ploidy
+        'AScore',        # AScore
+        'pLOH',          # pLOH
+        'cna_burden',    # cna_burden
+        'freq_Linear',   # freq_Linear
+        'freq_BFB',      # freq_BFB
+        'freq_Circular', # freq_Circular
+        'freq_HR',       # freq_HR
     ]
     
-    # Optimal hyperparameters from the paper
-    DEFAULT_PARAMS = {
-        'eta': 0.1,
-        'max_depth': 4,
+    # Original hyperparameters from R model
+    ORIGINAL_PARAMS = {
+        'eta': 0.3,
+        'max_depth': 3,
+        'gamma': 1,
+        'subsample': 0.5,
+        'max_delta_step': 1,
         'min_child_weight': 1,
-        'alpha': 0,
-        'lambda': 1,
-        'gamma': 10,
-        'subsample': 0.6,
-        'colsample_bytree': 1,
         'objective': 'binary:logistic',
         'eval_metric': 'aucpr',
+        'booster': 'gbtree',
         'tree_method': 'hist',
         'device': 'cuda',
     }
     
-    def __init__(self, params: Optional[Dict[str, Any]] = None):
+    def __init__(self, params: Optional[Dict[str, Any]] = None, use_original_params: bool = True):
         """
         Initialize XGB11 model
         
         Args:
-            params: Optional custom parameters. If None, uses paper's defaults.
+            params: Optional custom parameters
+            use_original_params: If True, use exact params from paper; if False, use provided params
         """
-        self.params = params if params else self.DEFAULT_PARAMS.copy()
+        if use_original_params or params is None:
+            self.params = self.ORIGINAL_PARAMS.copy()
+        else:
+            self.params = params
+        
         self.model = None
         self.optimal_threshold = 0.5
         
     def prepare_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Prepare features from raw data
+        Prepare features - exact 11 features, no additional engineering
         
         Args:
             df: Input dataframe with raw features
             
         Returns:
-            DataFrame with selected and engineered features
+            DataFrame with exactly 11 features
         """
         feature_df = pd.DataFrame()
         
-        for feat in self.FEATURES:
-            if feat in df.columns:
-                feature_df[feat] = df[feat].fillna(0)
+        # Map features from data to model features
+        feature_mapping = {
+            'total_cn': 'segVal',  # total_cn maps to segVal
+            'minor_cn': 'minor_cn',
+            'purity': 'purity',
+            'ploidy': 'ploidy',
+            'AScore': 'AScore',
+            'pLOH': 'pLOH',
+            'cna_burden': 'cna_burden',
+            'freq_Linear': 'freq_Linear',
+            'freq_BFB': 'freq_BFB',
+            'freq_Circular': 'freq_Circular',
+            'freq_HR': 'freq_HR',
+        }
+        
+        for model_feat, data_feat in feature_mapping.items():
+            if data_feat in df.columns:
+                feature_df[model_feat] = df[data_feat].fillna(0)
             else:
-                logger.warning(f"Feature {feat} not found in data, using zeros")
-                feature_df[feat] = 0
-        
-        # Feature engineering based on paper insights
-        # Total CN relative to ploidy
-        feature_df['cn_ploidy_ratio'] = feature_df['segVal'] / (feature_df['ploidy'] + 1e-6)
-        
-        # CNA burden normalized by purity
-        feature_df['cna_burden_norm'] = feature_df['cna_burden'] * feature_df['purity']
-        
-        # Minor CN ratio
-        feature_df['minor_cn_ratio'] = feature_df['minor_cn'] / (feature_df['segVal'] + 1e-6)
+                logger.warning(f"Feature {data_feat} not found in data, using zeros")
+                feature_df[model_feat] = 0
         
         return feature_df
     
@@ -140,21 +145,7 @@ class XGB11Model:
         early_stopping_rounds: int = 50,
         verbose: bool = True
     ) -> 'XGB11Model':
-        """
-        Train the XGB11 model
-        
-        Args:
-            X_train: Training features
-            y_train: Training labels
-            X_val: Validation features (optional)
-            y_val: Validation labels (optional)
-            sample_weight: Sample weights for imbalanced data
-            early_stopping_rounds: Early stopping patience
-            verbose: Whether to print training progress
-            
-        Returns:
-            self
-        """
+        """Train the XGB11 model"""
         logger.info("Preparing features...")
         X_train_prepared = self.prepare_features(X_train)
         
@@ -170,14 +161,14 @@ class XGB11Model:
         if X_val is not None and y_val is not None:
             X_val_prepared = self.prepare_features(X_val)
             dval = xgb.DMatrix(X_val_prepared, label=y_val)
-            evals.append((dval, 'validation'))
+            evals.append((dval, 'eval'))
         
         logger.info(f"Training XGB11 model with params: {self.params}")
         
         self.model = xgb.train(
             self.params,
             dtrain,
-            num_boost_round=10000,
+            num_boost_round=200,
             evals=evals,
             early_stopping_rounds=early_stopping_rounds,
             verbose_eval=verbose
@@ -222,11 +213,7 @@ class XGB11Model:
         y: pd.Series,
         threshold: Optional[float] = None
     ) -> Dict[str, float]:
-        """
-        Evaluate model performance
-        
-        Returns gene-level metrics
-        """
+        """Evaluate model performance - gene level"""
         probs = self.predict_proba(X)
         preds = self.predict(X, threshold)
         
@@ -258,11 +245,7 @@ class XGB11Model:
         samples: pd.Series,
         threshold: Optional[float] = None
     ) -> Dict[str, float]:
-        """
-        Evaluate at sample level
-        
-        A sample is predicted as circular if any gene is predicted positive.
-        """
+        """Evaluate at sample level"""
         probs = self.predict_proba(X)
         
         # Aggregate to sample level
@@ -342,9 +325,6 @@ class XGB11Model:
         
         importance = self.model.get_score(importance_type='gain')
         
-        # Map back to original features
-        feature_names = self.prepare_features(pd.DataFrame(columns=self.FEATURES)).columns.tolist()
-        
         importance_df = pd.DataFrame([
             {'feature': k, 'importance': v}
             for k, v in importance.items()
@@ -354,6 +334,43 @@ class XGB11Model:
         return importance_df
 
 
+class XGB11OptimizedModel(XGB11Model):
+    """
+    XGB11 Optimized - Enhanced version with feature engineering
+    Based on XGB11 but with additional engineered features
+    """
+    
+    def prepare_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Prepare features with additional engineering
+        """
+        # Start with original 11 features
+        feature_df = super().prepare_features(df)
+        
+        # Add engineered features
+        # 1. CN relative to ploidy (important ratio)
+        feature_df['cn_ploidy_ratio'] = feature_df['total_cn'] / (feature_df['ploidy'] + 1e-6)
+        
+        # 2. CNA burden normalized by purity
+        feature_df['cna_burden_purity'] = feature_df['cna_burden'] * feature_df['purity']
+        
+        # 3. Minor CN ratio
+        feature_df['minor_cn_ratio'] = feature_df['minor_cn'] / (feature_df['total_cn'] + 1e-6)
+        
+        # 4. Total amplification frequency (sum of all freq types)
+        feature_df['total_freq'] = (
+            feature_df['freq_Linear'] + 
+            feature_df['freq_BFB'] + 
+            feature_df['freq_Circular'] + 
+            feature_df['freq_HR']
+        )
+        
+        # 5. Circular dominance ratio
+        feature_df['circular_dominance'] = feature_df['freq_Circular'] / (feature_df['total_freq'] + 1e-6)
+        
+        return feature_df
+
+
 class XGB11Trainer:
     """Trainer for XGB11 model"""
     
@@ -361,6 +378,7 @@ class XGB11Trainer:
         self,
         data_path: str,
         output_dir: str,
+        model_type: str = 'original',  # 'original' or 'optimized'
         validation_split: float = 0.12,
         test_split: float = 0.18,
         random_state: int = 42
@@ -368,11 +386,16 @@ class XGB11Trainer:
         self.data_path = Path(data_path)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.model_type = model_type
         self.validation_split = validation_split
         self.test_split = test_split
         self.random_state = random_state
         
-        self.model = XGB11Model()
+        # Choose model type
+        if model_type == 'original':
+            self.model = XGB11Model(use_original_params=True)
+        else:
+            self.model = XGB11OptimizedModel(use_original_params=True)
         
     def load_data(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """Load and split data"""
@@ -474,13 +497,13 @@ class XGB11Trainer:
         logger.info(f"Test Sample - auPRC: {test_sample_metrics['auPRC']:.4f}, auROC: {test_sample_metrics['AUC']:.4f}")
         
         # Save model
-        model_path = self.output_dir / 'xgb11_model.pkl'
+        model_path = self.output_dir / f'xgb11_{self.model_type}_model.pkl'
         self.model.save(str(model_path))
         
         # Save metrics
         import yaml
         summary = {
-            'model': 'XGB11',
+            'model': f'XGB11_{self.model_type}',
             'gene_level': {
                 'train': train_metrics,
                 'val': val_metrics,
@@ -493,12 +516,12 @@ class XGB11Trainer:
             }
         }
         
-        with open(self.output_dir / 'training_summary.yml', 'w') as f:
+        with open(self.output_dir / f'training_summary_{self.model_type}.yml', 'w') as f:
             yaml.dump(summary, f, default_flow_style=False)
         
         # Feature importance
         importance_df = self.model.get_feature_importance()
-        importance_df.to_csv(self.output_dir / 'feature_importance.csv', index=False)
+        importance_df.to_csv(self.output_dir / f'feature_importance_{self.model_type}.csv', index=False)
         logger.info(f"\nTop 10 features:\n{importance_df.head(10)}")
         
         return test_metrics, test_sample_metrics
@@ -512,20 +535,53 @@ def main():
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     
-    trainer = XGB11Trainer(
+    # Train original XGB11
+    print("="*60)
+    print("Training XGB11 Original Model")
+    print("="*60)
+    
+    trainer_original = XGB11Trainer(
         data_path='src/otk/data/sorted_modeling_data.csv.gz',
-        output_dir='otk_api/models/xgb11'
+        output_dir='otk_api/models/xgb11',
+        model_type='original'
     )
     
-    test_metrics, test_sample_metrics = trainer.train()
+    test_metrics_orig, test_sample_metrics_orig = trainer_original.train()
     
     print("\n" + "="*60)
-    print("XGB11 TRAINING COMPLETED")
+    print("XGB11 ORIGINAL - TRAINING COMPLETED")
     print("="*60)
-    print(f"Gene-level auPRC: {test_metrics['auPRC']:.4f}")
-    print(f"Gene-level Precision: {test_metrics['Precision']:.4f}")
-    print(f"Sample-level auPRC: {test_sample_metrics['auPRC']:.4f}")
-    print(f"Sample-level auROC: {test_sample_metrics['AUC']:.4f}")
+    print(f"Gene-level auPRC: {test_metrics_orig['auPRC']:.4f}")
+    print(f"Gene-level Precision: {test_metrics_orig['Precision']:.4f}")
+    print(f"Sample-level auPRC: {test_sample_metrics_orig['auPRC']:.4f}")
+    print(f"Sample-level auROC: {test_sample_metrics_orig['AUC']:.4f}")
+    
+    # Train optimized XGB11
+    print("\n" + "="*60)
+    print("Training XGB11 Optimized Model")
+    print("="*60)
+    
+    trainer_optimized = XGB11Trainer(
+        data_path='src/otk/data/sorted_modeling_data.csv.gz',
+        output_dir='otk_api/models/xgb11',
+        model_type='optimized'
+    )
+    
+    test_metrics_opt, test_sample_metrics_opt = trainer_optimized.train()
+    
+    print("\n" + "="*60)
+    print("XGB11 OPTIMIZED - TRAINING COMPLETED")
+    print("="*60)
+    print(f"Gene-level auPRC: {test_metrics_opt['auPRC']:.4f}")
+    print(f"Gene-level Precision: {test_metrics_opt['Precision']:.4f}")
+    print(f"Sample-level auPRC: {test_sample_metrics_opt['auPRC']:.4f}")
+    print(f"Sample-level auROC: {test_sample_metrics_opt['AUC']:.4f}")
+    
+    print("\n" + "="*60)
+    print("COMPARISON")
+    print("="*60)
+    print(f"Original  - Gene auPRC: {test_metrics_orig['auPRC']:.4f}, Sample auPRC: {test_sample_metrics_orig['auPRC']:.4f}")
+    print(f"Optimized - Gene auPRC: {test_metrics_opt['auPRC']:.4f}, Sample auPRC: {test_sample_metrics_opt['auPRC']:.4f}")
 
 
 if __name__ == "__main__":
