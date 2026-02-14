@@ -279,6 +279,10 @@ class TransformerEcDNAModel(BaseEcDNAModel):
     
     def fit(self, X_train, y_train, X_val=None, y_val=None, **kwargs):
         from torch.utils.data import DataLoader, TensorDataset
+        from sklearn.metrics import average_precision_score, roc_auc_score, precision_score, recall_score, f1_score
+        import time
+        
+        set_random_seed(RANDOM_SEED)
         
         X_train_arr = self.prepare_features(X_train)
         y_train_arr = y_train.values.astype(np.float32)
@@ -293,6 +297,14 @@ class TransformerEcDNAModel(BaseEcDNAModel):
             dropout=self.config['dropout']
         ).to(self.device)
         
+        # Initialize weights for stability
+        def init_weights(m):
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+        self.model.apply(init_weights)
+        
         # Training
         train_dataset = TensorDataset(
             torch.tensor(X_train_arr),
@@ -300,17 +312,12 @@ class TransformerEcDNAModel(BaseEcDNAModel):
         )
         train_loader = DataLoader(train_dataset, batch_size=4096, shuffle=True)
         
-        optimizer = torch.optim.AdamW(self.model.parameters(), lr=0.001, weight_decay=0.01)
+        # Use lower learning rate for stability
+        optimizer = torch.optim.AdamW(self.model.parameters(), lr=0.0001, weight_decay=0.01)
         criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([10.0]).to(self.device))
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10)
         
-        # Add gradient clipping for stability
         max_grad_norm = 1.0
-        
-        # Training with detailed logging
-        from sklearn.metrics import average_precision_score, roc_auc_score
-        import time
-        
         best_val_auprc = 0
         patience_counter = 0
         max_patience = 15
@@ -318,6 +325,7 @@ class TransformerEcDNAModel(BaseEcDNAModel):
         
         logger.info(f"Starting Transformer training: {n_epochs} epochs, {len(train_loader)} batches/epoch")
         logger.info(f"Model config: hidden_dim={self.config['hidden_dim']}, num_heads={self.config['num_heads']}, num_layers={self.config['num_layers']}")
+        logger.info(f"Learning rate: 0.0001, Gradient clipping: {max_grad_norm}")
         start_time = time.time()
         
         for epoch in range(n_epochs):
@@ -330,52 +338,97 @@ class TransformerEcDNAModel(BaseEcDNAModel):
                 outputs = self.model(batch_x)
                 loss = criterion(outputs.squeeze(-1), batch_y.squeeze(-1))
                 loss.backward()
-                # Gradient clipping for stability
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
                 optimizer.step()
                 epoch_loss += loss.item()
                 n_batches += 1
             
-            avg_loss = epoch_loss / n_batches
-            scheduler.step(avg_loss)
+            train_loss = epoch_loss / n_batches
+            scheduler.step(train_loss)
             
             # Check for NaN loss
-            if np.isnan(avg_loss):
-                logger.warning(f"NaN loss detected at epoch {epoch+1}, stopping training")
+            if np.isnan(train_loss) or np.isinf(train_loss):
+                logger.warning(f"NaN/Inf loss detected at epoch {epoch+1}, stopping training")
                 break
             
-            # Validation
-            if X_val is not None and y_val is not None and (epoch + 1) % 5 == 0:
+            # Compute train metrics
+            self.is_fitted = True
+            train_probs = self.predict_proba(X_train)
+            if np.any(np.isnan(train_probs)):
+                logger.warning(f"NaN train predictions at epoch {epoch+1}")
+                train_probs = np.nan_to_num(train_probs, nan=0.5)
+            train_preds = (train_probs >= 0.5).astype(int)
+            train_auprc = average_precision_score(y_train.values, train_probs)
+            train_auc = roc_auc_score(y_train.values, train_probs)
+            train_precision = precision_score(y_train.values, train_preds, zero_division=0)
+            train_recall = recall_score(y_train.values, train_preds, zero_division=0)
+            train_f1 = f1_score(y_train.values, train_preds, zero_division=0)
+            
+            # Compute val metrics
+            val_loss = None
+            val_auprc = 0
+            val_auc = 0
+            val_precision = 0
+            val_recall = 0
+            val_f1 = 0
+            
+            if X_val is not None and y_val is not None:
                 self.is_fitted = True
                 val_probs = self.predict_proba(X_val)
-                # Check for NaN predictions
                 if np.any(np.isnan(val_probs)):
-                    logger.warning(f"NaN predictions detected at epoch {epoch+1}")
-                    continue
+                    logger.warning(f"NaN val predictions at epoch {epoch+1}")
+                    val_probs = np.nan_to_num(val_probs, nan=0.5)
+                val_preds = (val_probs >= 0.5).astype(int)
+                
+                # Compute val loss
+                val_dataset = TensorDataset(
+                    torch.tensor(self.prepare_features(X_val)),
+                    torch.tensor(y_val.values.astype(np.float32)).unsqueeze(1)
+                )
+                val_loader_tmp = DataLoader(val_dataset, batch_size=4096, shuffle=False)
+                self.model.eval()
+                val_loss_sum = 0
+                val_batches = 0
+                with torch.no_grad():
+                    for batch_x, batch_y in val_loader_tmp:
+                        batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
+                        outputs = self.model(batch_x)
+                        loss = criterion(outputs.squeeze(-1), batch_y.squeeze(-1))
+                        val_loss_sum += loss.item()
+                        val_batches += 1
+                val_loss = val_loss_sum / val_batches
+                
                 val_auprc = average_precision_score(y_val.values, val_probs)
                 val_auc = roc_auc_score(y_val.values, val_probs)
-                
-                logger.info(f"Epoch {epoch+1}/{n_epochs} - Loss: {avg_loss:.4f} - Val auPRC: {val_auprc:.4f} - Val AUC: {val_auc:.4f}")
-                
-                # Early stopping
-                if val_auprc > best_val_auprc:
-                    best_val_auprc = val_auprc
-                    patience_counter = 0
-                else:
-                    patience_counter += 1
-                    if patience_counter >= max_patience:
-                        logger.info(f"Early stopping at epoch {epoch+1}")
-                        break
-            elif (epoch + 1) % 10 == 0:
-                logger.info(f"Epoch {epoch+1}/{n_epochs} - Loss: {avg_loss:.4f}")
+                val_precision = precision_score(y_val.values, val_preds, zero_division=0)
+                val_recall = recall_score(y_val.values, val_preds, zero_division=0)
+                val_f1 = f1_score(y_val.values, val_preds, zero_division=0)
+            
+            # Log every epoch
+            logger.info(f"Epoch {epoch+1}/{n_epochs}")
+            logger.info(f"  Train - Loss: {train_loss:.4f}, auPRC: {train_auprc:.4f}, AUC: {train_auc:.4f}, P: {train_precision:.4f}, R: {train_recall:.4f}, F1: {train_f1:.4f}")
+            if val_loss is not None:
+                logger.info(f"  Val   - Loss: {val_loss:.4f}, auPRC: {val_auprc:.4f}, AUC: {val_auc:.4f}, P: {val_precision:.4f}, R: {val_recall:.4f}, F1: {val_f1:.4f}")
+            
+            # Early stopping
+            if val_auprc > best_val_auprc:
+                best_val_auprc = val_auprc
+                patience_counter = 0
+            else:
+                patience_counter += 1
+                if patience_counter >= max_patience:
+                    logger.info(f"Early stopping at epoch {epoch+1}")
+                    break
         
         training_time = time.time() - start_time
         logger.info(f"Training completed in {training_time:.1f}s")
         
         if X_val is not None and y_val is not None:
+            self.is_fitted = True
             val_probs = self.predict_proba(X_val)
-            self.optimal_threshold = self._find_optimal_threshold(y_val.values, val_probs)
-            logger.info(f"Optimal threshold: {self.optimal_threshold:.4f}")
+            if not np.any(np.isnan(val_probs)):
+                self.optimal_threshold = self._find_optimal_threshold(y_val.values, val_probs)
+                logger.info(f"Optimal threshold: {self.optimal_threshold:.4f}")
         
         self.is_fitted = True
         return self

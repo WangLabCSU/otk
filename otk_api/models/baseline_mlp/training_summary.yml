@@ -1,55 +1,66 @@
-best_val_auPRC: 0.7948990964288718
-dataset_statistics:
-  test_positive: 5118
-  test_positive_rate: 0.0035221590660512447
-  test_samples: 1453086
-  train_positive: 17925
-  train_positive_rate: 0.0035079431254416704
-  train_samples: 5109832
-  val_positive: 2681
-  val_positive_rate: 0.00374282943084836
-  val_samples: 716303
-model_info:
-  batch_size: 512
-  dropout_rate: N/A
-  hidden_dims: N/A
-  input_dim: N/A
-  learning_rate: 0.001
-  loss_function: BCEWithLogitsLoss
-  model_type: Baseline
-  optimizer: Adam
-  weight_decay: 0.0001
-overfitting_analysis:
-  overfitting_severity: low
-  train_val_auPRC_gap: -0.1407635431483384
-  train_val_precision_gap: -0.050116429716247746
-  train_val_recall_gap: -0.23616036606586882
-performance:
-  test_set:
-    AUC: 0.9689649146439419
-    F1: 0.7053980947900741
-    Precision: 0.8859675036927622
-    Recall: 0.5859710824540836
-    auPRC: 0.7208152172265918
-    optimal_threshold: 0.4040404040404041
-  training_set:
-    AUC: 0.9461616187075241
-    F1: 0.6152753612896353
-    Precision: 0.8462590349677671
-    Recall: 0.483347280334728
-    auPRC: 0.6541355532805334
-    optimal_threshold: 0.43434343434343436
-  validation_set:
-    AUC: 0.9434116355852584
-    F1: 0.798261949099938
-    Precision: 0.8963754646840149
-    Recall: 0.7195076464005968
-    auPRC: 0.7948990964288718
-    optimal_threshold: 0.5555555555555556
-training_progress:
-  best_epoch: 1
-  data_processing_time_seconds: 53.22758769989014
-  early_stopped: true
-  epochs_trained: 11
-  test_evaluation_time_seconds: 22.755316495895386
-  total_training_time_seconds: 1223.641459941864
+gene_level:
+  test:
+    AUC: 0.9841005701388089
+    F1: 0.6735974892114555
+    Precision: 0.747171453437772
+    Recall: 0.6132142857142857
+    auPRC: 0.7299325491047802
+    threshold: 0.6492510437965393
+  train:
+    AUC: 0.9997114243905831
+    F1: 0.9165264720435428
+    Precision: 0.9196206930791381
+    Recall: 0.9134530032547589
+    auPRC: 0.9674305154579848
+    threshold: 0.6492510437965393
+  val:
+    AUC: 0.9163013687094742
+    F1: 0.6586904502936698
+    Precision: 0.7760123013839056
+    Recall: 0.5721844293272865
+    auPRC: 0.6675020441923788
+    threshold: 0.6492510437965393
+model_name: baseline_mlp
+sample_level:
+  test:
+    AUC: 0.9498207885304659
+    Accuracy: 0.85
+    F1: 0.8928571428571428
+    FN: 6
+    FP: 0
+    Precision: 1.0
+    Recall: 0.8064516129032258
+    TN: 9
+    TP: 25
+    auPRC: 0.9871273086673711
+    positive_samples: 31
+    predicted_positive: 25
+    total_samples: 40
+  train:
+    AUC: 0.9933587433587433
+    Accuracy: 0.922077922077922
+    F1: 0.9461883408071748
+    FN: 23
+    FP: 1
+    Precision: 0.9952830188679245
+    Recall: 0.9017094017094017
+    TN: 73
+    TP: 211
+    auPRC: 0.9979360819704808
+    positive_samples: 234
+    predicted_positive: 212
+    total_samples: 308
+  val:
+    AUC: 0.8888888888888888
+    Accuracy: 0.7894736842105263
+    F1: 0.8571428571428572
+    FN: 5
+    FP: 3
+    Precision: 0.8888888888888888
+    Recall: 0.8275862068965517
+    TN: 6
+    TP: 24
+    auPRC: 0.9641259751478168
+    positive_samples: 29
+    predicted_positive: 27
+    total_samples: 38

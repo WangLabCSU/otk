@@ -1,55 +1,66 @@
-best_val_auPRC: 0.7259635962012195
-dataset_statistics:
-  test_positive: 5118
-  test_positive_rate: 0.0035221590660512447
-  test_samples: 1453086
-  train_positive: 17925
-  train_positive_rate: 0.0035079431254416704
-  train_samples: 5109832
-  val_positive: 2681
-  val_positive_rate: 0.00374282943084836
-  val_samples: 716303
-model_info:
-  batch_size: 1024
-  dropout_rate: N/A
-  hidden_dims: N/A
-  input_dim: N/A
-  learning_rate: 0.0001
-  loss_function: auPRCOptimizedLoss
-  model_type: PrecisionFocusedEcDNA
-  optimizer: AdamW
-  weight_decay: 0.01
-overfitting_analysis:
-  overfitting_severity: medium
-  train_val_auPRC_gap: 0.13231617921843908
-  train_val_precision_gap: 0.1308613480291353
-  train_val_recall_gap: 0.061854540214547615
-performance:
-  test_set:
-    AUC: 0.979655354765029
-    F1: 0.7250206440957886
-    Precision: 0.7684901531728665
-    Recall: 0.6862055490425948
-    auPRC: 0.7384370889317461
-    optimal_threshold: 0.9191919191919192
-  training_set:
-    AUC: 0.9977765406773413
-    F1: 0.8055443023323109
-    Precision: 0.8368303974027536
-    Recall: 0.776513249651325
-    auPRC: 0.8582797754196586
-    optimal_threshold: 0.9292929292929294
-  validation_set:
-    AUC: 0.9885279997473915
-    F1: 0.7102873030583874
-    Precision: 0.7059690493736183
-    Recall: 0.7146587094367773
-    auPRC: 0.7259635962012195
-    optimal_threshold: 0.8989898989898991
-training_progress:
-  best_epoch: 2
-  data_processing_time_seconds: 52.521687269210815
-  early_stopped: true
-  epochs_trained: 17
-  test_evaluation_time_seconds: 32.071627378463745
-  total_training_time_seconds: 3363.7891969680786
+gene_level:
+  test:
+    AUC: 0.9909396931611067
+    F1: 0.6632522407170295
+    Precision: 0.823966065747614
+    Recall: 0.555
+    auPRC: 0.725464525903335
+    threshold: 0.9966757297515869
+  train:
+    AUC: 0.9999289220705772
+    F1: 0.8966800614903314
+    Precision: 0.9894649128028093
+    Recall: 0.8198047144688825
+    auPRC: 0.9833052802132782
+    threshold: 0.9966757297515869
+  val:
+    AUC: 0.9338196642278406
+    F1: 0.5379787924691625
+    Precision: 0.6293670886075949
+    Recall: 0.46976568405139835
+    auPRC: 0.534191710540023
+    threshold: 0.9966757297515869
+model_name: deep_residual
+sample_level:
+  test:
+    AUC: 0.996415770609319
+    Accuracy: 0.825
+    F1: 0.8727272727272727
+    FN: 7
+    FP: 0
+    Precision: 1.0
+    Recall: 0.7741935483870968
+    TN: 9
+    TP: 24
+    auPRC: 0.998975676378772
+    positive_samples: 31
+    predicted_positive: 24
+    total_samples: 40
+  train:
+    AUC: 0.9967082467082468
+    Accuracy: 0.9123376623376623
+    F1: 0.9387755102040816
+    FN: 27
+    FP: 0
+    Precision: 1.0
+    Recall: 0.8846153846153846
+    TN: 74
+    TP: 207
+    auPRC: 0.9989836828353904
+    positive_samples: 234
+    predicted_positive: 207
+    total_samples: 308
+  val:
+    AUC: 0.8620689655172413
+    Accuracy: 0.7631578947368421
+    F1: 0.8363636363636363
+    FN: 6
+    FP: 3
+    Precision: 0.8846153846153846
+    Recall: 0.7931034482758621
+    TN: 6
+    TP: 23
+    auPRC: 0.9567436276343295
+    positive_samples: 29
+    predicted_positive: 26
+    total_samples: 38
