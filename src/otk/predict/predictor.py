@@ -116,11 +116,14 @@ class UnifiedPredictor:
         if isinstance(data, dict):
             self.model = data.get('model', data.get('xgb_model'))
             self.optimal_threshold = data.get('optimal_threshold', 0.5)
+            self.feature_names = data.get('feature_names', None)
         else:
             self.model = data
         
         self.optimal_threshold = float(self.optimal_threshold)
         logger.info(f"XGBoost model loaded, threshold: {self.optimal_threshold:.4f}")
+        if self.feature_names:
+            logger.info(f"Feature names: {len(self.feature_names)} features")
     
     def _load_tabpfn_model(self):
         """Load TabPFN model from pickle"""
@@ -226,58 +229,126 @@ class UnifiedPredictor:
             return {}
     
     def prepare_features(self, df):
-        """Prepare features for prediction"""
-        # Fill default values
-        for col, default in self.DEFAULT_VALUES.items():
-            if col not in df.columns:
-                df[col] = default
+        """Prepare features for prediction - matches XGBNewModel.prepare_features"""
+        feature_df = pd.DataFrame()
         
-        # Fill CN signature defaults
+        # Core features (order matches XGBNewModel)
+        for f in ['segVal', 'minor_cn', 'purity', 'ploidy', 'pLOH', 'AScore', 'cna_burden']:
+            if f in df.columns:
+                feature_df[f] = df[f].fillna(0)
+            else:
+                feature_df[f] = 0
+        
+        # Frequency features
+        for f in ['freq_Linear', 'freq_BFB', 'freq_Circular', 'freq_HR']:
+            if f in df.columns:
+                feature_df[f] = df[f].fillna(0)
+            else:
+                feature_df[f] = 0
+        
+        # CN signatures
         for i in range(1, 20):
-            col = f'CN{i}'
-            if col not in df.columns:
-                df[col] = 0.05
+            f = f'CN{i}'
+            if f in df.columns:
+                feature_df[f] = df[f].fillna(0)
+            else:
+                feature_df[f] = 0.05
         
-        # Add gene frequency features
-        if 'gene_id' in df.columns and self.gene_freqs:
-            for freq_col in ['freq_Linear', 'freq_BFB', 'freq_Circular', 'freq_HR']:
-                if freq_col not in df.columns:
-                    df[freq_col] = df['gene_id'].apply(
-                        lambda x: self.gene_freqs.get(x, {}).get(freq_col, 0)
-                    )
+        # Clinical
+        if 'age' in df.columns:
+            feature_df['age'] = df['age'].fillna(df['age'].mean() if df['age'].notna().any() else 60)
+        else:
+            feature_df['age'] = 60
+        if 'gender' in df.columns:
+            feature_df['gender'] = df['gender'].fillna(0)
+        else:
+            feature_df['gender'] = 0
         
-        # Add cancer type one-hot encoding
-        if 'type' in df.columns:
-            for cancer_type in self.CANCER_TYPES:
-                col_name = f'type_{cancer_type}'
-                if col_name not in df.columns:
-                    df[col_name] = (df['type'] == cancer_type).astype(int)
+        # Cancer types (from df columns)
+        for c in [col for col in df.columns if col.startswith('type_')]:
+            feature_df[c] = df[c].fillna(0)
         
-        # Ensure all type columns exist
+        # Ensure all cancer types exist
         for cancer_type in self.CANCER_TYPES:
             col_name = f'type_{cancer_type}'
-            if col_name not in df.columns:
-                df[col_name] = 0
+            if col_name not in feature_df.columns:
+                if 'type' in df.columns:
+                    feature_df[col_name] = (df['type'] == cancer_type).astype(int)
+                else:
+                    feature_df[col_name] = 0
         
-        # Get feature columns
-        if self.config and 'data' in self.config and 'features' in self.config['data']:
+        # Feature engineering (order matches XGBNewModel)
+        if 'segVal' in df.columns and 'ploidy' in df.columns:
+            feature_df['cn_imbalance'] = df['segVal'] / (df['ploidy'] + 1e-6)
+        else:
+            feature_df['cn_imbalance'] = 0
+        
+        if 'minor_cn' in df.columns and 'segVal' in df.columns:
+            feature_df['allele_imbalance'] = df['minor_cn'] / (df['segVal'] + 1e-6)
+        else:
+            feature_df['allele_imbalance'] = 0
+        
+        if 'cna_burden' in df.columns and 'purity' in df.columns:
+            feature_df['cna_burden_adj'] = df['cna_burden'] * df['purity']
+        else:
+            feature_df['cna_burden_adj'] = 0
+        
+        if 'AScore' in df.columns and 'purity' in df.columns:
+            feature_df['ascore_adj'] = df['AScore'] * df['purity']
+        else:
+            feature_df['ascore_adj'] = 0
+        
+        for f in ['freq_Circular', 'freq_BFB', 'freq_HR']:
+            if f in df.columns:
+                feature_df[f'has_{f.split("_")[1].lower()}'] = (df[f] > 0).astype(int)
+            else:
+                feature_df[f'has_{f.split("_")[1].lower()}'] = 0
+        
+        freq_cols = ['freq_Linear', 'freq_BFB', 'freq_Circular', 'freq_HR']
+        if all(c in df.columns for c in freq_cols):
+            feature_df['amplicon_type_count'] = (df[freq_cols] > 0).sum(axis=1)
+        else:
+            feature_df['amplicon_type_count'] = 0
+        
+        cn_cols = [f'CN{i}' for i in range(1, 20)]
+        existing_cn = [c for c in cn_cols if c in df.columns]
+        if existing_cn:
+            feature_df['cn_sig_diversity'] = (df[existing_cn] > 0).sum(axis=1)
+            feature_df['max_cn_sig'] = df[existing_cn].max(axis=1)
+        else:
+            feature_df['cn_sig_diversity'] = 0
+            feature_df['max_cn_sig'] = 0
+        
+        if 'purity' in df.columns and 'ploidy' in df.columns:
+            feature_df['purity_x_ploidy'] = df['purity'] * df['ploidy']
+        else:
+            feature_df['purity_x_ploidy'] = 0
+        
+        if 'pLOH' in df.columns:
+            feature_df['has_loh'] = (df['pLOH'] > 0.1).astype(int)
+        else:
+            feature_df['has_loh'] = 0
+        
+        # Get feature columns from model's saved feature_names, config, or use all
+        if hasattr(self, 'feature_names') and self.feature_names:
+            feature_cols = self.feature_names
+        elif self.config and 'data' in self.config and 'features' in self.config['data']:
             feature_cols = self.config['data']['features']
         else:
-            # Default feature columns
-            feature_cols = [c for c in df.columns if c not in ['sample', 'gene_id', 'y', 'type']]
+            feature_cols = [c for c in feature_df.columns if c not in ['sample', 'gene_id', 'y', 'type']]
         
         # Ensure all features exist
         for col in feature_cols:
-            if col not in df.columns:
-                df[col] = 0
+            if col not in feature_df.columns:
+                feature_df[col] = 0
         
-        return df[feature_cols].fillna(0).values.astype(np.float32)
+        return feature_df[feature_cols].fillna(0).values.astype(np.float32), feature_cols
     
-    def predict_proba(self, X):
+    def predict_proba(self, X, feature_names=None):
         """Predict probabilities"""
         if self.model_type == 'xgboost':
             import xgboost as xgb
-            dmatrix = xgb.DMatrix(X)
+            dmatrix = xgb.DMatrix(X, feature_names=feature_names)
             return self.model.predict(dmatrix)
         
         elif self.model_type == 'tabpfn':
@@ -317,17 +388,32 @@ class UnifiedPredictor:
         probs = self.predict_proba(X)
         return (probs >= threshold).astype(int)
     
-    def run(self, df, output_path=None):
-        """Run prediction pipeline"""
+    def run(self, input_data, output_path=None):
+        """Run prediction pipeline
+        
+        Args:
+            input_data: DataFrame or path to CSV file
+            output_path: Optional path to save results
+            
+        Returns:
+            DataFrame with predictions
+        """
+        # Load data if path provided
+        if isinstance(input_data, (str, Path)):
+            logger.info(f"Loading data from {input_data}")
+            df = pd.read_csv(input_data)
+        else:
+            df = input_data
+        
         # Store original data
         original_df = df.copy()
         
         # Prepare features
-        X = self.prepare_features(df)
+        X, feature_names = self.prepare_features(df)
         logger.info(f"Prepared features shape: {X.shape}")
         
         # Get probabilities
-        probs = self.predict_proba(X)
+        probs = self.predict_proba(X, feature_names=feature_names)
         
         # Create results
         results = pd.DataFrame()

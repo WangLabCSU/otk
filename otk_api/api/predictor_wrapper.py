@@ -94,7 +94,8 @@ class PredictorWrapper:
             
             # Run prediction
             logger.debug("Calling predictor.run()...")
-            results = self.predictor.run(input_path, output_dir)
+            output_file = Path(output_dir) / "predictions.csv"
+            results = self.predictor.run(input_path, output_file)
             logger.debug(f"predictor.run() completed, results shape: {results.shape if hasattr(results, 'shape') else 'N/A'}")
             
             processing_time = time.time() - start_time

@@ -97,17 +97,59 @@ class ModelInfo:
 
 class ModelAnalyzer:
     MODEL_ARCHITECTURE_INFO = {
+        "XGBNew": {
+            "description": "XGBoost Gradient Boosting (New Features)",
+            "structure": "Gradient Boosted Trees with 57 features",
+            "features": ["Tree-based ensemble", "Feature importance", "Native missing value handling"],
+            "suitable_for": "Tabular data, interpretable predictions, high performance"
+        },
+        "XGB11": {
+            "description": "XGBoost Gradient Boosting (Paper Features)",
+            "structure": "Gradient Boosted Trees with 11 features",
+            "features": ["Tree-based ensemble", "Paper feature set", "Native missing value handling"],
+            "suitable_for": "Reproducible paper results, minimal feature set"
+        },
+        "TransformerEcDNA": {
+            "description": "Transformer Attention Model",
+            "structure": "57→128(embedding)→Transformer(3 layers)→64→1",
+            "features": ["Self-attention mechanism", "LayerNorm", "GELU activation", "norm_first=True"],
+            "suitable_for": "Feature interaction learning, balanced precision-recall"
+        },
+        "BaselineMLP": {
+            "description": "Simple MLP Network",
+            "structure": "57→128→64→1",
+            "features": ["ReLU activation", "Dropout(0.3)", "Simple architecture"],
+            "suitable_for": "Baseline model, quick training"
+        },
+        "DeepResidual": {
+            "description": "Deep Residual Network",
+            "structure": "57→512→256→128→64→32→1",
+            "features": ["Residual connections", "LayerNorm", "GELU activation", "Progressive dimension reduction"],
+            "suitable_for": "Deep feature learning, high precision scenarios"
+        },
+        "OptimizedResidual": {
+            "description": "Optimized Residual Network",
+            "structure": "57→128→64→32→16→1",
+            "features": ["Residual blocks", "LayerNorm", "GELU activation"],
+            "suitable_for": "Balanced training, stable convergence"
+        },
+        "DGITSuper": {
+            "description": "Super Deep Gated Interaction Transformer",
+            "structure": "57→256→Transformer(6 layers)→128→64→1",
+            "features": ["Deep Transformer", "LayerNorm", "GELU activation", "norm_first=True"],
+            "suitable_for": "High-performance ecDNA prediction"
+        },
+        "TabPFN": {
+            "description": "TabPFN Foundation Model",
+            "structure": "Prior-Fitted Network for Tabular Data",
+            "features": ["Pre-trained foundation model", "In-context learning", "Ensemble predictions"],
+            "suitable_for": "Small datasets, zero-shot tabular prediction"
+        },
         "Baseline": {
             "description": "Simple MLP Network",
             "structure": "57→256→128→64→1",
             "features": ["ReLU activation", "Sigmoid output", "No regularization"],
             "suitable_for": "Baseline model, high precision low recall scenarios"
-        },
-        "TransformerEcDNA": {
-            "description": "Transformer Attention Model",
-            "structure": "57→128(embedding)→Attention→64→32→1",
-            "features": ["Self-attention mechanism", "LayerNorm", "GELU activation", "Dropout regularization"],
-            "suitable_for": "Feature interaction learning, balanced precision-recall"
         },
         "PrecisionFocusedEcDNA": {
             "description": "Deep Residual Network",
@@ -168,12 +210,6 @@ class ModelAnalyzer:
             "structure": "57→128→Transformer→Gated Residual→1",
             "features": ["Feature gating", "Transformer encoder", "Gated residual blocks"],
             "suitable_for": "Feature interaction learning with gating mechanism"
-        },
-        "DGITSuper": {
-            "description": "Super Deep Gated Interaction Transformer",
-            "structure": "57→256→Transformer(4层)→Gated Residual(6层)→1",
-            "features": ["Multi-scale features", "Adaptive gating", "Contrastive learning", "Density estimation"],
-            "suitable_for": "High-performance ecDNA prediction"
         },
     }
 
@@ -246,9 +282,12 @@ class ModelAnalyzer:
         result = {}
         
         model_config = config.get('model', {})
-        arch = model_config.get('architecture', {})
         
-        result['model_type'] = arch.get('type', 'Unknown')
+        # Support new format: model.type + model.variant
+        model_type = model_config.get('variant', model_config.get('type', 'Unknown'))
+        result['model_type'] = model_type
+        
+        arch = model_config.get('architecture', {})
         result['layers'] = arch.get('layers', [])
         result['hidden_dims'] = arch.get('hidden_dims', [])
         result['dropout_rate'] = arch.get('dropout_rate', None)
@@ -506,7 +545,9 @@ class ModelAnalyzer:
         model_dir = self.models_dir / model_name
         config_path = model_dir / "config.yml"
         summary_path = model_dir / "training_summary.yml"
-        model_path = model_dir / "best_model.pth"
+        model_path = model_dir / "best_model.pkl"
+        if not model_path.exists():
+            model_path = model_dir / "best_model.pth"
         
         if not config_path.exists():
             print(f"跳过 {model_name}: 缺少 config.yml")

@@ -1,66 +1,66 @@
 gene_level:
   test:
-    AUC: 0.9841005701388089
-    F1: 0.6735974892114555
-    Precision: 0.747171453437772
-    Recall: 0.6132142857142857
-    auPRC: 0.7299325491047802
-    threshold: 0.6492510437965393
+    AUC: 0.9910411254677572
+    F1: 0.6496541855473408
+    Precision: 0.9777458722182341
+    Recall: 0.48642857142857143
+    auPRC: 0.7663270639123139
+    threshold: 0.9602696895599365
   train:
-    AUC: 0.9997114243905831
-    F1: 0.9165264720435428
-    Precision: 0.9196206930791381
-    Recall: 0.9134530032547589
-    auPRC: 0.9674305154579848
-    threshold: 0.6492510437965393
+    AUC: 0.9983205217162633
+    F1: 0.82387453458197
+    Precision: 0.9624357453538949
+    Recall: 0.7201893677877502
+    auPRC: 0.9169914394320887
+    threshold: 0.9602696895599365
   val:
-    AUC: 0.9163013687094742
-    F1: 0.6586904502936698
-    Precision: 0.7760123013839056
-    Recall: 0.5721844293272865
-    auPRC: 0.6675020441923788
-    threshold: 0.6492510437965393
+    AUC: 0.9529901245684071
+    F1: 0.8203243243243243
+    Precision: 0.9585649317837291
+    Recall: 0.716931216931217
+    auPRC: 0.8005071992053675
+    threshold: 0.9602696895599365
 model_name: baseline_mlp
 sample_level:
   test:
-    AUC: 0.9498207885304659
-    Accuracy: 0.85
-    F1: 0.8928571428571428
+    AUC: 0.96415770609319
+    Accuracy: 0.8
+    F1: 0.8518518518518519
+    FN: 8
+    FP: 0
+    Precision: 1.0
+    Recall: 0.7419354838709677
+    TN: 9
+    TP: 23
+    auPRC: 0.989397882936851
+    positive_samples: 31
+    predicted_positive: 23
+    total_samples: 40
+  train:
+    AUC: 0.9732039732039732
+    Accuracy: 0.8766233766233766
+    F1: 0.9116279069767441
+    FN: 38
+    FP: 0
+    Precision: 1.0
+    Recall: 0.8376068376068376
+    TN: 74
+    TP: 196
+    auPRC: 0.9917731805992178
+    positive_samples: 234
+    predicted_positive: 196
+    total_samples: 308
+  val:
+    AUC: 0.900383141762452
+    Accuracy: 0.8421052631578947
+    F1: 0.8846153846153846
     FN: 6
     FP: 0
     Precision: 1.0
-    Recall: 0.8064516129032258
+    Recall: 0.7931034482758621
     TN: 9
-    TP: 25
-    auPRC: 0.9871273086673711
-    positive_samples: 31
-    predicted_positive: 25
-    total_samples: 40
-  train:
-    AUC: 0.9933587433587433
-    Accuracy: 0.922077922077922
-    F1: 0.9461883408071748
-    FN: 23
-    FP: 1
-    Precision: 0.9952830188679245
-    Recall: 0.9017094017094017
-    TN: 73
-    TP: 211
-    auPRC: 0.9979360819704808
-    positive_samples: 234
-    predicted_positive: 212
-    total_samples: 308
-  val:
-    AUC: 0.8888888888888888
-    Accuracy: 0.7894736842105263
-    F1: 0.8571428571428572
-    FN: 5
-    FP: 3
-    Precision: 0.8888888888888888
-    Recall: 0.8275862068965517
-    TN: 6
-    TP: 24
-    auPRC: 0.9641259751478168
+    TP: 23
+    auPRC: 0.9711623523306129
     positive_samples: 29
-    predicted_positive: 27
+    predicted_positive: 23
     total_samples: 38

@@ -201,6 +201,7 @@ class XGBNewModel(BaseEcDNAModel):
     
     def fit(self, X_train, y_train, X_val=None, y_val=None, **kwargs):
         X_train_prepared = self.prepare_features(X_train)
+        self.feature_names = list(X_train_prepared.columns)
         dtrain = xgb.DMatrix(X_train_prepared, label=y_train)
         evals = [(dtrain, 'train')]
         
@@ -240,7 +241,8 @@ class XGBNewModel(BaseEcDNAModel):
         with open(path, 'wb') as f:
             pickle.dump({
                 'model': self.model, 'params': self.params,
-                'optimal_threshold': self.optimal_threshold
+                'optimal_threshold': self.optimal_threshold,
+                'feature_names': getattr(self, 'feature_names', None)
             }, f)
     
     def load(self, path):
@@ -249,6 +251,7 @@ class XGBNewModel(BaseEcDNAModel):
         self.model = data['model']
         self.params = data['params']
         self.optimal_threshold = data['optimal_threshold']
+        self.feature_names = data.get('feature_names')
         self.is_fitted = True
         return self
     

@@ -1,55 +1,66 @@
-best_val_auPRC: 0.7272372119223186
-dataset_statistics:
-  test_positive: 5118
-  test_positive_rate: 0.0035221590660512447
-  test_samples: 1453086
-  train_positive: 17925
-  train_positive_rate: 0.0035079431254416704
-  train_samples: 5109832
-  val_positive: 2681
-  val_positive_rate: 0.00374282943084836
-  val_samples: 716303
-model_info:
-  batch_size: 1024
-  dropout_rate: N/A
-  hidden_dims: N/A
-  input_dim: N/A
-  learning_rate: 0.0001
-  loss_function: auPRCOptimizedLoss
-  model_type: TransformerEcDNA
-  optimizer: Adam
-  weight_decay: 0.0001
-overfitting_analysis:
-  overfitting_severity: high
-  train_val_auPRC_gap: 0.15763658281298554
-  train_val_precision_gap: 0.10771170015883891
-  train_val_recall_gap: 0.13502530592625306
-performance:
-  test_set:
-    AUC: 0.974642841321333
-    F1: 0.715
-    Precision: 0.9149908592321755
-    Recall: 0.5867526377491208
-    auPRC: 0.7484319799115693
-    optimal_threshold: 0.98989898989899
-  training_set:
-    AUC: 0.9984610650891876
-    F1: 0.8328970699991556
-    Precision: 0.8404907975460123
-    Recall: 0.825439330543933
-    auPRC: 0.8848737947353041
-    optimal_threshold: 0.9292929292929294
-  validation_set:
-    AUC: 0.983160924148996
-    F1: 0.7109660072978683
-    Precision: 0.7327790973871734
-    Recall: 0.69041402461768
-    auPRC: 0.7272372119223186
-    optimal_threshold: 0.9797979797979799
-training_progress:
-  best_epoch: 9
-  data_processing_time_seconds: 52.694844245910645
-  early_stopped: true
-  epochs_trained: 19
-  test_evaluation_time_seconds: 29.67542552947998
-  total_training_time_seconds: 3641.0591611862183
+gene_level:
+  test:
+    AUC: 0.9922301439816972
+    F1: 0.6605463502015226
+    Precision: 0.8853541416566627
+    Recall: 0.5267857142857143
+    auPRC: 0.6874642822459959
+    threshold: 0.9431637525558472
+  train:
+    AUC: 0.9992512742864011
+    F1: 0.8909746169203246
+    Precision: 0.93936908862282
+    Recall: 0.8473222211263438
+    auPRC: 0.9503203721500539
+    threshold: 0.9431637525558472
+  val:
+    AUC: 0.9934077625109796
+    F1: 0.8342402678945166
+    Precision: 0.9348030018761726
+    Recall: 0.7532123960695389
+    auPRC: 0.8392501235264546
+    threshold: 0.9431637525558472
+model_name: transformer
+sample_level:
+  test:
+    AUC: 0.9605734767025089
+    Accuracy: 0.8
+    F1: 0.8518518518518519
+    FN: 8
+    FP: 0
+    Precision: 1.0
+    Recall: 0.7419354838709677
+    TN: 9
+    TP: 23
+    auPRC: 0.9891035945099153
+    positive_samples: 31
+    predicted_positive: 23
+    total_samples: 40
+  train:
+    AUC: 0.9714714714714714
+    Accuracy: 0.8896103896103896
+    F1: 0.9230769230769229
+    FN: 30
+    FP: 4
+    Precision: 0.9807692307692307
+    Recall: 0.8717948717948718
+    TN: 70
+    TP: 204
+    auPRC: 0.9914422568052845
+    positive_samples: 234
+    predicted_positive: 208
+    total_samples: 308
+  val:
+    AUC: 0.9157088122605364
+    Accuracy: 0.868421052631579
+    F1: 0.9090909090909091
+    FN: 4
+    FP: 1
+    Precision: 0.9615384615384616
+    Recall: 0.8620689655172413
+    TN: 8
+    TP: 25
+    auPRC: 0.9741954891947386
+    positive_samples: 29
+    predicted_positive: 26
+    total_samples: 38

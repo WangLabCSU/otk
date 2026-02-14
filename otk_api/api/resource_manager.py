@@ -23,12 +23,17 @@ class ResourceManager:
                 # Scan subdirectories for model files
                 for model_dir in search_dir.iterdir():
                     if model_dir.is_dir():
-                        model_file = model_dir / "best_model.pth"
+                        # Support both .pkl and .pth formats
+                        model_file = model_dir / "best_model.pkl"
+                        if not model_file.exists():
+                            model_file = model_dir / "best_model.pth"
                         if model_file.exists():
                             model_name = model_dir.name.replace("output_", "")
                             models[model_name] = model_file
                 # Also check the search_dir itself (for backward compatibility)
-                model_file = search_dir / "best_model.pth"
+                model_file = search_dir / "best_model.pkl"
+                if not model_file.exists():
+                    model_file = search_dir / "best_model.pth"
                 if model_file.exists():
                     model_name = search_dir.name.replace("output_", "")
                     models[model_name] = model_file
