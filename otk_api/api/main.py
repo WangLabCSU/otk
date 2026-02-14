@@ -810,9 +810,11 @@ async def upload_page(lang: str = Query(default="en", description="Language code
             .upload-area:hover {{ border-color: #666; }}
             button {{ background: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; }}
             button:hover {{ background: #45a049; }}
+            button:disabled {{ background: #ccc; cursor: not-allowed; }}
             #result {{ margin-top: 20px; padding: 15px; border-radius: 5px; display: none; }}
             .success {{ background: #d4edda; color: #155724; }}
             .error {{ background: #f8d7da; color: #721c24; }}
+            .info {{ background: #e3f2fd; color: #0d47a1; }}
             .lang-switch {{ position: absolute; top: 20px; right: 20px; }}
             .lang-switch a {{ margin: 0 5px; text-decoration: none; padding: 5px 10px; border-radius: 3px; }}
             .lang-switch a.active {{ background: #2196F3; color: white; }}
@@ -825,6 +827,16 @@ async def upload_page(lang: str = Query(default="en", description="Language code
             .sample-file a {{ color: #2196F3; text-decoration: none; }}
             .sample-file a:hover {{ text-decoration: underline; }}
             .default-model-info {{ font-size: 12px; color: #666; margin-top: 5px; font-style: italic; }}
+            .progress-bar {{ width: 100%; height: 20px; background: #f0f0f0; border-radius: 10px; overflow: hidden; margin: 10px 0; }}
+            .progress-fill {{ height: 100%; background: #4CAF50; width: 0%; transition: width 0.3s; }}
+            .status-indicator {{ display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }}
+            .status-pending {{ background: #ff9800; }}
+            .status-processing {{ background: #2196F3; animation: pulse 1s infinite; }}
+            .status-completed {{ background: #4CAF50; }}
+            .status-failed {{ background: #f44336; }}
+            @keyframes pulse {{ 0% {{ opacity: 1; }} 50% {{ opacity: 0.5; }} 100% {{ opacity: 1; }} }}
+            .download-btn {{ background: #2196F3; margin-top: 10px; }}
+            .download-btn:hover {{ background: #1976D2; }}
         </style>
     </head>
     <body>
@@ -841,7 +853,7 @@ async def upload_page(lang: str = Query(default="en", description="Language code
             {'<a href="' + get_url('/api/v1/sample-file') + '" download>📥 ' + t['download_sample'] + '</a>' if sample_file_exists else '<span style="color: #999;">Sample file not available</span>'}
         </div>
         
-        <div class="upload-area">
+        <div class="upload-area" id="uploadArea">
             <form id="uploadForm" enctype="multipart/form-data">
                 <input type="file" name="file" accept=".csv" required><br><br>
                 
@@ -854,7 +866,7 @@ async def upload_page(lang: str = Query(default="en", description="Language code
                     <div class="default-model-info">{t['default_model_label']}: {default_model_name}</div>
                 </div>
                 
-                <button type="submit">{t['submit']}</button>
+                <button type="submit" id="submitBtn">{t['submit']}</button>
             </form>
         </div>
         <div id="result"></div>
@@ -862,14 +874,152 @@ async def upload_page(lang: str = Query(default="en", description="Language code
         {footer}
         
         <script>
+            let statusCheckInterval = null;
+            let currentJobId = null;
+            
+            function getStatusText(status) {{
+                const statusMap = {{
+                    'pending': '{t['status_pending']}',
+                    'validating': '{t['status_validating']}',
+                    'processing': '{t['status_processing']}',
+                    'completed': '{t['status_completed']}',
+                    'failed': '{t['status_failed']}'
+                }};
+                return statusMap[status] || status;
+            }}
+            
+            function getStatusClass(status) {{
+                return 'status-' + status;
+            }}
+            
+            async function checkJobStatus(jobId) {{
+                try {{
+                    const response = await fetch(`{get_url('/api/v1/jobs/')}${{jobId}}`);
+                    if (!response.ok) throw new Error('Failed to fetch job status');
+                    return await response.json();
+                }} catch (error) {{
+                    console.error('Error checking job status:', error);
+                    return null;
+                }}
+            }}
+            
+            function updateResultDisplay(job, selectedModel) {{
+                const resultDiv = document.getElementById('result');
+                const statusText = getStatusText(job.status);
+                const statusClass = getStatusClass(job.status);
+                
+                let html = `
+                    <h3>{t['task_created']}</h3>
+                    <p><span class="status-indicator ${{statusClass}}"></span>Job ID: <code>${{job.id}}</code></p>
+                    <p>{t['status']}: <strong>${{statusText}}</strong></p>
+                    <p>{t['selected_model']}: ${{selectedModel}}</p>
+                `;
+                
+                if (job.status === 'completed') {{
+                    html += `
+                        <div class="progress-bar"><div class="progress-fill" style="width: 100%"></div></div>
+                        <p style="color: #4CAF50;">✓ {t['processing_complete']}</p>
+                        <button class="download-btn" onclick="downloadResult('${{job.id}}')">📥 {t['download_results']}</button>
+                    `;
+                }} else if (job.status === 'failed') {{
+                    html += `
+                        <p style="color: #f44336;">✗ {t['processing_failed']}</p>
+                        ${{job.error_message ? `<p style="color: #666; font-size: 12px;">${{job.error_message}}</p>` : ''}}
+                    `;
+                }} else if (job.status === 'processing' || job.status === 'validating') {{
+                    html += `
+                        <div class="progress-bar"><div class="progress-fill" style="width: 60%"></div></div>
+                        <p style="color: #666;">{t['processing_wait']}</p>
+                    `;
+                }} else {{
+                    html += `
+                        <div class="progress-bar"><div class="progress-fill" style="width: 20%"></div></div>
+                        <p style="color: #666;">{t['waiting_in_queue']}</p>
+                    `;
+                }}
+                
+                html += `<p style="margin-top: 15px;"><a href="{get_url('/web/jobs')}?lang={lang}">{t['view_task_list']}</a></p>`;
+                
+                resultDiv.innerHTML = html;
+                resultDiv.style.display = 'block';
+            }}
+            
+            async function pollJobStatus(jobId, selectedModel) {{
+                const resultDiv = document.getElementById('result');
+                resultDiv.className = 'info';
+                
+                const poll = async () => {{
+                    const job = await checkJobStatus(jobId);
+                    if (!job) return;
+                    
+                    updateResultDisplay(job, selectedModel);
+                    
+                    if (job.status === 'completed' || job.status === 'failed') {{
+                        // Stop polling
+                        if (statusCheckInterval) {{
+                            clearInterval(statusCheckInterval);
+                            statusCheckInterval = null;
+                        }}
+                        // Enable form
+                        document.getElementById('submitBtn').disabled = false;
+                        document.getElementById('uploadArea').style.opacity = '1';
+                        
+                        // Auto download on completion
+                        if (job.status === 'completed') {{
+                            setTimeout(() => downloadResult(jobId), 1000);
+                        }}
+                    }}
+                }};
+                
+                // Poll immediately and then every 2 seconds
+                poll();
+                statusCheckInterval = setInterval(poll, 2000);
+            }}
+            
+            async function downloadResult(jobId) {{
+                try {{
+                    const response = await fetch(`{get_url('/api/v1/download/')}${{jobId}}`);
+                    if (!response.ok) throw new Error('Download failed');
+                    
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `predictions_${{jobId}}.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                }} catch (error) {{
+                    alert('{t['download_failed']}: ' + error.message);
+                }}
+            }}
+            
             document.getElementById('uploadForm').onsubmit = async function(e) {{
                 e.preventDefault();
+                
+                // Clear any existing interval
+                if (statusCheckInterval) {{
+                    clearInterval(statusCheckInterval);
+                    statusCheckInterval = null;
+                }}
+                
                 const formData = new FormData(this);
                 const resultDiv = document.getElementById('result');
+                const submitBtn = document.getElementById('submitBtn');
+                const uploadArea = document.getElementById('uploadArea');
                 
                 // Show selected model in result
                 const modelSelect = document.getElementById('model');
                 const selectedModel = modelSelect.value || '{t['auto_select']}';
+                
+                // Disable form during upload
+                submitBtn.disabled = true;
+                uploadArea.style.opacity = '0.6';
+                
+                resultDiv.className = 'info';
+                resultDiv.innerHTML = '<p>{t['uploading_file']}...</p>';
+                resultDiv.style.display = 'block';
                 
                 try {{
                     const response = await fetch('{get_url('/api/v1/predict')}', {{
@@ -879,30 +1029,339 @@ async def upload_page(lang: str = Query(default="en", description="Language code
                     const data = await response.json();
                     
                     if (response.ok) {{
-                        resultDiv.className = 'success';
-                        resultDiv.innerHTML = `
-                            <h3>{t['task_created']}</h3>
-                            <p>Job ID: <code>${{data.id}}</code></p>
-                            <p>{t['status']}: ${{data.status}}</p>
-                            <p>{t['selected_model']}: ${{selectedModel}}</p>
-                            <p><a href="{get_url('/web/jobs')}?lang={lang}">{t['view_task_list']}</a></p>
-                        `;
+                        currentJobId = data.id;
+                        // Start polling for status
+                        pollJobStatus(data.id, selectedModel);
                     }} else {{
                         resultDiv.className = 'error';
                         resultDiv.innerHTML = `<p>{t['error']}: ${{data.detail}}</p>`;
+                        submitBtn.disabled = false;
+                        uploadArea.style.opacity = '1';
                     }}
-                    resultDiv.style.display = 'block';
                 }} catch (error) {{
                     resultDiv.className = 'error';
                     resultDiv.innerHTML = `<p>{t['upload_failed']}: ${{error.message}}</p>`;
-                    resultDiv.style.display = 'block';
+                    submitBtn.disabled = false;
+                    uploadArea.style.opacity = '1';
+                }}
+            }};
+            
+            // Clean up interval on page unload
+            window.onbeforeunload = function() {{
+                if (statusCheckInterval) {{
+                    clearInterval(statusCheckInterval);
                 }}
             }};
         </script>
     </body>
     </html>
     """
-
+            function updateResultDisplay(job, selectedModel) {{
+                const resultDiv = document.getElementById('result');
+                const statusText = getStatusText(job.status);
+                const statusClass = getStatusClass(job.status);
+                
+                let html = `
+                    <h3>{t['task_created']}</h3>
+                    <p><span class="status-indicator ${{statusClass}}"></span>Job ID: <code>${{job.id}}</code></p>
+                    <p>{t['status']}: <strong>${{statusText}}</strong></p>
+                    <p>{t['selected_model']}: ${{selectedModel}}</p>
+                `;
+                
+                if (job.status === 'completed') {{
+                    html += `
+                        <div class="progress-bar"><div class="progress-fill" style="width: 100%"></div></div>
+                        <p style="color: #4CAF50;">✓ {t['processing_complete']}</p>
+                        <button class="download-btn" onclick="downloadResult('${{job.id}}')">📥 {t['download_results']}</button>
+                    `;
+                }} else if (job.status === 'failed') {{
+                    html += `
+                        <p style="color: #f44336;">✗ {t['processing_failed']}</p>
+                        ${{job.error_message ? `<p style="color: #666; font-size: 12px;">${{job.error_message}}</p>` : ''}}
+                    `;
+                }} else if (job.status === 'processing' || job.status === 'validating') {{
+                    html += `
+                        <div class="progress-bar"><div class="progress-fill" style="width: 60%"></div></div>
+                        <p style="color: #666;">{t['processing_wait']}</p>
+                    `;
+                }} else {{
+                    html += `
+                        <div class="progress-bar"><div class="progress-fill" style="width: 20%"></div></div>
+                        <p style="color: #666;">{t['waiting_in_queue']}</p>
+                    `;
+                }}
+                
+                html += `<p style="margin-top: 15px;"><a href="{get_url('/web/jobs')}?lang={lang}">{t['view_task_list']}</a></p>`;
+                
+                resultDiv.innerHTML = html;
+                resultDiv.style.display = 'block';
+            }}
+            
+            async function pollJobStatus(jobId, selectedModel) {{
+                const resultDiv = document.getElementById('result');
+                resultDiv.className = 'info';
+                
+                const poll = async () => {{
+                    const job = await checkJobStatus(jobId);
+                    if (!job) return;
+                    
+                    updateResultDisplay(job, selectedModel);
+                    
+                    if (job.status === 'completed' || job.status === 'failed') {{
+                        // Stop polling
+                        if (statusCheckInterval) {{
+                            clearInterval(statusCheckInterval);
+                            statusCheckInterval = null;
+                        }}
+                        // Enable form
+                        document.getElementById('submitBtn').disabled = false;
+                        document.getElementById('uploadArea').style.opacity = '1';
+                        
+                        // Auto download on completion
+                        if (job.status === 'completed') {{
+                            setTimeout(() => downloadResult(jobId), 1000);
+                        }}
+                    }}
+                }};
+                
+                // Poll immediately and then every 2 seconds
+                poll();
+                statusCheckInterval = setInterval(poll, 2000);
+            }}
+            
+            async function downloadResult(jobId) {{
+                try {{
+                    const response = await fetch(`{get_url('/api/v1/download/')}${{jobId}}`);
+                    if (!response.ok) throw new Error('Download failed');
+                    
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `predictions_${{jobId}}.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                }} catch (error) {{
+                    alert('{t['download_failed']}: ' + error.message);
+                }}
+            }}
+            
+            document.getElementById('uploadForm').onsubmit = async function(e) {{
+                e.preventDefault();
+                
+                // Clear any existing interval
+                if (statusCheckInterval) {{
+                    clearInterval(statusCheckInterval);
+                    statusCheckInterval = null;
+                }}
+                
+                const formData = new FormData(this);
+                const resultDiv = document.getElementById('result');
+                const submitBtn = document.getElementById('submitBtn');
+                const uploadArea = document.getElementById('uploadArea');
+                
+                // Show selected model in result
+                const modelSelect = document.getElementById('model');
+                const selectedModel = modelSelect.value || '{t['auto_select']}';
+                
+                // Disable form during upload
+                submitBtn.disabled = true;
+                uploadArea.style.opacity = '0.6';
+                
+                resultDiv.className = 'info';
+                resultDiv.innerHTML = '<p>{t['uploading_file']}...</p>';
+                resultDiv.style.display = 'block';
+                
+                try {{
+                    const response = await fetch('{get_url('/api/v1/predict')}', {{
+                        method: 'POST',
+                        body: formData
+                    }});
+                    const data = await response.json();
+                    
+                    if (response.ok) {{
+                        currentJobId = data.id;
+                        // Start polling for status
+                        pollJobStatus(data.id, selectedModel);
+                    }} else {{
+                        resultDiv.className = 'error';
+                        resultDiv.innerHTML = `<p>{t['error']}: ${{data.detail}}</p>`;
+                        submitBtn.disabled = false;
+                        uploadArea.style.opacity = '1';
+                    }}
+                }} catch (error) {{
+                    resultDiv.className = 'error';
+                    resultDiv.innerHTML = `<p>{t['upload_failed']}: ${{error.message}}</p>`;
+                    submitBtn.disabled = false;
+                    uploadArea.style.opacity = '1';
+                }}
+            }};
+            
+            // Clean up interval on page unload
+            window.onbeforeunload = function() {{
+                if (statusCheckInterval) {{
+                    clearInterval(statusCheckInterval);
+                }}
+            }};
+        </script>
+    </body>
+    </html>
+    """
+            function updateResultDisplay(job, selectedModel) {{
+                const resultDiv = document.getElementById('result');
+                const statusText = getStatusText(job.status);
+                const statusClass = getStatusClass(job.status);
+                
+                let html = `
+                    <h3>{t['task_created']}</h3>
+                    <p><span class="status-indicator ${{statusClass}}"></span>Job ID: <code>${{job.id}}</code></p>
+                    <p>{t['status']}: <strong>${{statusText}}</strong></p>
+                    <p>{t['selected_model']}: ${{selectedModel}}</p>
+                `;
+                
+                if (job.status === 'completed') {{
+                    html += `
+                        <div class="progress-bar"><div class="progress-fill" style="width: 100%"></div></div>
+                        <p style="color: #4CAF50;">✓ {t['processing_complete']}</p>
+                        <button class="download-btn" onclick="downloadResult('${{job.id}}')">📥 {t['download_results']}</button>
+                    `;
+                }} else if (job.status === 'failed') {{
+                    html += `
+                        <p style="color: #f44336;">✗ {t['processing_failed']}</p>
+                        ${{job.error_message ? `<p style="color: #666; font-size: 12px;">${{job.error_message}}</p>` : ''}}
+                    `;
+                }} else if (job.status === 'processing' || job.status === 'validating') {{
+                    html += `
+                        <div class="progress-bar"><div class="progress-fill" style="width: 60%"></div></div>
+                        <p style="color: #666;">{t['processing_wait']}</p>
+                    `;
+                }} else {{
+                    html += `
+                        <div class="progress-bar"><div class="progress-fill" style="width: 20%"></div></div>
+                        <p style="color: #666;">{t['waiting_in_queue']}</p>
+                    `;
+                }}
+                
+                html += `<p style="margin-top: 15px;"><a href="{get_url('/web/jobs')}?lang={lang}">{t['view_task_list']}</a></p>`;
+                
+                resultDiv.innerHTML = html;
+                resultDiv.style.display = 'block';
+            }}
+            
+            async function pollJobStatus(jobId, selectedModel) {{
+                const resultDiv = document.getElementById('result');
+                resultDiv.className = 'info';
+                
+                const poll = async () => {{
+                    const job = await checkJobStatus(jobId);
+                    if (!job) return;
+                    
+                    updateResultDisplay(job, selectedModel);
+                    
+                    if (job.status === 'completed' || job.status === 'failed') {{
+                        // Stop polling
+                        if (statusCheckInterval) {{
+                            clearInterval(statusCheckInterval);
+                            statusCheckInterval = null;
+                        }}
+                        // Enable form
+                        document.getElementById('submitBtn').disabled = false;
+                        document.getElementById('uploadArea').style.opacity = '1';
+                        
+                        // Auto download on completion
+                        if (job.status === 'completed') {{
+                            setTimeout(() => downloadResult(jobId), 1000);
+                        }}
+                    }}
+                }};
+                
+                // Poll immediately and then every 2 seconds
+                poll();
+                statusCheckInterval = setInterval(poll, 2000);
+            }}
+            
+            async function downloadResult(jobId) {{
+                try {{
+                    const response = await fetch(`{get_url('/api/v1/download/')}${{jobId}}`);
+                    if (!response.ok) throw new Error('Download failed');
+                    
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `predictions_${{jobId}}.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                }} catch (error) {{
+                    alert('{t['download_failed']}: ' + error.message);
+                }}
+            }}
+            
+            document.getElementById('uploadForm').onsubmit = async function(e) {{
+                e.preventDefault();
+                
+                // Clear any existing interval
+                if (statusCheckInterval) {{
+                    clearInterval(statusCheckInterval);
+                    statusCheckInterval = null;
+                }}
+                
+                const formData = new FormData(this);
+                const resultDiv = document.getElementById('result');
+                const submitBtn = document.getElementById('submitBtn');
+                const uploadArea = document.getElementById('uploadArea');
+                
+                // Show selected model in result
+                const modelSelect = document.getElementById('model');
+                const selectedModel = modelSelect.value || '{t['auto_select']}';
+                
+                // Disable form during upload
+                submitBtn.disabled = true;
+                uploadArea.style.opacity = '0.6';
+                
+                resultDiv.className = 'info';
+                resultDiv.innerHTML = '<p>{t['uploading_file']}...</p>';
+                resultDiv.style.display = 'block';
+                
+                try {{
+                    const response = await fetch('{get_url('/api/v1/predict')}', {{
+                        method: 'POST',
+                        body: formData
+                    }});
+                    const data = await response.json();
+                    
+                    if (response.ok) {{
+                        currentJobId = data.id;
+                        // Start polling for status
+                        pollJobStatus(data.id, selectedModel);
+                    }} else {{
+                        resultDiv.className = 'error';
+                        resultDiv.innerHTML = `<p>{t['error']}: ${{data.detail}}</p>`;
+                        submitBtn.disabled = false;
+                        uploadArea.style.opacity = '1';
+                    }}
+                }} catch (error) {{
+                    resultDiv.className = 'error';
+                    resultDiv.innerHTML = `<p>{t['upload_failed']}: ${{error.message}}</p>`;
+                    submitBtn.disabled = false;
+                    uploadArea.style.opacity = '1';
+                }}
+            }};
+            
+            // Clean up interval on page unload
+            window.onbeforeunload = function() {{
+                if (statusCheckInterval) {{
+                    clearInterval(statusCheckInterval);
+                }}
+            }};
+        </script>
+    </body>
+    </html>
+    """
 @app.get("/web/jobs", response_class=HTMLResponse)
 async def jobs_page(lang: str = Query(default="en", description="Language code")):
     t = get_text(lang)

@@ -417,21 +417,18 @@ def run_tests(test_files: Dict[str, Path], use_api: bool = True, use_cli: bool =
             result = run_cli_prediction(test_name, test_file, model_name)
             results["cli_tests"][test_name] = result
             
-            if not use_api:
-                results["summary"]["total"] += 1
-                if result["success"]:
-                    results["summary"]["passed"] += 1
-                    print(f"  PASSED")
-                else:
-                    results["summary"]["failed"] += 1
-                    results["summary"]["errors"].append({
-                        "test": test_name,
-                        "error": result["error"]
-                    })
-                    print(f"  FAILED: {result['error']}")
+            # Always count CLI tests in summary
+            results["summary"]["total"] += 1
+            if result["success"]:
+                results["summary"]["passed"] += 1
+                print(f"  PASSED")
             else:
-                status = "PASSED" if result["success"] else f"FAILED: {result['error']}"
-                print(f"  {status}")
+                results["summary"]["failed"] += 1
+                results["summary"]["errors"].append({
+                    "test": f"cli_{test_name}",
+                    "error": result["error"]
+                })
+                print(f"  FAILED: {result['error']}")
     
     return results
 
