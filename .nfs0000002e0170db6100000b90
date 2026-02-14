@@ -64,3 +64,23 @@ ValueError: Model not fitted
 2026-02-13 19:53:39,149 - otk.data.data_split - INFO - Data loaded: train=5808151, val=715972, test=755098
 2026-02-13 19:53:39,224 - otk.models.base_model - INFO - Training baseline_mlp with 57 features
 2026-02-13 19:53:40,254 - otk.models.base_model - INFO - Fitting model...
+2026-02-13 21:32:00,021 - __main__ - ERROR - Failed to train baseline_mlp: Model not fitted
+Traceback (most recent call last):
+  File "/data/home/wsx/Projects/otk/otk/train_unified.py", line 89, in main
+    output_dir = 'otk_api/models/tabpfn'
+                    ^^^^^^^^^^^^^^^^^^^^
+  File "/data/home/wsx/Projects/otk/otk/train_unified.py", line 62, in train_neural_model
+    return results
+              ^^^^
+  File "/data/home/wsx/Projects/otk/otk/src/otk/models/base_model.py", line 297, in train
+    self.model.fit(X_train, y_train, X_val, y_val)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/home/wsx/Projects/otk/otk/src/otk/models/neural_models.py", line 92, in fit
+  File "/data/home/wsx/Projects/otk/otk/src/otk/models/neural_models.py", line 107, in predict_proba
+ValueError: Model not fitted
+2026-02-13 21:32:00,319 - __main__ - INFO - Training Neural model: deep_residual
+2026-02-13 21:32:00,320 - otk.data.data_split - INFO - Loaded splits from /data/home/wsx/Projects/otk/otk/src/otk/data/split_2026.json
+2026-02-13 21:32:00,320 - otk.data.data_split - INFO - Random seed used: 2026
+2026-02-13 21:32:44,668 - otk.data.data_split - INFO - Data loaded: train=5808151, val=715972, test=755098
+2026-02-13 21:32:44,740 - otk.models.base_model - INFO - Training deep_residual with 57 features
+2026-02-13 21:32:45,722 - otk.models.base_model - INFO - Fitting model...

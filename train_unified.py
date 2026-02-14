@@ -68,7 +68,7 @@ def train_neural_model(model_name: str, device: str = 'cuda'):
     
     train_df, val_df, test_df = load_split()
     
-    model = create_neural_model(model_name)
+    model = create_neural_model(model_name, device=device)
     
     output_dir = f'otk_api/models/{model_name}'
     trainer = ModelTrainer(model, output_dir, model_name)
@@ -84,7 +84,7 @@ def train_tabpfn_model(device: str = 'cuda'):
     
     train_df, val_df, test_df = load_split()
     
-    model = TabPFNModel(n_estimators=5, max_samples_per_estimator=5000)
+    model = TabPFNModel(n_estimators=5, max_samples_per_estimator=5000, device=device)
     
     output_dir = 'otk_api/models/tabpfn'
     trainer = ModelTrainer(model, output_dir, 'tabpfn')

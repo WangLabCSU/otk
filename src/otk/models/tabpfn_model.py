@@ -43,13 +43,17 @@ class TabPFNModel(BaseEcDNAModel):
         self,
         config: Optional[Dict[str, Any]] = None,
         n_estimators: int = 5,
-        max_samples_per_estimator: int = 5000
+        max_samples_per_estimator: int = 5000,
+        device: str = 'auto'
     ):
         super().__init__(config)
         self.n_estimators = n_estimators
         self.max_samples_per_estimator = max_samples_per_estimator
         self.models = []
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        if device == 'auto':
+            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        else:
+            self.device = device
         
     def prepare_features(self, df: pd.DataFrame) -> np.ndarray:
         """Prepare features"""

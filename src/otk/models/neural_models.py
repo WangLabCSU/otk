@@ -34,11 +34,14 @@ def set_random_seed(seed: int = RANDOM_SEED):
 class BaselineMLPModel(BaseEcDNAModel):
     """Baseline MLP model"""
     
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None, device: str = 'auto'):
         super().__init__(config)
         self.config = config or {}
         self.model = None
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        if device == 'auto':
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        else:
+            self.device = torch.device(device)
         
     def prepare_features(self, df: pd.DataFrame) -> np.ndarray:
         """Prepare features"""
@@ -141,7 +144,7 @@ class BaselineMLPModel(BaseEcDNAModel):
 class TransformerEcDNAModel(BaseEcDNAModel):
     """Transformer-based ecDNA prediction model"""
     
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None, device: str = 'auto'):
         super().__init__(config)
         self.config = config or {
             'input_dim': 57,
@@ -151,7 +154,10 @@ class TransformerEcDNAModel(BaseEcDNAModel):
             'dropout': 0.3
         }
         self.model = None
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        if device == 'auto':
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        else:
+            self.device = torch.device(device)
     
     def prepare_features(self, df: pd.DataFrame) -> np.ndarray:
         """Prepare features"""
@@ -288,11 +294,14 @@ class TransformerModel(nn.Module):
 class DeepResidualModel(BaseEcDNAModel):
     """Deep Residual Network model"""
     
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None, device: str = 'auto'):
         super().__init__(config)
         self.config = config or {}
         self.model = None
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        if device == 'auto':
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        else:
+            self.device = torch.device(device)
     
     def prepare_features(self, df: pd.DataFrame) -> np.ndarray:
         feature_cols = [c for c in df.columns if c not in ['sample', 'gene_id', 'y']]
@@ -374,11 +383,14 @@ class DeepResidualModel(BaseEcDNAModel):
 class OptimizedResidualModel(BaseEcDNAModel):
     """Optimized Residual Network model"""
     
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None, device: str = 'auto'):
         super().__init__(config)
         self.config = config or {}
         self.model = None
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        if device == 'auto':
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        else:
+            self.device = torch.device(device)
     
     def prepare_features(self, df: pd.DataFrame) -> np.ndarray:
         feature_cols = [c for c in df.columns if c not in ['sample', 'gene_id', 'y']]
@@ -460,11 +472,14 @@ class OptimizedResidualModel(BaseEcDNAModel):
 class DGITSuperModel(BaseEcDNAModel):
     """DGIT Super model"""
     
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None, device: str = 'auto'):
         super().__init__(config)
         self.config = config or {}
         self.model = None
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        if device == 'auto':
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        else:
+            self.device = torch.device(device)
     
     def prepare_features(self, df: pd.DataFrame) -> np.ndarray:
         feature_cols = [c for c in df.columns if c not in ['sample', 'gene_id', 'y']]
@@ -647,8 +662,8 @@ NEURAL_MODELS = {
 }
 
 
-def create_neural_model(model_name: str, config: Optional[Dict] = None) -> BaseEcDNAModel:
+def create_neural_model(model_name: str, config: Optional[Dict] = None, device: str = 'auto') -> BaseEcDNAModel:
     """Factory function to create neural network models"""
     if model_name not in NEURAL_MODELS:
         raise ValueError(f"Unknown model: {model_name}. Available: {list(NEURAL_MODELS.keys())}")
-    return NEURAL_MODELS[model_name](config)
+    return NEURAL_MODELS[model_name](config, device=device)
