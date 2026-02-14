@@ -410,15 +410,25 @@ class TransformerEcDNAModel(BaseEcDNAModel):
             if val_loss is not None:
                 logger.info(f"  Val   - Loss: {val_loss:.4f}, auPRC: {val_auprc:.4f}, AUC: {val_auc:.4f}, P: {val_precision:.4f}, R: {val_recall:.4f}, F1: {val_f1:.4f}")
             
-            # Early stopping
+            # Save best model and early stopping
             if val_auprc > best_val_auprc:
                 best_val_auprc = val_auprc
                 patience_counter = 0
+                # Save best model state
+                self.best_model_state = {k: v.cpu().clone() for k, v in self.model.state_dict().items()}
+                self.best_epoch = epoch + 1
+                self.best_val_auprc = best_val_auprc
+                logger.info(f"  New best model! Val auPRC: {best_val_auprc:.4f}")
             else:
                 patience_counter += 1
                 if patience_counter >= max_patience:
                     logger.info(f"Early stopping at epoch {epoch+1}")
                     break
+        
+        # Load best model state
+        if hasattr(self, 'best_model_state') and self.best_model_state is not None:
+            self.model.load_state_dict({k: v.to(self.device) for k, v in self.best_model_state.items()})
+            logger.info(f"Loaded best model from epoch {self.best_epoch} with Val auPRC: {self.best_val_auprc:.4f}")
         
         training_time = time.time() - start_time
         logger.info(f"Training completed in {training_time:.1f}s")
