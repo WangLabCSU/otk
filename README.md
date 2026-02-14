@@ -150,15 +150,44 @@ Note: Sample-level classification follows these rules:
 
 ## Model Architecture
 
-otk supports multiple deep learning model architectures (MLP, Transformer, MultiInputTransformer) with configurable parameters. The default MLP configuration is:
+otk supports multiple model architectures with unified interface:
 
-- Input layer: 57 features (matching the input data format)
-- Hidden layer 1: 128 neurons, ReLU activation, 20% dropout
-- Hidden layer 2: 64 neurons, ReLU activation, 20% dropout
-- Hidden layer 3: 32 neurons, ReLU activation, 10% dropout
-- Output layer: 1 neuron, Sigmoid activation
+### Available Models
 
-The model uses BCEWithLogitsLoss (or CombinedLoss with Focal Loss for imbalanced data) as the loss function and Adam as the optimizer.
+| Model | Type | Description |
+|-------|------|-------------|
+| xgb_new | XGBoost | Optimized with feature engineering |
+| xgb_paper | XGBoost | Paper reproduction (11 features) |
+| baseline_mlp | Neural Network | Simple MLP baseline |
+| transformer | Neural Network | Transformer architecture |
+| deep_residual | Neural Network | Deep residual network |
+| optimized_residual | Neural Network | Optimized residual network |
+| dgit_super | Neural Network | Deep gated interaction transformer |
+| tabpfn | TabPFN | TabPFN ensemble |
+
+### Unified Interface
+
+All models inherit from `BaseEcDNAModel` and provide:
+- `fit(X_train, y_train, X_val, y_val)` - Training
+- `predict_proba(X)` - Probability prediction
+- `predict(X)` - Binary prediction
+- `save(path)` / `load(path)` - Persistence
+
+### Data Split
+
+All models use unified data split (80/10/10) with seed=2026 for reproducibility.
+
+## Training Script
+
+Use the unified training script:
+
+```bash
+# Train single model
+python train_unified.py --model xgb_new
+
+# Train all models
+python train_unified.py --all
+```
 
 ## Configuration File
 
