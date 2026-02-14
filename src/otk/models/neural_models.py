@@ -120,17 +120,14 @@ class BaselineMLPModel(BaseEcDNAModel):
     
     def fit(self, X_train, y_train, X_val=None, y_val=None, **kwargs):
         from torch.utils.data import DataLoader, TensorDataset
-        from sklearn.metrics import average_precision_score, roc_auc_score
+        from sklearn.metrics import average_precision_score, roc_auc_score, precision_score, recall_score, f1_score
         import time
         
-        # Set random seed for reproducibility
         set_random_seed(RANDOM_SEED)
         
-        # Prepare data
         X_train_arr = self.prepare_features(X_train)
         y_train_arr = y_train.values.astype(np.float32)
         
-        # Create simple MLP
         input_dim = X_train_arr.shape[1]
         self.model = nn.Sequential(
             nn.Linear(input_dim, 128),
@@ -142,7 +139,6 @@ class BaselineMLPModel(BaseEcDNAModel):
             nn.Linear(64, 1)
         ).to(self.device)
         
-        # Training setup
         train_dataset = TensorDataset(
             torch.tensor(X_train_arr),
             torch.tensor(y_train_arr).unsqueeze(1)
@@ -152,13 +148,14 @@ class BaselineMLPModel(BaseEcDNAModel):
         optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
         criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([10.0]).to(self.device))
         
-        # Training with detailed logging
         best_val_auprc = 0
+        best_model_state = None
+        best_epoch = 0
         patience_counter = 0
         max_patience = 10
         n_epochs = 100
         
-        logger.info(f"Starting training: {n_epochs} epochs, {len(train_loader)} batches/epoch")
+        logger.info(f"Starting BaselineMLP training: {n_epochs} epochs, {len(train_loader)} batches/epoch")
         start_time = time.time()
         
         for epoch in range(n_epochs):
@@ -176,33 +173,51 @@ class BaselineMLPModel(BaseEcDNAModel):
                 epoch_loss += loss.item()
                 n_batches += 1
             
-            avg_loss = epoch_loss / n_batches
+            train_loss = epoch_loss / n_batches
             
-            # Validation
-            if X_val is not None and y_val is not None and (epoch + 1) % 5 == 0:
-                self.is_fitted = True
+            # Compute train metrics
+            self.is_fitted = True
+            train_probs = self.predict_proba(X_train)
+            train_auprc = average_precision_score(y_train.values, train_probs)
+            train_auc = roc_auc_score(y_train.values, train_probs)
+            
+            # Compute val metrics
+            val_loss = None
+            val_auprc = 0
+            val_auc = 0
+            
+            if X_val is not None and y_val is not None:
                 val_probs = self.predict_proba(X_val)
                 val_auprc = average_precision_score(y_val.values, val_probs)
                 val_auc = roc_auc_score(y_val.values, val_probs)
-                
-                logger.info(f"Epoch {epoch+1}/{n_epochs} - Loss: {avg_loss:.4f} - Val auPRC: {val_auprc:.4f} - Val AUC: {val_auc:.4f}")
-                
-                # Early stopping
-                if val_auprc > best_val_auprc:
-                    best_val_auprc = val_auprc
-                    patience_counter = 0
-                else:
-                    patience_counter += 1
-                    if patience_counter >= max_patience:
-                        logger.info(f"Early stopping at epoch {epoch+1}")
-                        break
-            elif (epoch + 1) % 10 == 0:
-                logger.info(f"Epoch {epoch+1}/{n_epochs} - Loss: {avg_loss:.4f}")
+            
+            # Log every epoch
+            logger.info(f"Epoch {epoch+1}/{n_epochs}")
+            logger.info(f"  Train - Loss: {train_loss:.4f}, auPRC: {train_auprc:.4f}, AUC: {train_auc:.4f}")
+            if X_val is not None and y_val is not None:
+                logger.info(f"  Val   - auPRC: {val_auprc:.4f}, AUC: {val_auc:.4f}")
+            
+            # Save best model and early stopping
+            if val_auprc > best_val_auprc:
+                best_val_auprc = val_auprc
+                best_model_state = {k: v.cpu().clone() for k, v in self.model.state_dict().items()}
+                best_epoch = epoch + 1
+                logger.info(f"  New best model! Val auPRC: {best_val_auprc:.4f}")
+                patience_counter = 0
+            else:
+                patience_counter += 1
+                if patience_counter >= max_patience:
+                    logger.info(f"Early stopping at epoch {epoch+1}")
+                    break
+        
+        # Load best model state
+        if best_model_state is not None:
+            self.model.load_state_dict({k: v.to(self.device) for k, v in best_model_state.items()})
+            logger.info(f"Loaded best model from epoch {best_epoch} with Val auPRC: {best_val_auprc:.4f}")
         
         training_time = time.time() - start_time
         logger.info(f"Training completed in {training_time:.1f}s")
         
-        # Find optimal threshold
         if X_val is not None and y_val is not None:
             val_probs = self.predict_proba(X_val)
             self.optimal_threshold = self._find_optimal_threshold(y_val.values, val_probs)
@@ -562,6 +577,8 @@ class DeepResidualModel(BaseEcDNAModel):
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10)
         
         best_val_auprc = 0
+        best_model_state = None
+        best_epoch = 0
         patience_counter = 0
         max_patience = 15
         n_epochs = 150
@@ -583,27 +600,46 @@ class DeepResidualModel(BaseEcDNAModel):
                 epoch_loss += loss.item()
                 n_batches += 1
             
-            avg_loss = epoch_loss / n_batches
-            scheduler.step(avg_loss)
+            train_loss = epoch_loss / n_batches
+            scheduler.step(train_loss)
             
-            if X_val is not None and y_val is not None and (epoch + 1) % 5 == 0:
-                self.is_fitted = True
+            # Compute train metrics
+            self.is_fitted = True
+            train_probs = self.predict_proba(X_train)
+            train_auprc = average_precision_score(y_train.values, train_probs)
+            train_auc = roc_auc_score(y_train.values, train_probs)
+            
+            # Compute val metrics
+            val_auprc = 0
+            val_auc = 0
+            if X_val is not None and y_val is not None:
                 val_probs = self.predict_proba(X_val)
                 val_auprc = average_precision_score(y_val.values, val_probs)
                 val_auc = roc_auc_score(y_val.values, val_probs)
-                
-                logger.info(f"Epoch {epoch+1}/{n_epochs} - Loss: {avg_loss:.4f} - Val auPRC: {val_auprc:.4f} - Val AUC: {val_auc:.4f}")
-                
-                if val_auprc > best_val_auprc:
-                    best_val_auprc = val_auprc
-                    patience_counter = 0
-                else:
-                    patience_counter += 1
-                    if patience_counter >= max_patience:
-                        logger.info(f"Early stopping at epoch {epoch+1}")
-                        break
-            elif (epoch + 1) % 10 == 0:
-                logger.info(f"Epoch {epoch+1}/{n_epochs} - Loss: {avg_loss:.4f}")
+            
+            # Log every epoch
+            logger.info(f"Epoch {epoch+1}/{n_epochs}")
+            logger.info(f"  Train - Loss: {train_loss:.4f}, auPRC: {train_auprc:.4f}, AUC: {train_auc:.4f}")
+            if X_val is not None and y_val is not None:
+                logger.info(f"  Val   - auPRC: {val_auprc:.4f}, AUC: {val_auc:.4f}")
+            
+            # Save best model and early stopping
+            if val_auprc > best_val_auprc:
+                best_val_auprc = val_auprc
+                best_model_state = {k: v.cpu().clone() for k, v in self.model.state_dict().items()}
+                best_epoch = epoch + 1
+                logger.info(f"  New best model! Val auPRC: {best_val_auprc:.4f}")
+                patience_counter = 0
+            else:
+                patience_counter += 1
+                if patience_counter >= max_patience:
+                    logger.info(f"Early stopping at epoch {epoch+1}")
+                    break
+        
+        # Load best model state
+        if best_model_state is not None:
+            self.model.load_state_dict({k: v.to(self.device) for k, v in best_model_state.items()})
+            logger.info(f"Loaded best model from epoch {best_epoch} with Val auPRC: {best_val_auprc:.4f}")
         
         training_time = time.time() - start_time
         logger.info(f"Training completed in {training_time:.1f}s")
@@ -668,6 +704,10 @@ class OptimizedResidualModel(BaseEcDNAModel):
     
     def fit(self, X_train, y_train, X_val=None, y_val=None, **kwargs):
         from torch.utils.data import DataLoader, TensorDataset
+        from sklearn.metrics import average_precision_score, roc_auc_score
+        import time
+        
+        set_random_seed(RANDOM_SEED)
         
         X_train_arr = self.prepare_features(X_train)
         y_train_arr = y_train.values.astype(np.float32)
@@ -685,12 +725,9 @@ class OptimizedResidualModel(BaseEcDNAModel):
         criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([10.0]).to(self.device))
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10)
         
-        from sklearn.metrics import average_precision_score, roc_auc_score
-        import time
-        
-        set_random_seed(RANDOM_SEED)
-        
         best_val_auprc = 0
+        best_model_state = None
+        best_epoch = 0
         patience_counter = 0
         max_patience = 15
         n_epochs = 150
@@ -712,27 +749,46 @@ class OptimizedResidualModel(BaseEcDNAModel):
                 epoch_loss += loss.item()
                 n_batches += 1
             
-            avg_loss = epoch_loss / n_batches
-            scheduler.step(avg_loss)
+            train_loss = epoch_loss / n_batches
+            scheduler.step(train_loss)
             
-            if X_val is not None and y_val is not None and (epoch + 1) % 5 == 0:
-                self.is_fitted = True
+            # Compute train metrics
+            self.is_fitted = True
+            train_probs = self.predict_proba(X_train)
+            train_auprc = average_precision_score(y_train.values, train_probs)
+            train_auc = roc_auc_score(y_train.values, train_probs)
+            
+            # Compute val metrics
+            val_auprc = 0
+            val_auc = 0
+            if X_val is not None and y_val is not None:
                 val_probs = self.predict_proba(X_val)
                 val_auprc = average_precision_score(y_val.values, val_probs)
                 val_auc = roc_auc_score(y_val.values, val_probs)
-                
-                logger.info(f"Epoch {epoch+1}/{n_epochs} - Loss: {avg_loss:.4f} - Val auPRC: {val_auprc:.4f} - Val AUC: {val_auc:.4f}")
-                
-                if val_auprc > best_val_auprc:
-                    best_val_auprc = val_auprc
-                    patience_counter = 0
-                else:
-                    patience_counter += 1
-                    if patience_counter >= max_patience:
-                        logger.info(f"Early stopping at epoch {epoch+1}")
-                        break
-            elif (epoch + 1) % 10 == 0:
-                logger.info(f"Epoch {epoch+1}/{n_epochs} - Loss: {avg_loss:.4f}")
+            
+            # Log every epoch
+            logger.info(f"Epoch {epoch+1}/{n_epochs}")
+            logger.info(f"  Train - Loss: {train_loss:.4f}, auPRC: {train_auprc:.4f}, AUC: {train_auc:.4f}")
+            if X_val is not None and y_val is not None:
+                logger.info(f"  Val   - auPRC: {val_auprc:.4f}, AUC: {val_auc:.4f}")
+            
+            # Save best model and early stopping
+            if val_auprc > best_val_auprc:
+                best_val_auprc = val_auprc
+                best_model_state = {k: v.cpu().clone() for k, v in self.model.state_dict().items()}
+                best_epoch = epoch + 1
+                logger.info(f"  New best model! Val auPRC: {best_val_auprc:.4f}")
+                patience_counter = 0
+            else:
+                patience_counter += 1
+                if patience_counter >= max_patience:
+                    logger.info(f"Early stopping at epoch {epoch+1}")
+                    break
+        
+        # Load best model state
+        if best_model_state is not None:
+            self.model.load_state_dict({k: v.to(self.device) for k, v in best_model_state.items()})
+            logger.info(f"Loaded best model from epoch {best_epoch} with Val auPRC: {best_val_auprc:.4f}")
         
         training_time = time.time() - start_time
         logger.info(f"Training completed in {training_time:.1f}s")
@@ -797,6 +853,10 @@ class DGITSuperModel(BaseEcDNAModel):
     
     def fit(self, X_train, y_train, X_val=None, y_val=None, **kwargs):
         from torch.utils.data import DataLoader, TensorDataset
+        from sklearn.metrics import average_precision_score, roc_auc_score
+        import time
+        
+        set_random_seed(RANDOM_SEED)
         
         X_train_arr = self.prepare_features(X_train)
         y_train_arr = y_train.values.astype(np.float32)
@@ -814,12 +874,9 @@ class DGITSuperModel(BaseEcDNAModel):
         criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([10.0]).to(self.device))
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10)
         
-        from sklearn.metrics import average_precision_score, roc_auc_score
-        import time
-        
-        set_random_seed(RANDOM_SEED)
-        
         best_val_auprc = 0
+        best_model_state = None
+        best_epoch = 0
         patience_counter = 0
         max_patience = 15
         n_epochs = 150
@@ -841,27 +898,46 @@ class DGITSuperModel(BaseEcDNAModel):
                 epoch_loss += loss.item()
                 n_batches += 1
             
-            avg_loss = epoch_loss / n_batches
-            scheduler.step(avg_loss)
+            train_loss = epoch_loss / n_batches
+            scheduler.step(train_loss)
             
-            if X_val is not None and y_val is not None and (epoch + 1) % 5 == 0:
-                self.is_fitted = True
+            # Compute train metrics
+            self.is_fitted = True
+            train_probs = self.predict_proba(X_train)
+            train_auprc = average_precision_score(y_train.values, train_probs)
+            train_auc = roc_auc_score(y_train.values, train_probs)
+            
+            # Compute val metrics
+            val_auprc = 0
+            val_auc = 0
+            if X_val is not None and y_val is not None:
                 val_probs = self.predict_proba(X_val)
                 val_auprc = average_precision_score(y_val.values, val_probs)
                 val_auc = roc_auc_score(y_val.values, val_probs)
-                
-                logger.info(f"Epoch {epoch+1}/{n_epochs} - Loss: {avg_loss:.4f} - Val auPRC: {val_auprc:.4f} - Val AUC: {val_auc:.4f}")
-                
-                if val_auprc > best_val_auprc:
-                    best_val_auprc = val_auprc
-                    patience_counter = 0
-                else:
-                    patience_counter += 1
-                    if patience_counter >= max_patience:
-                        logger.info(f"Early stopping at epoch {epoch+1}")
-                        break
-            elif (epoch + 1) % 10 == 0:
-                logger.info(f"Epoch {epoch+1}/{n_epochs} - Loss: {avg_loss:.4f}")
+            
+            # Log every epoch
+            logger.info(f"Epoch {epoch+1}/{n_epochs}")
+            logger.info(f"  Train - Loss: {train_loss:.4f}, auPRC: {train_auprc:.4f}, AUC: {train_auc:.4f}")
+            if X_val is not None and y_val is not None:
+                logger.info(f"  Val   - auPRC: {val_auprc:.4f}, AUC: {val_auc:.4f}")
+            
+            # Save best model and early stopping
+            if val_auprc > best_val_auprc:
+                best_val_auprc = val_auprc
+                best_model_state = {k: v.cpu().clone() for k, v in self.model.state_dict().items()}
+                best_epoch = epoch + 1
+                logger.info(f"  New best model! Val auPRC: {best_val_auprc:.4f}")
+                patience_counter = 0
+            else:
+                patience_counter += 1
+                if patience_counter >= max_patience:
+                    logger.info(f"Early stopping at epoch {epoch+1}")
+                    break
+        
+        # Load best model state
+        if best_model_state is not None:
+            self.model.load_state_dict({k: v.to(self.device) for k, v in best_model_state.items()})
+            logger.info(f"Loaded best model from epoch {best_epoch} with Val auPRC: {best_val_auprc:.4f}")
         
         training_time = time.time() - start_time
         logger.info(f"Training completed in {training_time:.1f}s")
