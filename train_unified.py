@@ -3,9 +3,10 @@
 Unified Training Script for All ecDNA Models
 
 Usage:
-    python train_unified.py --model xgb_new
-    python train_unified.py --model transformer
-    python train_unified.py --all
+    python train_unified.py --model xgb_new --gpu 0
+    python train_unified.py --model transformer --gpu 0
+    python train_unified.py --all --gpu 0
+    python train_unified.py --all --gpu -1  # CPU only
 """
 
 import sys
@@ -14,6 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 import argparse
 import logging
+import torch
 import yaml
 from pathlib import Path
 
@@ -32,9 +34,20 @@ logger = logging.getLogger(__name__)
 RANDOM_SEED = 2026
 
 
-def train_xgb_model(model_type: str, output_dir: str):
+def get_device(gpu: int) -> str:
+    """Get device based on GPU parameter"""
+    if gpu >= 0 and torch.cuda.is_available():
+        device = f'cuda:{gpu}'
+        logger.info(f"Using GPU: {gpu} ({torch.cuda.get_device_name(gpu)})")
+    else:
+        device = 'cpu'
+        logger.info("Using CPU")
+    return device
+
+
+def train_xgb_model(model_type: str, output_dir: str, device: str = 'cuda'):
     """Train XGB model"""
-    logger.info(f"Training XGB model: {model_type}")
+    logger.info(f"Training XGB model: {model_type} on {device}")
     
     train_df, val_df, test_df = load_split()
     
@@ -49,9 +62,9 @@ def train_xgb_model(model_type: str, output_dir: str):
     return results
 
 
-def train_neural_model(model_name: str):
+def train_neural_model(model_name: str, device: str = 'cuda'):
     """Train Neural Network model"""
-    logger.info(f"Training Neural model: {model_name}")
+    logger.info(f"Training Neural model: {model_name} on {device}")
     
     train_df, val_df, test_df = load_split()
     
@@ -65,9 +78,9 @@ def train_neural_model(model_name: str):
     return results
 
 
-def train_tabpfn_model():
+def train_tabpfn_model(device: str = 'cuda'):
     """Train TabPFN model"""
-    logger.info("Training TabPFN model")
+    logger.info(f"Training TabPFN model on {device}")
     
     train_df, val_df, test_df = load_split()
     
@@ -85,9 +98,12 @@ def main():
     parser = argparse.ArgumentParser(description='Train ecDNA models')
     parser.add_argument('--model', type=str, help='Model name')
     parser.add_argument('--all', action='store_true', help='Train all models')
+    parser.add_argument('--gpu', type=int, default=0, 
+                        help='GPU device ID (default: 0). Use -1 for CPU.')
     args = parser.parse_args()
     
-    # All 8 models
+    device = get_device(args.gpu)
+    
     all_models = [
         ('xgb', 'new'),
         ('xgb', 'paper'),
@@ -103,11 +119,11 @@ def main():
         for model_type, model_name in all_models:
             try:
                 if model_type == 'xgb':
-                    train_xgb_model(model_name, f'otk_api/models/xgb_{model_name}')
+                    train_xgb_model(model_name, f'otk_api/models/xgb_{model_name}', device)
                 elif model_type == 'tabpfn':
-                    train_tabpfn_model()
+                    train_tabpfn_model(device)
                 else:
-                    train_neural_model(model_name)
+                    train_neural_model(model_name, device)
             except Exception as e:
                 logger.error(f"Failed to train {model_name or model_type}: {e}")
                 import traceback
@@ -115,12 +131,12 @@ def main():
     
     elif args.model:
         if args.model == 'tabpfn':
-            train_tabpfn_model()
+            train_tabpfn_model(device)
         elif args.model.startswith('xgb_'):
             model_type = args.model.split('_')[1]
-            train_xgb_model(model_type, f'otk_api/models/{args.model}')
+            train_xgb_model(model_type, f'otk_api/models/{args.model}', device)
         else:
-            train_neural_model(args.model)
+            train_neural_model(args.model, device)
     else:
         parser.print_help()
 

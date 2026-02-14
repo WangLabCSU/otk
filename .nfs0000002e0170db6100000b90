@@ -1,0 +1,66 @@
+nohup: ignoring input
+2026-02-13 12:41:26,172 - __main__ - INFO - Training XGB model: new
+2026-02-13 12:41:26,172 - otk.data.data_split - INFO - Loaded splits from /data/home/wsx/Projects/otk/otk/src/otk/data/split_2026.json
+2026-02-13 12:41:26,172 - otk.data.data_split - INFO - Random seed used: 2026
+2026-02-13 12:42:12,772 - otk.data.data_split - INFO - Data loaded: train=5808151, val=715972, test=755098
+2026-02-13 12:42:12,844 - otk.models.base_model - INFO - Training xgb_new with 57 features
+2026-02-13 12:42:13,881 - otk.models.base_model - INFO - Fitting model...
+2026-02-13 12:43:14,117 - otk.models.base_model - INFO - Evaluating gene-level performance...
+2026-02-13 12:43:43,423 - otk.models.base_model - INFO - Evaluating sample-level performance...
+2026-02-13 12:43:57,020 - otk.models.base_model - INFO - Model saved to otk_api/models/xgb_new/xgb_new_model.pkl
+2026-02-13 12:43:57,024 - otk.models.base_model - INFO - Metrics saved to otk_api/models/xgb_new/training_summary.yml
+2026-02-13 12:43:57,029 - otk.models.base_model - INFO - Feature importance saved to otk_api/models/xgb_new/feature_importance.csv
+2026-02-13 12:43:57,030 - otk.models.base_model - INFO - 
+============================================================
+2026-02-13 12:43:57,030 - otk.models.base_model - INFO - Training completed for xgb_new
+2026-02-13 12:43:57,030 - otk.models.base_model - INFO - ============================================================
+2026-02-13 12:43:57,030 - otk.models.base_model - INFO - Gene-level Test auPRC: 0.8339
+2026-02-13 12:43:57,030 - otk.models.base_model - INFO - Gene-level Test Precision: 0.6463
+2026-02-13 12:43:57,030 - otk.models.base_model - INFO - Sample-level Test auROC: 0.9928
+2026-02-13 12:43:57,030 - otk.models.base_model - INFO - Sample-level Test auPRC: 0.9979
+2026-02-13 12:43:57,331 - __main__ - INFO - Training XGB model: paper
+2026-02-13 12:43:57,332 - otk.data.data_split - INFO - Loaded splits from /data/home/wsx/Projects/otk/otk/src/otk/data/split_2026.json
+2026-02-13 12:43:57,332 - otk.data.data_split - INFO - Random seed used: 2026
+2026-02-13 12:44:43,591 - otk.data.data_split - INFO - Data loaded: train=5808151, val=715972, test=755098
+2026-02-13 12:44:43,679 - otk.models.base_model - INFO - Training xgb_paper with 57 features
+2026-02-13 12:44:44,662 - otk.models.base_model - INFO - Fitting model...
+2026-02-13 12:44:53,731 - otk.models.base_model - INFO - Evaluating gene-level performance...
+2026-02-13 12:45:01,234 - otk.models.base_model - INFO - Evaluating sample-level performance...
+2026-02-13 12:45:03,055 - otk.models.base_model - INFO - Model saved to otk_api/models/xgb_paper/xgb_paper_model.pkl
+2026-02-13 12:45:03,062 - otk.models.base_model - INFO - Metrics saved to otk_api/models/xgb_paper/training_summary.yml
+2026-02-13 12:45:03,064 - otk.models.base_model - INFO - Feature importance saved to otk_api/models/xgb_paper/feature_importance.csv
+2026-02-13 12:45:03,065 - otk.models.base_model - INFO - 
+============================================================
+2026-02-13 12:45:03,065 - otk.models.base_model - INFO - Training completed for xgb_paper
+2026-02-13 12:45:03,065 - otk.models.base_model - INFO - ============================================================
+2026-02-13 12:45:03,065 - otk.models.base_model - INFO - Gene-level Test auPRC: 0.7138
+2026-02-13 12:45:03,065 - otk.models.base_model - INFO - Gene-level Test Precision: 0.8620
+2026-02-13 12:45:03,065 - otk.models.base_model - INFO - Sample-level Test auROC: 0.9677
+2026-02-13 12:45:03,065 - otk.models.base_model - INFO - Sample-level Test auPRC: 0.9913
+2026-02-13 12:45:03,349 - __main__ - INFO - Training Neural model: transformer
+2026-02-13 12:45:03,349 - otk.data.data_split - INFO - Loaded splits from /data/home/wsx/Projects/otk/otk/src/otk/data/split_2026.json
+2026-02-13 12:45:03,349 - otk.data.data_split - INFO - Random seed used: 2026
+2026-02-13 12:45:48,649 - otk.data.data_split - INFO - Data loaded: train=5808151, val=715972, test=755098
+2026-02-13 12:45:48,724 - otk.models.base_model - INFO - Training transformer with 57 features
+2026-02-13 12:45:49,764 - otk.models.base_model - INFO - Fitting model...
+2026-02-13 19:52:54,919 - __main__ - ERROR - Failed to train transformer: Model not fitted
+Traceback (most recent call last):
+  File "/data/home/wsx/Projects/otk/otk/train_unified.py", line 89, in main
+    train_neural_model(model_name)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+  File "/data/home/wsx/Projects/otk/otk/train_unified.py", line 62, in train_neural_model
+    results = trainer.train(train_df, val_df, test_df)
+  File "/data/home/wsx/Projects/otk/otk/src/otk/models/base_model.py", line 297, in train
+    self.model.fit(X_train, y_train, X_val, y_val)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/home/wsx/Projects/otk/otk/src/otk/models/neural_models.py", line 203, in fit
+    val_probs = self.predict_proba(X_val)
+  File "/data/home/wsx/Projects/otk/otk/src/otk/models/neural_models.py", line 218, in predict_proba
+    raise ValueError("Model not fitted")
+ValueError: Model not fitted
+2026-02-13 19:52:55,201 - __main__ - INFO - Training Neural model: baseline_mlp
+2026-02-13 19:52:55,202 - otk.data.data_split - INFO - Loaded splits from /data/home/wsx/Projects/otk/otk/src/otk/data/split_2026.json
+2026-02-13 19:52:55,202 - otk.data.data_split - INFO - Random seed used: 2026
+2026-02-13 19:53:39,149 - otk.data.data_split - INFO - Data loaded: train=5808151, val=715972, test=755098
+2026-02-13 19:53:39,224 - otk.models.base_model - INFO - Training baseline_mlp with 57 features
+2026-02-13 19:53:40,254 - otk.models.base_model - INFO - Fitting model...
