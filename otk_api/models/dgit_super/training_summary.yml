@@ -1,55 +1,66 @@
-best_val_auPRC: 0.5711429809135742
-dataset_statistics:
-  test_positive: 4633
-  test_positive_rate: 0.0035596813540905714
-  test_samples: 1301521
-  train_positive: 17925
-  train_positive_rate: 0.0035079431254416704
-  train_samples: 5109832
-  val_positive: 3166
-  val_positive_rate: 0.0036480200942605734
-  val_samples: 867868
-model_info:
-  batch_size: 2048
-  dropout_rate: 0.3
-  hidden_dims: N/A
-  input_dim: 57
-  learning_rate: 0.0002
-  loss_function: DGITSuperLoss
-  model_type: DGITSuper
-  optimizer: AdamW
-  weight_decay: 0.0001
-overfitting_analysis:
-  overfitting_severity: low
-  train_val_auPRC_gap: -0.19374576704746727
-  train_val_precision_gap: -0.5034542207391117
-  train_val_recall_gap: 0.3178090432603737
-performance:
-  test_set:
-    AUC: 0.9389082417744686
-    F1: 0.5030517185994218
-    Precision: 0.9830508474576272
-    Recall: 0.3380099287718541
-    auPRC: 0.6199250610044046
-    optimal_threshold: 0.393939393939394
-  training_set:
-    AUC: 0.8863057023872437
-    F1: 0.5176881134133042
-    Precision: 0.4249955237242614
-    Recall: 0.662092050209205
-    auPRC: 0.3773972138661069
-    optimal_threshold: 0.7272727272727273
-  validation_set:
-    AUC: 0.9181379179596733
-    F1: 0.5023041474654378
-    Precision: 0.9284497444633731
-    Recall: 0.34428300694883135
-    auPRC: 0.5711429809135742
-    optimal_threshold: 0.4040404040404041
-training_progress:
-  best_epoch: 3
-  data_processing_time_seconds: 54.59344840049744
-  early_stopped: true
-  epochs_trained: 33
-  test_evaluation_time_seconds: 23.254430055618286
-  total_training_time_seconds: 11643.119948387146
+gene_level:
+  test:
+    AUC: 0.9914293996053236
+    F1: 0.6697806661251016
+    Precision: 0.7763653483992468
+    Recall: 0.5889285714285715
+    auPRC: 0.7141485439104557
+    threshold: 0.7962474822998047
+  train:
+    AUC: 0.9978763065908034
+    F1: 0.8546531525602211
+    Precision: 0.9166996103236008
+    Recall: 0.8004734194693757
+    auPRC: 0.8941394206454639
+    threshold: 0.7962474822998047
+  val:
+    AUC: 0.9836414161093301
+    F1: 0.7708415645989727
+    Precision: 0.8075331125827815
+    Recall: 0.737339380196523
+    auPRC: 0.7694318631990155
+    threshold: 0.7962474822998047
+model_name: dgit_super
+sample_level:
+  test:
+    AUC: 0.956989247311828
+    Accuracy: 0.85
+    F1: 0.9
+    FN: 4
+    FP: 2
+    Precision: 0.9310344827586207
+    Recall: 0.8709677419354839
+    TN: 7
+    TP: 27
+    auPRC: 0.9870510660739051
+    positive_samples: 31
+    predicted_positive: 29
+    total_samples: 40
+  train:
+    AUC: 0.9622892122892123
+    Accuracy: 0.8928571428571429
+    F1: 0.926829268292683
+    FN: 25
+    FP: 8
+    Precision: 0.9631336405529954
+    Recall: 0.8931623931623932
+    TN: 66
+    TP: 209
+    auPRC: 0.9888381616288979
+    positive_samples: 234
+    predicted_positive: 217
+    total_samples: 308
+  val:
+    AUC: 0.9118773946360154
+    Accuracy: 0.8421052631578947
+    F1: 0.896551724137931
+    FN: 3
+    FP: 3
+    Precision: 0.896551724137931
+    Recall: 0.896551724137931
+    TN: 6
+    TP: 26
+    auPRC: 0.9731696537240133
+    positive_samples: 29
+    predicted_positive: 29
+    total_samples: 38

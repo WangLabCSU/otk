@@ -307,7 +307,7 @@ def run_api_prediction(test_name: str, input_file: Path, model: str = None) -> D
     return result
 
 
-def run_cli_prediction(test_name: str, input_file: Path, model_path: str) -> Dict[str, Any]:
+def run_cli_prediction(test_name: str, input_file: Path, model_name: str) -> Dict[str, Any]:
     """Run prediction via CLI (otk predict)"""
     result = {
         "test_name": test_name,
@@ -323,7 +323,7 @@ def run_cli_prediction(test_name: str, input_file: Path, model_path: str) -> Dic
     cmd = [
         "otk", "predict",
         "-i", str(input_file),
-        "-m", model_path,
+        "-m", model_name,
         "-o", str(output_dir)
     ]
     
@@ -375,7 +375,7 @@ def run_tests(test_files: Dict[str, Path], use_api: bool = True, use_cli: bool =
         }
     }
     
-    model_path = str(OTK_API_DIR / "models" / "transformer" / "best_model.pth")
+    model_name = "transformer"
     
     if use_api:
         print("\n" + "=" * 60)
@@ -414,7 +414,7 @@ def run_tests(test_files: Dict[str, Path], use_api: bool = True, use_cli: bool =
         
         for test_name, test_file in test_files.items():
             print(f"\nTesting: {test_name}...")
-            result = run_cli_prediction(test_name, test_file, model_path)
+            result = run_cli_prediction(test_name, test_file, model_name)
             results["cli_tests"][test_name] = result
             
             if not use_api:

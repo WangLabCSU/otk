@@ -167,6 +167,48 @@ class UnifiedPredictor:
     
     def _load_pickle_model(self):
         """Load model from pickle file (auto-detect type)"""
+        import torch
+        
+        # Try torch.load first (for PyTorch models saved as .pkl)
+        try:
+            data = torch.load(self.model_path, map_location=self.device, weights_only=False)
+            
+            # Check if it's a neural network model
+            if isinstance(data, dict) and ('model_state' in data or 'model_state_dict' in data):
+                self.model_type = 'neural'
+                self.optimal_threshold = float(data.get('optimal_threshold', 0.5))
+                
+                # Load full config from config.yml
+                config_path = self.model_path.parent / 'config.yml'
+                if config_path.exists():
+                    with open(config_path, 'r') as f:
+                        full_config = yaml.safe_load(f)
+                else:
+                    full_config = data.get('config', {})
+                
+                # Get model type from config
+                model_type = full_config.get('model', {}).get('variant', 'BaselineMLP')
+                
+                # Build model architecture and load state dict
+                self.model = self._build_neural_model(model_type, full_config)
+                state_dict = data.get('model_state', data.get('model_state_dict'))
+                self.model.load_state_dict(state_dict)
+                self.model.to(self.device)
+                self.model.eval()
+                
+                logger.info(f"Loaded neural model from pickle (via torch.load), type: {model_type}")
+                return
+            elif isinstance(data, dict) and 'models' in data:
+                # TabPFN
+                self.model_type = 'tabpfn'
+                self.model = data['models']
+                self.optimal_threshold = float(data.get('optimal_threshold', 0.5))
+                logger.info(f"Loaded TabPFN model from pickle")
+                return
+        except Exception as e:
+            logger.debug(f"torch.load failed: {e}, trying pickle.load")
+        
+        # Fall back to pickle.load for XGBoost models
         with open(self.model_path, 'rb') as f:
             data = pickle.load(f)
         
@@ -181,6 +223,7 @@ class UnifiedPredictor:
                 self.model_type = 'xgboost'
                 self.model = data.get('model', data)
                 self.optimal_threshold = float(data.get('optimal_threshold', 0.5))
+                self.feature_names = data.get('feature_names', None)
             else:
                 raise ValueError("Unknown pickle model format")
         else:
@@ -191,28 +234,47 @@ class UnifiedPredictor:
         logger.info(f"Loaded {self.model_type} model from pickle")
     
     def _build_neural_model(self, model_type, config):
-        """Build neural network model from config"""
-        from otk.models import (
-            BaselineMLPModel, TransformerEcDNAModel,
-            DeepResidualModel, OptimizedResidualModel, DGITSuperModel
+        """Build neural network model from config - returns the actual PyTorch model"""
+        import torch.nn as nn
+        from otk.models.neural_models import (
+            TransformerModel, DeepResidualNet, OptimizedResidualNet, DGITSuperNet
         )
         
-        model_map = {
-            'Baseline': BaselineMLPModel,
-            'BaselineMLP': BaselineMLPModel,
-            'TransformerEcDNA': TransformerEcDNAModel,
-            'Transformer': TransformerEcDNAModel,
-            'DeepResidual': DeepResidualModel,
-            'PrecisionFocusedEcDNA': DeepResidualModel,
-            'OptimizedResidual': OptimizedResidualModel,
-            'OptimizedEcDNA': OptimizedResidualModel,
-            'DGITSuper': DGITSuperModel,
-        }
+        # Get architecture config
+        arch = config.get('model', {}).get('architecture', {})
+        input_dim = arch.get('input_dim', 57)
         
-        if model_type not in model_map:
+        if model_type in ['Transformer', 'TransformerEcDNA']:
+            hidden_dim = arch.get('hidden_dim', 128)
+            num_heads = arch.get('num_heads', 4)
+            num_layers = arch.get('num_layers', 3)
+            dropout = arch.get('dropout', 0.3)
+            return TransformerModel(
+                input_dim=input_dim,
+                hidden_dim=hidden_dim,
+                num_heads=num_heads,
+                num_layers=num_layers,
+                dropout=dropout
+            )
+        elif model_type in ['DeepResidual', 'PrecisionFocusedEcDNA']:
+            return DeepResidualNet(input_dim)
+        elif model_type in ['OptimizedResidual', 'OptimizedEcDNA']:
+            return OptimizedResidualNet(input_dim)
+        elif model_type == 'DGITSuper':
+            return DGITSuperNet(input_dim)
+        elif model_type in ['Baseline', 'BaselineMLP']:
+            # Simple MLP
+            return nn.Sequential(
+                nn.Linear(input_dim, 128),
+                nn.ReLU(),
+                nn.Dropout(0.3),
+                nn.Linear(128, 64),
+                nn.ReLU(),
+                nn.Dropout(0.3),
+                nn.Linear(64, 1)
+            )
+        else:
             raise ValueError(f"Unknown model type: {model_type}")
-        
-        return model_map[model_type](config)
     
     def _load_gene_frequencies(self):
         """Load precomputed gene frequencies"""
