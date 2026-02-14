@@ -311,47 +311,99 @@ class ModelAnalyzer:
         """解析训练摘要 - 支持新旧格式"""
         result = {}
         
-        performance = summary.get('performance', {})
-        if performance:
-            result['train_metrics'] = self.parse_performance_metrics(
-                performance.get('training_set', {})
-            )
-            result['val_metrics'] = self.parse_performance_metrics(
-                performance.get('validation_set', {})
-            )
-            result['test_metrics'] = self.parse_performance_metrics(
-                performance.get('test_set', {})
-            )
-        else:
-            test_metrics = summary.get('test_metrics', {})
-            result['test_metrics'] = self.parse_performance_metrics(test_metrics)
-            result['train_metrics'] = PerformanceMetrics()
-            result['val_metrics'] = PerformanceMetrics()
+        # New format: gene_level and sample_level
+        gene_level = summary.get('gene_level', {})
+        sample_level = summary.get('sample_level', {})
         
-        dataset_stats = summary.get('dataset_statistics', {})
-        if dataset_stats:
-            result['dataset_stats'] = self.parse_dataset_statistics(dataset_stats)
-        else:
-            result['dataset_stats'] = DatasetStatistics()
-        
-        overfitting = summary.get('overfitting_analysis', {})
-        if overfitting:
-            result['overfitting'] = self.parse_overfitting_analysis(overfitting)
-        else:
+        if gene_level:
+            # New unified format
+            result['train_metrics'] = self.parse_performance_metrics(gene_level.get('train', {}))
+            result['val_metrics'] = self.parse_performance_metrics(gene_level.get('val', {}))
+            result['test_metrics'] = self.parse_performance_metrics(gene_level.get('test', {}))
+            
+            # Sample level metrics
+            result['sample_train_metrics'] = self.parse_sample_level_metrics(sample_level.get('train', {}))
+            result['sample_val_metrics'] = self.parse_sample_level_metrics(sample_level.get('val', {}))
+            result['sample_test_metrics'] = self.parse_sample_level_metrics(sample_level.get('test', {}))
+            
+            # Dataset stats from sample level
+            test_sample = sample_level.get('test', {})
+            train_sample = sample_level.get('train', {})
+            val_sample = sample_level.get('val', {})
+            
+            result['dataset_stats'] = DatasetStatistics(
+                train_samples=train_sample.get('total_samples', 0),
+                val_samples=val_sample.get('total_samples', 0),
+                test_samples=test_sample.get('total_samples', 0),
+                train_positive=train_sample.get('positive_samples', 0),
+                val_positive=val_sample.get('positive_samples', 0),
+                test_positive=test_sample.get('positive_samples', 0)
+            )
+            
             result['overfitting'] = OverfittingAnalysis()
-        
-        training_progress = summary.get('training_progress', {})
-        result['best_val_auPRC'] = summary.get('best_val_auPRC', 
-            result['val_metrics'].auPRC if result['val_metrics'].auPRC > 0 else 0.0)
-        result['epochs_trained'] = training_progress.get('epochs_trained', 
-            summary.get('epochs_trained', 0))
-        result['best_epoch'] = training_progress.get('best_epoch', 0)
-        result['early_stopped'] = training_progress.get('early_stopped', 
-            summary.get('early_stopped', False))
-        result['training_time'] = training_progress.get('total_training_time_seconds', 
-            summary.get('total_training_time', 0.0))
+            result['best_val_auPRC'] = result['val_metrics'].auPRC
+            result['epochs_trained'] = 0
+            result['best_epoch'] = 0
+            result['early_stopped'] = False
+            result['training_time'] = 0.0
+        else:
+            # Old format: performance
+            performance = summary.get('performance', {})
+            if performance:
+                result['train_metrics'] = self.parse_performance_metrics(
+                    performance.get('training_set', {})
+                )
+                result['val_metrics'] = self.parse_performance_metrics(
+                    performance.get('validation_set', {})
+                )
+                result['test_metrics'] = self.parse_performance_metrics(
+                    performance.get('test_set', {})
+                )
+            else:
+                test_metrics = summary.get('test_metrics', {})
+                result['test_metrics'] = self.parse_performance_metrics(test_metrics)
+                result['train_metrics'] = PerformanceMetrics()
+                result['val_metrics'] = PerformanceMetrics()
+            
+            dataset_stats = summary.get('dataset_statistics', {})
+            if dataset_stats:
+                result['dataset_stats'] = self.parse_dataset_statistics(dataset_stats)
+            else:
+                result['dataset_stats'] = DatasetStatistics()
+            
+            overfitting = summary.get('overfitting_analysis', {})
+            if overfitting:
+                result['overfitting'] = self.parse_overfitting_analysis(overfitting)
+            else:
+                result['overfitting'] = OverfittingAnalysis()
+            
+            training_progress = summary.get('training_progress', {})
+            result['best_val_auPRC'] = summary.get('best_val_auPRC', 
+                result['val_metrics'].auPRC if result['val_metrics'].auPRC > 0 else 0.0)
+            result['epochs_trained'] = training_progress.get('epochs_trained', 
+                summary.get('epochs_trained', 0))
+            result['best_epoch'] = training_progress.get('best_epoch', 0)
+            result['early_stopped'] = training_progress.get('early_stopped', 
+                summary.get('early_stopped', False))
+            result['training_time'] = training_progress.get('total_training_time_seconds', 
+                summary.get('total_training_time', 0.0))
         
         return result
+    
+    def parse_sample_level_metrics(self, metrics_dict: Dict) -> SampleLevelMetrics:
+        """解析样本级别指标"""
+        return SampleLevelMetrics(
+            auPRC=metrics_dict.get('auPRC', 0.0),
+            AUC=metrics_dict.get('AUC', 0.0),
+            Accuracy=metrics_dict.get('Accuracy', 0.0),
+            Precision=metrics_dict.get('Precision', 0.0),
+            Recall=metrics_dict.get('Recall', 0.0),
+            F1=metrics_dict.get('F1', 0.0),
+            total_samples=metrics_dict.get('total_samples', 0),
+            positive_samples=metrics_dict.get('positive_samples', 0),
+            predicted_positive=metrics_dict.get('predicted_positive', 0),
+            true_positive=metrics_dict.get('TP', 0)
+        )
     
     def evaluate_sample_level(self, model_info: ModelInfo) -> Tuple[SampleLevelMetrics, SampleLevelMetrics, SampleLevelMetrics]:
         """Evaluate model at sample level (circular detection)"""
@@ -498,6 +550,9 @@ class ModelAnalyzer:
             val_metrics=summary_info['val_metrics'],
             test_metrics=summary_info['test_metrics'],
             overfitting=summary_info['overfitting'],
+            sample_train_metrics=summary_info.get('sample_train_metrics', SampleLevelMetrics()),
+            sample_val_metrics=summary_info.get('sample_val_metrics', SampleLevelMetrics()),
+            sample_test_metrics=summary_info.get('sample_test_metrics', SampleLevelMetrics()),
             is_trained=is_trained
         )
         

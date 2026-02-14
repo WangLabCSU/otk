@@ -15,20 +15,23 @@ For our ecDNA prediction task with 7M+ samples and 57 features:
 """
 
 import torch
-import torch.nn as nn
 import numpy as np
 import pandas as pd
 from typing import Optional, Dict, Any, Tuple
 from pathlib import Path
+import pickle
 import logging
-from sklearn.metrics import precision_recall_curve, auc, roc_auc_score
+
+from .base_model import BaseEcDNAModel
 
 logger = logging.getLogger(__name__)
 
+RANDOM_SEED = 2026
 
-class TabPFNWrapper:
+
+class TabPFNModel(BaseEcDNAModel):
     """
-    TabPFN wrapper for ecDNA prediction
+    TabPFN model for ecDNA prediction, inheriting from BaseEcDNAModel.
     
     Handles large datasets through:
     1. Stratified sampling for training
@@ -38,24 +41,20 @@ class TabPFNWrapper:
     
     def __init__(
         self,
+        config: Optional[Dict[str, Any]] = None,
         n_estimators: int = 5,
-        max_samples_per_estimator: int = 5000,
-        random_state: int = 42,
-        device: str = 'auto'
+        max_samples_per_estimator: int = 5000
     ):
+        super().__init__(config)
         self.n_estimators = n_estimators
         self.max_samples_per_estimator = max_samples_per_estimator
-        self.random_state = random_state
-        self.device = device
         self.models = []
-        self.is_fitted = False
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         
-    def _get_device(self):
-        if self.device == 'auto':
-            if torch.cuda.is_available():
-                return 'cuda'
-            return 'cpu'
-        return self.device
+    def prepare_features(self, df: pd.DataFrame) -> np.ndarray:
+        """Prepare features"""
+        feature_cols = [c for c in df.columns if c not in ['sample', 'gene_id', 'y']]
+        return df[feature_cols].fillna(0).values.astype(np.float32)
     
     def _stratified_sample(
         self, 
@@ -82,42 +81,64 @@ class TabPFNWrapper:
         
         return X[selected_idx], y[selected_idx]
     
-    def fit(self, X: np.ndarray, y: np.ndarray) -> 'TabPFNWrapper':
+    def fit(self, X_train, y_train, X_val=None, y_val=None, **kwargs):
         """Fit multiple TabPFN models on stratified samples"""
         from tabpfn import TabPFNClassifier
         
-        device = self._get_device()
-        logger.info(f"Training {self.n_estimators} TabPFN models on device: {device}")
+        # Set random seed
+        np.random.seed(RANDOM_SEED)
+        
+        X_arr = self.prepare_features(X_train) if isinstance(X_train, pd.DataFrame) else X_train
+        y_arr = y_train.values if isinstance(y_train, pd.Series) else y_train
+        
+        logger.info(f"Training {self.n_estimators} TabPFN models on device: {self.device}")
         
         self.models = []
         for i in range(self.n_estimators):
             X_sample, y_sample = self._stratified_sample(
-                X, y, 
+                X_arr, y_arr, 
                 self.max_samples_per_estimator,
-                random_state=self.random_state + i * 100
+                random_state=RANDOM_SEED + i * 100
             )
             
             logger.info(f"Model {i+1}/{self.n_estimators}: Training on {len(X_sample)} samples "
                        f"({(y_sample==1).sum()} positive, {(y_sample==0).sum()} negative)")
             
-            model = TabPFNClassifier(device=device)
+            model = TabPFNClassifier(device=self.device)
             model.fit(X_sample, y_sample)
             self.models.append(model)
         
         self.is_fitted = True
+        
+        # Find optimal threshold using validation set
+        if X_val is not None and y_val is not None:
+            val_probs = self.predict_proba(X_val)
+            self.optimal_threshold = self._find_optimal_threshold(
+                y_val.values if isinstance(y_val, pd.Series) else y_val, 
+                val_probs
+            )
+        
         logger.info(f"TabPFN ensemble trained successfully with {len(self.models)} models")
         return self
     
-    def predict_proba(self, X: np.ndarray, batch_size: int = 10000) -> np.ndarray:
+    def _find_optimal_threshold(self, y_true, y_prob):
+        from sklearn.metrics import precision_recall_curve
+        precision, recall, thresholds = precision_recall_curve(y_true, y_prob)
+        f1_scores = 2 * (precision * recall) / (precision + recall + 1e-10)
+        optimal_idx = np.argmax(f1_scores)
+        return float(thresholds[optimal_idx]) if optimal_idx < len(thresholds) else 0.5
+    
+    def predict_proba(self, X, batch_size: int = 10000) -> np.ndarray:
         """Predict probabilities with ensemble averaging"""
         if not self.is_fitted:
             raise ValueError("Model not fitted. Call fit() first.")
         
-        n_samples = len(X)
+        X_arr = self.prepare_features(X) if isinstance(X, pd.DataFrame) else X
+        n_samples = len(X_arr)
         all_probs = []
         
         for i in range(0, n_samples, batch_size):
-            batch = X[i:i+batch_size]
+            batch = X_arr[i:i+batch_size]
             batch_probs = []
             
             for model in self.models:
@@ -132,159 +153,63 @@ class TabPFNWrapper:
         
         return np.concatenate(all_probs)
     
-    def predict(self, X: np.ndarray, threshold: float = 0.5, batch_size: int = 10000) -> np.ndarray:
-        """Predict labels"""
-        probs = self.predict_proba(X, batch_size)
-        return (probs >= threshold).astype(int)
-    
-    def evaluate(
-        self, 
-        X: np.ndarray, 
-        y: np.ndarray, 
-        batch_size: int = 10000
-    ) -> Dict[str, float]:
-        """Evaluate model performance"""
-        probs = self.predict_proba(X, batch_size)
-        preds = (probs >= 0.5).astype(int)
+    def save(self, path):
+        """Save model to disk"""
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
         
-        precision, recall, thresholds = precision_recall_curve(y, probs)
-        auprc = auc(recall, precision)
-        auc_score = roc_auc_score(y, probs)
-        
-        tp = ((preds == 1) & (y == 1)).sum()
-        fp = ((preds == 1) & (y == 0)).sum()
-        fn = ((preds == 0) & (y == 1)).sum()
-        
-        precision_score = tp / (tp + fp) if (tp + fp) > 0 else 0
-        recall_score = tp / (tp + fn) if (tp + fn) > 0 else 0
-        f1 = 2 * precision_score * recall_score / (precision_score + recall_score) \
-             if (precision_score + recall_score) > 0 else 0
-        
-        return {
-            'auPRC': auprc,
-            'AUC': auc_score,
-            'Precision': precision_score,
-            'Recall': recall_score,
-            'F1': f1
-        }
-
-
-class TabPFNTrainer:
-    """
-    Trainer for TabPFN model on ecDNA dataset
-    """
-    
-    def __init__(
-        self,
-        data_path: str,
-        output_dir: str,
-        n_estimators: int = 5,
-        max_samples_per_estimator: int = 5000,
-        random_state: int = 42
-    ):
-        self.data_path = Path(data_path)
-        self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        
-        self.model = TabPFNWrapper(
-            n_estimators=n_estimators,
-            max_samples_per_estimator=max_samples_per_estimator,
-            random_state=random_state
-        )
-        
-    def load_data(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """Load preprocessed data"""
-        import gzip
-        
-        logger.info(f"Loading data from {self.data_path}")
-        
-        with gzip.open(self.data_path, 'rt') as f:
-            df = pd.read_csv(f)
-        
-        logger.info(f"Loaded data shape: {df.shape}")
-        
-        feature_cols = [col for col in df.columns if col not in ['sample', 'gene_id', 'y']]
-        X = df[feature_cols].values
-        y = df['y'].values
-        samples = df['sample'].values
-        
-        unique_samples = np.unique(samples)
-        np.random.seed(42)
-        np.random.shuffle(unique_samples)
-        
-        n_samples = len(unique_samples)
-        train_end = int(n_samples * 0.7)
-        val_end = int(n_samples * 0.82)
-        
-        train_samples = set(unique_samples[:train_end])
-        val_samples = set(unique_samples[train_end:val_end])
-        test_samples = set(unique_samples[val_end:])
-        
-        train_mask = np.isin(samples, list(train_samples))
-        val_mask = np.isin(samples, list(val_samples))
-        test_mask = np.isin(samples, list(test_samples))
-        
-        X_train, y_train = X[train_mask], y[train_mask]
-        X_val, y_val = X[val_mask], y[val_mask]
-        X_test, y_test = X[test_mask], y[test_mask]
-        
-        logger.info(f"Train: {X_train.shape[0]} samples, {y_train.sum()} positive")
-        logger.info(f"Val: {X_val.shape[0]} samples, {y_val.sum()} positive")
-        logger.info(f"Test: {X_test.shape[0]} samples, {y_test.sum()} positive")
-        
-        return X_train, y_train, X_val, y_val, X_test, y_test
-    
-    def train_and_evaluate(self):
-        """Train and evaluate TabPFN model"""
-        X_train, y_train, X_val, y_val, X_test, y_test = self.load_data()
-        
-        logger.info("Training TabPFN ensemble...")
-        self.model.fit(X_train, y_train)
-        
-        logger.info("Evaluating on validation set...")
-        val_metrics = self.model.evaluate(X_val, y_val)
-        logger.info(f"Validation metrics: {val_metrics}")
-        
-        logger.info("Evaluating on test set...")
-        test_metrics = self.model.evaluate(X_test, y_test)
-        logger.info(f"Test metrics: {test_metrics}")
-        
-        import yaml
-        summary = {
-            'model': 'TabPFN Ensemble',
-            'n_estimators': self.model.n_estimators,
-            'max_samples_per_estimator': self.model.max_samples_per_estimator,
-            'validation_metrics': val_metrics,
-            'test_metrics': test_metrics
+        # Save model configuration and state
+        save_data = {
+            'n_estimators': self.n_estimators,
+            'max_samples_per_estimator': self.max_samples_per_estimator,
+            'optimal_threshold': float(self.optimal_threshold),
+            'device': self.device,
+            'models': self.models  # TabPFN models are picklable
         }
         
-        summary_path = self.output_dir / 'training_summary.yml'
-        with open(summary_path, 'w') as f:
-            yaml.dump(summary, f, default_flow_style=False)
+        with open(path, 'wb') as f:
+            pickle.dump(save_data, f)
+    
+    def load(self, path):
+        """Load model from disk"""
+        with open(path, 'rb') as f:
+            save_data = pickle.load(f)
         
-        logger.info(f"Summary saved to {summary_path}")
+        self.n_estimators = save_data['n_estimators']
+        self.max_samples_per_estimator = save_data['max_samples_per_estimator']
+        self.optimal_threshold = save_data['optimal_threshold']
+        self.device = save_data['device']
+        self.models = save_data['models']
+        self.is_fitted = True
         
-        return val_metrics, test_metrics
+        return self
 
 
-def main():
+def train_tabpfn():
+    """Train TabPFN model using unified interface"""
     import sys
-    sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+    import os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../..'))
+    
+    from otk.data.data_split import load_split
+    from otk.models.base_model import ModelTrainer
     
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     
-    trainer = TabPFNTrainer(
-        data_path='src/otk/data/sorted_modeling_data.csv.gz',
-        output_dir='otk_api/models/tabpfn',
-        n_estimators=5,
-        max_samples_per_estimator=5000
-    )
+    # Load data
+    train_df, val_df, test_df = load_split()
     
-    trainer.train_and_evaluate()
+    # Create model
+    model = TabPFNModel(n_estimators=5, max_samples_per_estimator=5000)
+    
+    # Train
+    trainer = ModelTrainer(model, 'otk_api/models/tabpfn', 'tabpfn')
+    results = trainer.train(train_df, val_df, test_df)
+    
+    return results
 
 
 if __name__ == "__main__":
-    main()
+    train_tabpfn()

@@ -1,0 +1,80 @@
+data:
+  features:
+  - segVal
+  - minor_cn
+  - intersect_ratio
+  - purity
+  - ploidy
+  - AScore
+  - pLOH
+  - cna_burden
+  - CN1
+  - CN2
+  - CN3
+  - CN4
+  - CN5
+  - CN6
+  - CN7
+  - CN8
+  - CN9
+  - CN10
+  - CN11
+  - CN12
+  - CN13
+  - CN14
+  - CN15
+  - CN16
+  - CN17
+  - CN18
+  - CN19
+  - age
+  - gender
+  - type_BLCA
+  - type_BRCA
+  - type_CESC
+  - type_COAD
+  - type_DLBC
+  - type_ESCA
+  - type_GBM
+  - type_HNSC
+  - type_KICH
+  - type_KIRC
+  - type_KIRP
+  - type_LGG
+  - type_LIHC
+  - type_LUAD
+  - type_LUSC
+  - type_OV
+  - type_PRAD
+  - type_READ
+  - type_SARC
+  - type_SKCM
+  - type_STAD
+  - type_THCA
+  - type_UCEC
+  - type_UVM
+  - freq_Linear
+  - freq_BFB
+  - freq_Circular
+  - freq_HR
+  gene_id: gene_id
+  sample_id: sample
+  target: y
+  missing_value_strategy:
+    age: mean
+model:
+  type: TabPFN
+  variant: Ensemble
+  architecture:
+    n_estimators: 5
+    max_samples_per_estimator: 5000
+    device: auto
+prediction:
+  threshold: 0.5
+training:
+  batch_size: 10000
+  early_stopping:
+    min_delta: 0.001
+    patience: 50
+  epochs: 1
+  seed: 2026
