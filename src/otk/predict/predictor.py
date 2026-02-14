@@ -52,9 +52,15 @@ class UnifiedPredictor:
     ]
     
     DEFAULT_VALUES = {
-        'minor_cn': 0, 'intersect_ratio': 1.0, 'purity': 0.8,
-        'ploidy': 2.0, 'AScore': 10.0, 'pLOH': 0.1, 'cna_burden': 0.2,
-        'age': 60, 'gender': 0,
+        'minor_cn': 0,
+        'intersect_ratio': 1.0,
+        'purity': 0.8,
+        'ploidy': 2.0,
+        'AScore': 10.0,
+        'pLOH': 0.1,
+        'cna_burden': 0.2,
+        'age': 60,
+        'gender': 0,
     }
     
     def __init__(self, model_path, gpu=-1):
@@ -232,12 +238,23 @@ class UnifiedPredictor:
         """Prepare features for prediction - matches XGBNewModel.prepare_features"""
         feature_df = pd.DataFrame()
         
-        # Core features (order matches XGBNewModel)
-        for f in ['segVal', 'minor_cn', 'purity', 'ploidy', 'pLOH', 'AScore', 'cna_burden']:
+        # segVal is required
+        if 'segVal' not in df.columns:
+            raise ValueError("segVal is a required feature but not found in input data")
+        feature_df['segVal'] = df['segVal'].fillna(0)
+        
+        # Core features with defaults
+        for f in ['minor_cn', 'purity', 'ploidy', 'pLOH', 'AScore', 'cna_burden']:
             if f in df.columns:
-                feature_df[f] = df[f].fillna(0)
+                feature_df[f] = df[f].fillna(self.DEFAULT_VALUES.get(f, 0))
             else:
-                feature_df[f] = 0
+                feature_df[f] = self.DEFAULT_VALUES.get(f, 0)
+        
+        # intersect_ratio defaults to 1.0
+        if 'intersect_ratio' in df.columns:
+            feature_df['intersect_ratio'] = df['intersect_ratio'].fillna(1.0)
+        else:
+            feature_df['intersect_ratio'] = 1.0
         
         # Frequency features
         for f in ['freq_Linear', 'freq_BFB', 'freq_Circular', 'freq_HR']:
@@ -256,13 +273,13 @@ class UnifiedPredictor:
         
         # Clinical
         if 'age' in df.columns:
-            feature_df['age'] = df['age'].fillna(df['age'].mean() if df['age'].notna().any() else 60)
+            feature_df['age'] = df['age'].fillna(self.DEFAULT_VALUES.get('age', 60))
         else:
-            feature_df['age'] = 60
+            feature_df['age'] = self.DEFAULT_VALUES.get('age', 60)
         if 'gender' in df.columns:
-            feature_df['gender'] = df['gender'].fillna(0)
+            feature_df['gender'] = df['gender'].fillna(self.DEFAULT_VALUES.get('gender', 0))
         else:
-            feature_df['gender'] = 0
+            feature_df['gender'] = self.DEFAULT_VALUES.get('gender', 0)
         
         # Cancer types (from df columns)
         for c in [col for col in df.columns if col.startswith('type_')]:
