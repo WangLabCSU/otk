@@ -1,0 +1,66 @@
+gene_level:
+  test:
+    AUC: 0.9566298295356361
+    F1: 0.7837943124269575
+    Precision: 0.8620394173093402
+    Recall: 0.7185714285714285
+    auPRC: 0.7137817760967553
+    threshold: 0.585541307926178
+  train:
+    AUC: 0.9957495974868888
+    F1: 0.8164404553415061
+    Precision: 0.9171277511373417
+    Recall: 0.7356741295985797
+    auPRC: 0.8659715001247452
+    threshold: 0.585541307926178
+  val:
+    AUC: 0.9904863444365118
+    F1: 0.6646046781364778
+    Precision: 0.6802532647407994
+    Recall: 0.6496598639455783
+    auPRC: 0.6394859311658234
+    threshold: 0.585541307926178
+model_name: xgb_paper
+sample_level:
+  test:
+    AUC: 0.967741935483871
+    Accuracy: 0.9
+    F1: 0.9310344827586207
+    FN: 4
+    FP: 0
+    Precision: 1.0
+    Recall: 0.8709677419354839
+    TN: 9
+    TP: 27
+    auPRC: 0.9912912103793997
+    positive_samples: 31
+    predicted_positive: 27
+    total_samples: 40
+  train:
+    AUC: 0.9383806883806883
+    Accuracy: 0.8701298701298701
+    F1: 0.9103139013452914
+    FN: 31
+    FP: 9
+    Precision: 0.9575471698113207
+    Recall: 0.8675213675213675
+    TN: 65
+    TP: 203
+    auPRC: 0.9807651069260036
+    positive_samples: 234
+    predicted_positive: 212
+    total_samples: 308
+  val:
+    AUC: 0.8620689655172414
+    Accuracy: 0.8157894736842105
+    F1: 0.8727272727272727
+    FN: 5
+    FP: 2
+    Precision: 0.9230769230769231
+    Recall: 0.8275862068965517
+    TN: 7
+    TP: 24
+    auPRC: 0.9557703148540024
+    positive_samples: 29
+    predicted_positive: 26
+    total_samples: 38
