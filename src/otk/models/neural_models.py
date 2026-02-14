@@ -304,6 +304,9 @@ class TransformerEcDNAModel(BaseEcDNAModel):
         criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([10.0]).to(self.device))
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10)
         
+        # Add gradient clipping for stability
+        max_grad_norm = 1.0
+        
         # Training with detailed logging
         from sklearn.metrics import average_precision_score, roc_auc_score
         import time
@@ -327,6 +330,8 @@ class TransformerEcDNAModel(BaseEcDNAModel):
                 outputs = self.model(batch_x)
                 loss = criterion(outputs.squeeze(-1), batch_y.squeeze(-1))
                 loss.backward()
+                # Gradient clipping for stability
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
                 optimizer.step()
                 epoch_loss += loss.item()
                 n_batches += 1
@@ -334,10 +339,19 @@ class TransformerEcDNAModel(BaseEcDNAModel):
             avg_loss = epoch_loss / n_batches
             scheduler.step(avg_loss)
             
+            # Check for NaN loss
+            if np.isnan(avg_loss):
+                logger.warning(f"NaN loss detected at epoch {epoch+1}, stopping training")
+                break
+            
             # Validation
             if X_val is not None and y_val is not None and (epoch + 1) % 5 == 0:
                 self.is_fitted = True
                 val_probs = self.predict_proba(X_val)
+                # Check for NaN predictions
+                if np.any(np.isnan(val_probs)):
+                    logger.warning(f"NaN predictions detected at epoch {epoch+1}")
+                    continue
                 val_auprc = average_precision_score(y_val.values, val_probs)
                 val_auc = roc_auc_score(y_val.values, val_probs)
                 
