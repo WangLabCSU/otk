@@ -8,7 +8,7 @@ without training. However, it has limitations:
 - Max 100 features
 - Max 10 classes
 
-For our ecDNA prediction task with 7M+ samples and 57 features:
+For our ecDNA prediction task with 1M+ records and 57 features:
 1. Use stratified sampling to get representative training subset
 2. Train multiple TabPFN models on different samples
 3. Ensemble predictions for robust results
