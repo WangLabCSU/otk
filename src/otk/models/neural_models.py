@@ -502,12 +502,16 @@ class TransformerEcDNAModel(BaseEcDNAModel):
 
 
 class TransformerModel(nn.Module):
-    """Transformer architecture for ecDNA prediction"""
+    """Transformer architecture for ecDNA prediction with improved stability"""
     
     def __init__(self, input_dim: int, hidden_dim: int, num_heads: int, num_layers: int, dropout: float):
         super().__init__()
         
-        self.input_proj = nn.Linear(input_dim, hidden_dim)
+        self.input_proj = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.Dropout(dropout)
+        )
         
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=hidden_dim,
@@ -515,7 +519,8 @@ class TransformerModel(nn.Module):
             dim_feedforward=hidden_dim * 4,
             dropout=dropout,
             activation='gelu',
-            batch_first=True
+            batch_first=True,
+            norm_first=True
         )
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
         
@@ -526,15 +531,29 @@ class TransformerModel(nn.Module):
             nn.Dropout(dropout),
             nn.Linear(hidden_dim // 2, 1)
         )
+        
+        self._init_weights()
+    
+    def _init_weights(self):
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_uniform_(module.weight, gain=0.5)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+            elif isinstance(module, nn.LayerNorm):
+                nn.init.ones_(module.weight)
+                nn.init.zeros_(module.bias)
     
     def forward(self, x):
-        # Add sequence dimension
-        x = x.unsqueeze(1)  # [batch, 1, features]
+        x = torch.clamp(x, min=-100, max=100)
+        x = torch.nan_to_num(x, nan=0.0, posinf=100.0, neginf=-100.0)
+        
+        x = x.unsqueeze(1)
         h = self.input_proj(x)
         h = self.transformer(h)
         h = h.squeeze(1)
-        output = self.classifier(h)  # [batch, 1]
-        return output.squeeze(-1)  # [batch]
+        output = self.classifier(h)
+        return output.squeeze(-1)
 
 
 class DeepResidualModel(BaseEcDNAModel):
@@ -1030,25 +1049,46 @@ class OptimizedResidualNet(nn.Module):
 
 
 class DGITSuperNet(nn.Module):
-    """DGIT Super Network"""
+    """DGIT Super Network with improved stability"""
     def __init__(self, input_dim: int):
         super().__init__()
-        self.input_proj = nn.Linear(input_dim, 256)
+        self.input_proj = nn.Sequential(
+            nn.Linear(input_dim, 256),
+            nn.LayerNorm(256),
+            nn.Dropout(0.1)
+        )
         self.transformer = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(256, 8, 1024, 0.3, batch_first=True),
+            nn.TransformerEncoderLayer(256, 8, 1024, 0.3, batch_first=True, norm_first=True),
             num_layers=6
         )
         self.classifier = nn.Sequential(
             nn.Linear(256, 128),
-            nn.ReLU(),
+            nn.LayerNorm(128),
+            nn.GELU(),
             nn.Dropout(0.3),
             nn.Linear(128, 64),
-            nn.ReLU(),
+            nn.LayerNorm(64),
+            nn.GELU(),
             nn.Dropout(0.3),
             nn.Linear(64, 1)
         )
+        
+        self._init_weights()
+    
+    def _init_weights(self):
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_uniform_(module.weight, gain=0.5)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+            elif isinstance(module, nn.LayerNorm):
+                nn.init.ones_(module.weight)
+                nn.init.zeros_(module.bias)
     
     def forward(self, x):
+        x = torch.clamp(x, min=-100, max=100)
+        x = torch.nan_to_num(x, nan=0.0, posinf=100.0, neginf=-100.0)
+        
         x = x.unsqueeze(1)
         h = self.input_proj(x)
         h = self.transformer(h)
