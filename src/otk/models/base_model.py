@@ -322,8 +322,8 @@ class ModelTrainer:
             }
         }
         
-        # Save model
-        model_path = self.output_dir / f'{self.model_name}_model.pkl'
+        # Save model (unified naming: best_model.pkl or best_model.pth)
+        model_path = self.output_dir / 'best_model.pkl'
         self.model.save(model_path)
         logger.info(f"Model saved to {model_path}")
         
