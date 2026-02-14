@@ -44,12 +44,13 @@ app = FastAPI(
 
 init_db()
 
-# Start cleanup scheduler for old jobs
 start_cleanup_scheduler()
 
-# Mount static files with base path
+static_dir = Path(__file__).parent.parent / "static"
+static_dir.mkdir(exist_ok=True)
+
 static_path = f"{BASE_PATH}/static" if BASE_PATH else "/static"
-app.mount(static_path, StaticFiles(directory=str(Path(__file__).parent.parent / "static")), name="static")
+app.mount(static_path, StaticFiles(directory=str(static_dir)), name="static")
 
 task_queue = queue.Queue()
 active_jobs = {}

@@ -206,7 +206,9 @@ class UnifiedPredictor:
                 logger.info(f"Loaded TabPFN model from pickle")
                 return
         except Exception as e:
-            logger.debug(f"torch.load failed: {e}, trying pickle.load")
+            logger.warning(f"torch.load failed: {e}, trying pickle.load")
+            import traceback
+            logger.debug(f"torch.load traceback:\n{traceback.format_exc()}")
         
         # Fall back to pickle.load for XGBoost models
         with open(self.model_path, 'rb') as f:
