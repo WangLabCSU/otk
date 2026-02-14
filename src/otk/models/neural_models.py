@@ -31,6 +31,76 @@ def set_random_seed(seed: int = RANDOM_SEED):
         torch.backends.cudnn.benchmark = False
 
 
+def train_neural_model(
+    model, train_loader, X_val, y_val, device,
+    n_epochs=100, lr=0.001, weight_decay=0.01, pos_weight=10.0,
+    patience=15, log_interval=5, model_name="Model"
+):
+    """Generic training function with detailed logging"""
+    from sklearn.metrics import average_precision_score, roc_auc_score
+    import time
+    
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+    criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([pos_weight]).to(device))
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10)
+    
+    best_val_auprc = 0
+    patience_counter = 0
+    
+    logger.info(f"Starting {model_name} training: {n_epochs} epochs, {len(train_loader)} batches/epoch")
+    start_time = time.time()
+    
+    for epoch in range(n_epochs):
+        model.train()
+        epoch_loss = 0
+        n_batches = 0
+        
+        for batch_x, batch_y in train_loader:
+            batch_x, batch_y = batch_x.to(device), batch_y.to(device)
+            optimizer.zero_grad()
+            outputs = model(batch_x)
+            loss = criterion(outputs.squeeze(-1), batch_y.squeeze(-1))
+            loss.backward()
+            optimizer.step()
+            epoch_loss += loss.item()
+            n_batches += 1
+        
+        avg_loss = epoch_loss / n_batches
+        scheduler.step(avg_loss)
+        
+        # Validation
+        if X_val is not None and y_val is not None and (epoch + 1) % log_interval == 0:
+            model.eval()
+            with torch.no_grad():
+                val_probs = []
+                for batch_x, _ in train_loader:
+                    batch_x = batch_x.to(device)
+                    outputs = torch.sigmoid(model(batch_x))
+                    val_probs.extend(outputs.cpu().numpy().flatten())
+            
+            # Use a subset for validation to speed up
+            val_size = min(100000, len(y_val))
+            val_idx = np.random.choice(len(y_val), val_size, replace=False)
+            val_probs_subset = np.array(val_probs)[:val_size] if len(val_probs) >= val_size else np.array(val_probs)
+            y_val_subset = y_val[val_idx] if hasattr(y_val, '__getitem__') else y_val[:val_size]
+            
+            logger.info(f"Epoch {epoch+1}/{n_epochs} - Loss: {avg_loss:.4f}")
+            
+            # Early stopping check
+            if patience > 0:
+                patience_counter += 1
+                if patience_counter >= patience:
+                    logger.info(f"Early stopping at epoch {epoch+1}")
+                    break
+        elif (epoch + 1) % 10 == 0:
+            logger.info(f"Epoch {epoch+1}/{n_epochs} - Loss: {avg_loss:.4f}")
+    
+    training_time = time.time() - start_time
+    logger.info(f"Training completed in {training_time:.1f}s")
+    
+    return model
+
+
 class BaselineMLPModel(BaseEcDNAModel):
     """Baseline MLP model"""
     
@@ -50,6 +120,8 @@ class BaselineMLPModel(BaseEcDNAModel):
     
     def fit(self, X_train, y_train, X_val=None, y_val=None, **kwargs):
         from torch.utils.data import DataLoader, TensorDataset
+        from sklearn.metrics import average_precision_score, roc_auc_score
+        import time
         
         # Set random seed for reproducibility
         set_random_seed(RANDOM_SEED)
@@ -70,7 +142,7 @@ class BaselineMLPModel(BaseEcDNAModel):
             nn.Linear(64, 1)
         ).to(self.device)
         
-        # Training
+        # Training setup
         train_dataset = TensorDataset(
             torch.tensor(X_train_arr),
             torch.tensor(y_train_arr).unsqueeze(1)
@@ -80,8 +152,20 @@ class BaselineMLPModel(BaseEcDNAModel):
         optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
         criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([10.0]).to(self.device))
         
-        self.model.train()
-        for epoch in range(100):
+        # Training with detailed logging
+        best_val_auprc = 0
+        patience_counter = 0
+        max_patience = 10
+        n_epochs = 100
+        
+        logger.info(f"Starting training: {n_epochs} epochs, {len(train_loader)} batches/epoch")
+        start_time = time.time()
+        
+        for epoch in range(n_epochs):
+            self.model.train()
+            epoch_loss = 0
+            n_batches = 0
+            
             for batch_x, batch_y in train_loader:
                 batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
                 optimizer.zero_grad()
@@ -89,11 +173,40 @@ class BaselineMLPModel(BaseEcDNAModel):
                 loss = criterion(outputs, batch_y)
                 loss.backward()
                 optimizer.step()
+                epoch_loss += loss.item()
+                n_batches += 1
+            
+            avg_loss = epoch_loss / n_batches
+            
+            # Validation
+            if X_val is not None and y_val is not None and (epoch + 1) % 5 == 0:
+                self.is_fitted = True
+                val_probs = self.predict_proba(X_val)
+                val_auprc = average_precision_score(y_val.values, val_probs)
+                val_auc = roc_auc_score(y_val.values, val_probs)
+                
+                logger.info(f"Epoch {epoch+1}/{n_epochs} - Loss: {avg_loss:.4f} - Val auPRC: {val_auprc:.4f} - Val AUC: {val_auc:.4f}")
+                
+                # Early stopping
+                if val_auprc > best_val_auprc:
+                    best_val_auprc = val_auprc
+                    patience_counter = 0
+                else:
+                    patience_counter += 1
+                    if patience_counter >= max_patience:
+                        logger.info(f"Early stopping at epoch {epoch+1}")
+                        break
+            elif (epoch + 1) % 10 == 0:
+                logger.info(f"Epoch {epoch+1}/{n_epochs} - Loss: {avg_loss:.4f}")
+        
+        training_time = time.time() - start_time
+        logger.info(f"Training completed in {training_time:.1f}s")
         
         # Find optimal threshold
         if X_val is not None and y_val is not None:
             val_probs = self.predict_proba(X_val)
             self.optimal_threshold = self._find_optimal_threshold(y_val.values, val_probs)
+            logger.info(f"Optimal threshold: {self.optimal_threshold:.4f}")
         
         self.is_fitted = True
         return self
@@ -191,9 +304,23 @@ class TransformerEcDNAModel(BaseEcDNAModel):
         criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([10.0]).to(self.device))
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10)
         
-        self.model.train()
-        for epoch in range(150):
+        # Training with detailed logging
+        from sklearn.metrics import average_precision_score, roc_auc_score
+        import time
+        
+        best_val_auprc = 0
+        patience_counter = 0
+        max_patience = 15
+        n_epochs = 150
+        
+        logger.info(f"Starting Transformer training: {n_epochs} epochs, {len(train_loader)} batches/epoch")
+        logger.info(f"Model config: hidden_dim={self.config['hidden_dim']}, num_heads={self.config['num_heads']}, num_layers={self.config['num_layers']}")
+        start_time = time.time()
+        
+        for epoch in range(n_epochs):
+            self.model.train()
             epoch_loss = 0
+            n_batches = 0
             for batch_x, batch_y in train_loader:
                 batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
                 optimizer.zero_grad()
@@ -202,12 +329,39 @@ class TransformerEcDNAModel(BaseEcDNAModel):
                 loss.backward()
                 optimizer.step()
                 epoch_loss += loss.item()
+                n_batches += 1
             
-            scheduler.step(epoch_loss)
+            avg_loss = epoch_loss / n_batches
+            scheduler.step(avg_loss)
+            
+            # Validation
+            if X_val is not None and y_val is not None and (epoch + 1) % 5 == 0:
+                self.is_fitted = True
+                val_probs = self.predict_proba(X_val)
+                val_auprc = average_precision_score(y_val.values, val_probs)
+                val_auc = roc_auc_score(y_val.values, val_probs)
+                
+                logger.info(f"Epoch {epoch+1}/{n_epochs} - Loss: {avg_loss:.4f} - Val auPRC: {val_auprc:.4f} - Val AUC: {val_auc:.4f}")
+                
+                # Early stopping
+                if val_auprc > best_val_auprc:
+                    best_val_auprc = val_auprc
+                    patience_counter = 0
+                else:
+                    patience_counter += 1
+                    if patience_counter >= max_patience:
+                        logger.info(f"Early stopping at epoch {epoch+1}")
+                        break
+            elif (epoch + 1) % 10 == 0:
+                logger.info(f"Epoch {epoch+1}/{n_epochs} - Loss: {avg_loss:.4f}")
+        
+        training_time = time.time() - start_time
+        logger.info(f"Training completed in {training_time:.1f}s")
         
         if X_val is not None and y_val is not None:
             val_probs = self.predict_proba(X_val)
             self.optimal_threshold = self._find_optimal_threshold(y_val.values, val_probs)
+            logger.info(f"Optimal threshold: {self.optimal_threshold:.4f}")
         
         self.is_fitted = True
         return self
@@ -309,6 +463,10 @@ class DeepResidualModel(BaseEcDNAModel):
     
     def fit(self, X_train, y_train, X_val=None, y_val=None, **kwargs):
         from torch.utils.data import DataLoader, TensorDataset
+        from sklearn.metrics import average_precision_score, roc_auc_score
+        import time
+        
+        set_random_seed(RANDOM_SEED)
         
         X_train_arr = self.prepare_features(X_train)
         y_train_arr = y_train.values.astype(np.float32)
@@ -326,9 +484,18 @@ class DeepResidualModel(BaseEcDNAModel):
         criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([10.0]).to(self.device))
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10)
         
-        self.model.train()
-        for epoch in range(150):
+        best_val_auprc = 0
+        patience_counter = 0
+        max_patience = 15
+        n_epochs = 150
+        
+        logger.info(f"Starting DeepResidual training: {n_epochs} epochs, {len(train_loader)} batches/epoch")
+        start_time = time.time()
+        
+        for epoch in range(n_epochs):
+            self.model.train()
             epoch_loss = 0
+            n_batches = 0
             for batch_x, batch_y in train_loader:
                 batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
                 optimizer.zero_grad()
@@ -337,12 +504,38 @@ class DeepResidualModel(BaseEcDNAModel):
                 loss.backward()
                 optimizer.step()
                 epoch_loss += loss.item()
-            scheduler.step(epoch_loss)
+                n_batches += 1
+            
+            avg_loss = epoch_loss / n_batches
+            scheduler.step(avg_loss)
+            
+            if X_val is not None and y_val is not None and (epoch + 1) % 5 == 0:
+                self.is_fitted = True
+                val_probs = self.predict_proba(X_val)
+                val_auprc = average_precision_score(y_val.values, val_probs)
+                val_auc = roc_auc_score(y_val.values, val_probs)
+                
+                logger.info(f"Epoch {epoch+1}/{n_epochs} - Loss: {avg_loss:.4f} - Val auPRC: {val_auprc:.4f} - Val AUC: {val_auc:.4f}")
+                
+                if val_auprc > best_val_auprc:
+                    best_val_auprc = val_auprc
+                    patience_counter = 0
+                else:
+                    patience_counter += 1
+                    if patience_counter >= max_patience:
+                        logger.info(f"Early stopping at epoch {epoch+1}")
+                        break
+            elif (epoch + 1) % 10 == 0:
+                logger.info(f"Epoch {epoch+1}/{n_epochs} - Loss: {avg_loss:.4f}")
+        
+        training_time = time.time() - start_time
+        logger.info(f"Training completed in {training_time:.1f}s")
         
         self.is_fitted = True
         if X_val is not None and y_val is not None:
             val_probs = self.predict_proba(X_val)
             self.optimal_threshold = self._find_optimal_threshold(y_val.values, val_probs)
+            logger.info(f"Optimal threshold: {self.optimal_threshold:.4f}")
         return self
     
     def _find_optimal_threshold(self, y_true, y_prob):
@@ -415,9 +608,23 @@ class OptimizedResidualModel(BaseEcDNAModel):
         criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([10.0]).to(self.device))
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10)
         
-        self.model.train()
-        for epoch in range(150):
+        from sklearn.metrics import average_precision_score, roc_auc_score
+        import time
+        
+        set_random_seed(RANDOM_SEED)
+        
+        best_val_auprc = 0
+        patience_counter = 0
+        max_patience = 15
+        n_epochs = 150
+        
+        logger.info(f"Starting OptimizedResidual training: {n_epochs} epochs, {len(train_loader)} batches/epoch")
+        start_time = time.time()
+        
+        for epoch in range(n_epochs):
+            self.model.train()
             epoch_loss = 0
+            n_batches = 0
             for batch_x, batch_y in train_loader:
                 batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
                 optimizer.zero_grad()
@@ -426,12 +633,38 @@ class OptimizedResidualModel(BaseEcDNAModel):
                 loss.backward()
                 optimizer.step()
                 epoch_loss += loss.item()
-            scheduler.step(epoch_loss)
+                n_batches += 1
+            
+            avg_loss = epoch_loss / n_batches
+            scheduler.step(avg_loss)
+            
+            if X_val is not None and y_val is not None and (epoch + 1) % 5 == 0:
+                self.is_fitted = True
+                val_probs = self.predict_proba(X_val)
+                val_auprc = average_precision_score(y_val.values, val_probs)
+                val_auc = roc_auc_score(y_val.values, val_probs)
+                
+                logger.info(f"Epoch {epoch+1}/{n_epochs} - Loss: {avg_loss:.4f} - Val auPRC: {val_auprc:.4f} - Val AUC: {val_auc:.4f}")
+                
+                if val_auprc > best_val_auprc:
+                    best_val_auprc = val_auprc
+                    patience_counter = 0
+                else:
+                    patience_counter += 1
+                    if patience_counter >= max_patience:
+                        logger.info(f"Early stopping at epoch {epoch+1}")
+                        break
+            elif (epoch + 1) % 10 == 0:
+                logger.info(f"Epoch {epoch+1}/{n_epochs} - Loss: {avg_loss:.4f}")
+        
+        training_time = time.time() - start_time
+        logger.info(f"Training completed in {training_time:.1f}s")
         
         self.is_fitted = True
         if X_val is not None and y_val is not None:
             val_probs = self.predict_proba(X_val)
             self.optimal_threshold = self._find_optimal_threshold(y_val.values, val_probs)
+            logger.info(f"Optimal threshold: {self.optimal_threshold:.4f}")
         return self
     
     def _find_optimal_threshold(self, y_true, y_prob):
@@ -504,9 +737,23 @@ class DGITSuperModel(BaseEcDNAModel):
         criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([10.0]).to(self.device))
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10)
         
-        self.model.train()
-        for epoch in range(150):
+        from sklearn.metrics import average_precision_score, roc_auc_score
+        import time
+        
+        set_random_seed(RANDOM_SEED)
+        
+        best_val_auprc = 0
+        patience_counter = 0
+        max_patience = 15
+        n_epochs = 150
+        
+        logger.info(f"Starting DGITSuper training: {n_epochs} epochs, {len(train_loader)} batches/epoch")
+        start_time = time.time()
+        
+        for epoch in range(n_epochs):
+            self.model.train()
             epoch_loss = 0
+            n_batches = 0
             for batch_x, batch_y in train_loader:
                 batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
                 optimizer.zero_grad()
@@ -515,12 +762,38 @@ class DGITSuperModel(BaseEcDNAModel):
                 loss.backward()
                 optimizer.step()
                 epoch_loss += loss.item()
-            scheduler.step(epoch_loss)
+                n_batches += 1
+            
+            avg_loss = epoch_loss / n_batches
+            scheduler.step(avg_loss)
+            
+            if X_val is not None and y_val is not None and (epoch + 1) % 5 == 0:
+                self.is_fitted = True
+                val_probs = self.predict_proba(X_val)
+                val_auprc = average_precision_score(y_val.values, val_probs)
+                val_auc = roc_auc_score(y_val.values, val_probs)
+                
+                logger.info(f"Epoch {epoch+1}/{n_epochs} - Loss: {avg_loss:.4f} - Val auPRC: {val_auprc:.4f} - Val AUC: {val_auc:.4f}")
+                
+                if val_auprc > best_val_auprc:
+                    best_val_auprc = val_auprc
+                    patience_counter = 0
+                else:
+                    patience_counter += 1
+                    if patience_counter >= max_patience:
+                        logger.info(f"Early stopping at epoch {epoch+1}")
+                        break
+            elif (epoch + 1) % 10 == 0:
+                logger.info(f"Epoch {epoch+1}/{n_epochs} - Loss: {avg_loss:.4f}")
+        
+        training_time = time.time() - start_time
+        logger.info(f"Training completed in {training_time:.1f}s")
         
         self.is_fitted = True
         if X_val is not None and y_val is not None:
             val_probs = self.predict_proba(X_val)
             self.optimal_threshold = self._find_optimal_threshold(y_val.values, val_probs)
+            logger.info(f"Optimal threshold: {self.optimal_threshold:.4f}")
         return self
     
     def _find_optimal_threshold(self, y_true, y_prob):
