@@ -122,9 +122,17 @@ class UnifiedPredictor:
         if isinstance(data, dict):
             self.model = data.get('model', data.get('xgb_model'))
             self.optimal_threshold = data.get('optimal_threshold', 0.5)
+            # Try to get feature_names from data, fallback to model's feature_names
             self.feature_names = data.get('feature_names', None)
+            # Also check 'features' key which some models use
+            if self.feature_names is None:
+                self.feature_names = data.get('features', None)
+            if self.feature_names is None and hasattr(self.model, 'feature_names') and self.model.feature_names:
+                self.feature_names = self.model.feature_names
         else:
             self.model = data
+            if hasattr(self.model, 'feature_names') and self.model.feature_names:
+                self.feature_names = self.model.feature_names
         
         self.optimal_threshold = float(self.optimal_threshold)
         logger.info(f"XGBoost model loaded, threshold: {self.optimal_threshold:.4f}")
@@ -300,6 +308,12 @@ class UnifiedPredictor:
     
     def prepare_features(self, df):
         """Prepare features for prediction - matches XGBNewModel.prepare_features"""
+        # Handle total_cn -> segVal conversion (for xgb_paper compatibility)
+        if 'total_cn' in df.columns and 'segVal' not in df.columns:
+            df = df.copy()
+            df['segVal'] = df['total_cn']
+            logger.info("Converted 'total_cn' to 'segVal' for model prediction")
+        
         feature_df = pd.DataFrame()
         
         # segVal is required
@@ -320,12 +334,19 @@ class UnifiedPredictor:
         else:
             feature_df['intersect_ratio'] = 1.0
         
-        # Frequency features
+        # Frequency features - use gene_frequencies.csv as prior if not in input
+        gene_ids = df['gene_id'].tolist() if 'gene_id' in df.columns else []
         for f in ['freq_Linear', 'freq_BFB', 'freq_Circular', 'freq_HR']:
             if f in df.columns:
                 feature_df[f] = df[f].fillna(0)
             else:
+                # Try to get from gene_frequencies prior
                 feature_df[f] = 0
+                if gene_ids and self.gene_freqs:
+                    feature_df[f] = [
+                        self.gene_freqs.get(gene_id, {}).get(f, 0) 
+                        for gene_id in gene_ids
+                    ]
         
         # CN signatures
         for i in range(1, 20):

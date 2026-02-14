@@ -82,7 +82,7 @@ model:
     tree_method: hist
   features:
     core_11:
-    - total_cn
+    - segVal
     - minor_cn
     - purity
     - ploidy

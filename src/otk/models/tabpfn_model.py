@@ -87,7 +87,12 @@ class TabPFNModel(BaseEcDNAModel):
     
     def fit(self, X_train, y_train, X_val=None, y_val=None, **kwargs):
         """Fit multiple TabPFN models on stratified samples"""
+        import os
+        # 设置 HuggingFace 中国镜像
+        os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+        
         from tabpfn import TabPFNClassifier
+        from tabpfn.constants import ModelVersion
         
         # Set random seed
         np.random.seed(RANDOM_SEED)
@@ -108,7 +113,8 @@ class TabPFNModel(BaseEcDNAModel):
             logger.info(f"Model {i+1}/{self.n_estimators}: Training on {len(X_sample)} samples "
                        f"({(y_sample==1).sum()} positive, {(y_sample==0).sum()} negative)")
             
-            model = TabPFNClassifier(device=self.device)
+            # 使用 TabPFN v2 (不需要认证)
+            model = TabPFNClassifier.create_default_for_version(ModelVersion.V2, device=self.device)
             model.fit(X_sample, y_sample)
             self.models.append(model)
         
