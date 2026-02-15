@@ -461,8 +461,6 @@ class ModelAnalyzer:
             
             optimal_threshold = predictor.optimal_threshold if predictor.optimal_threshold else 0.5
             
-            feature_cols = [col for col in self.data_df.columns if col not in ['sample', 'gene_id', 'y']]
-            
             def evaluate_split(split_name: str) -> SampleLevelMetrics:
                 split_samples = self.sample_splits[split_name]
                 split_df = self.data_df[self.data_df['sample'].isin(split_samples)].copy()
@@ -470,18 +468,13 @@ class ModelAnalyzer:
                 if len(split_df) == 0:
                     return SampleLevelMetrics()
                 
-                X = split_df[feature_cols].values.astype(np.float32)
+                # 使用 predictor.prepare_features 准备特征（包括工程特征）
+                X, feature_cols = predictor.prepare_features(split_df)
                 y_true_gene = split_df['y'].values
                 samples = split_df['sample'].values
                 
-                import torch
-                from otk.predict.predictor import Prediction_Dataset
-                from torch.utils.data import DataLoader
-                
-                dataset = Prediction_Dataset(X)
-                dataloader = DataLoader(dataset, batch_size=4096, shuffle=False)
-                
-                probs = predictor.predict(dataloader).flatten()
+                # 使用 predict_proba 获取概率，传入 feature_names
+                probs = predictor.predict_proba(X, feature_names=feature_cols).flatten()
                 
                 if np.any(np.isnan(probs)):
                     print(f"  Warning: NaN values in predictions, replacing with 0.5")

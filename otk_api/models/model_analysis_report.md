@@ -1,6 +1,6 @@
 # Model Performance Analysis Report
 
-**Generated**: 2026-02-14 09:54:04
+**Generated**: 2026-02-15 05:57:56
 **Total Models**: 7 trained models
 
 ## Abstract
@@ -45,7 +45,7 @@ which presents significant challenges for model training and evaluation.
 |-------|---------------|--------------|------------|--------|------------|------------|
 | baseline_mlp | 0.001000 | 0.0001 | 4096 | 0 | 0 | No |
 | deep_residual | 0.001000 | 0.0100 | 4096 | 0 | 0 | No |
-| dgit_super | 0.001000 | 0.0100 | 4096 | 33 | 3 | Yes |
+| dgit_super | 0.001000 | 0.0100 | 4096 | 0 | 0 | No |
 | optimized_residual | 0.001000 | 0.0100 | 4096 | 0 | 0 | No |
 | transformer | 0.001000 | 0.0100 | 4096 | 0 | 0 | No |
 | xgb_new | 0.000000 | 0.0000 | 4096 | 0 | 0 | No |
@@ -61,9 +61,9 @@ which presents significant challenges for model training and evaluation.
 | deep_residual | **0.8132** | 0.9953 | 0.9338 | 0.5339 | 0.6794 |
 | optimized_residual | **0.7906** | 0.9962 | 0.8058 | 0.6300 | 0.7072 |
 | baseline_mlp | **0.7663** | 0.9910 | 0.9777 | 0.4864 | 0.6497 |
+| dgit_super | **0.7141** | 0.9914 | 0.7764 | 0.5889 | 0.6698 |
 | xgb_paper | **0.7138** | 0.9566 | 0.8620 | 0.7186 | 0.7838 |
 | transformer | **0.6875** | 0.9922 | 0.8854 | 0.5268 | 0.6605 |
-| dgit_super | **0.6199** | 0.9389 | 0.9831 | 0.3380 | 0.5031 |
 
 ### Complete Performance Comparison
 
@@ -73,7 +73,7 @@ which presents significant challenges for model training and evaluation.
 |-------|-------|-----|-----------|--------|----------|
 | baseline_mlp | 0.9170 | 0.9983 | 0.9624 | 0.7202 | 0.8239 |
 | deep_residual | 0.8807 | 0.9972 | 0.9599 | 0.5749 | 0.7191 |
-| dgit_super | 0.3774 | 0.8863 | 0.4250 | 0.6621 | 0.5177 |
+| dgit_super | 0.8941 | 0.9979 | 0.9167 | 0.8005 | 0.8547 |
 | optimized_residual | 0.9098 | 0.9984 | 0.9219 | 0.8112 | 0.8630 |
 | transformer | 0.9503 | 0.9993 | 0.9394 | 0.8473 | 0.8910 |
 | xgb_new | 0.9519 | 0.9993 | 0.7987 | 0.9299 | 0.8593 |
@@ -85,7 +85,7 @@ which presents significant challenges for model training and evaluation.
 |-------|-------|-----|-----------|--------|----------|
 | baseline_mlp | 0.8005 | 0.9530 | 0.9586 | 0.7169 | 0.8203 |
 | deep_residual | 0.8121 | 0.9621 | 0.9873 | 0.7067 | 0.8238 |
-| dgit_super | 0.5711 | 0.9181 | 0.9284 | 0.3443 | 0.5023 |
+| dgit_super | 0.7694 | 0.9836 | 0.8075 | 0.7373 | 0.7708 |
 | optimized_residual | 0.8283 | 0.9741 | 0.8955 | 0.7672 | 0.8264 |
 | transformer | 0.8393 | 0.9934 | 0.9348 | 0.7532 | 0.8342 |
 | xgb_new | 0.6838 | 0.9914 | 0.6403 | 0.7286 | 0.6816 |
@@ -97,7 +97,7 @@ which presents significant challenges for model training and evaluation.
 |-------|-------|-----|-----------|--------|----------|
 | baseline_mlp | 0.7663 | 0.9910 | 0.9777 | 0.4864 | 0.6497 |
 | deep_residual | 0.8132 | 0.9953 | 0.9338 | 0.5339 | 0.6794 |
-| dgit_super | 0.6199 | 0.9389 | 0.9831 | 0.3380 | 0.5031 |
+| dgit_super | 0.7141 | 0.9914 | 0.7764 | 0.5889 | 0.6698 |
 | optimized_residual | 0.7906 | 0.9962 | 0.8058 | 0.6300 | 0.7072 |
 | transformer | 0.6875 | 0.9922 | 0.8854 | 0.5268 | 0.6605 |
 | xgb_new | 0.8339 | 0.9980 | 0.6463 | 0.7454 | 0.6923 |
@@ -118,6 +118,7 @@ A sample is predicted as circular if any gene in the sample is predicted positiv
 | xgb_paper | **0.9913** | 0.9677 | 0.9000 | 1.0000 | 0.8710 | 0.9310 | 40 |
 | baseline_mlp | **0.9894** | 0.9642 | 0.8000 | 1.0000 | 0.7419 | 0.8519 | 40 |
 | transformer | **0.9891** | 0.9606 | 0.8000 | 1.0000 | 0.7419 | 0.8519 | 40 |
+| dgit_super | **0.9871** | 0.9570 | 0.8500 | 0.9310 | 0.8710 | 0.9000 | 40 |
 
 ### Validation Set Sample-Level Performance
 
@@ -125,6 +126,7 @@ A sample is predicted as circular if any gene in the sample is predicted positiv
 |-------|-------|-----|----------|-----------|--------|-----|---------|
 | baseline_mlp | 0.9712 | 0.9004 | 0.8421 | 1.0000 | 0.7931 | 0.8846 | 38 |
 | deep_residual | 0.9725 | 0.9042 | 0.8158 | 1.0000 | 0.7586 | 0.8627 | 38 |
+| dgit_super | 0.9732 | 0.9119 | 0.8421 | 0.8966 | 0.8966 | 0.8966 | 38 |
 | optimized_residual | 0.9856 | 0.9502 | 0.9211 | 0.9643 | 0.9310 | 0.9474 | 38 |
 | transformer | 0.9742 | 0.9157 | 0.8684 | 0.9615 | 0.8621 | 0.9091 | 38 |
 | xgb_new | 0.9587 | 0.8621 | 0.8158 | 0.8438 | 0.9310 | 0.8852 | 38 |
@@ -136,6 +138,7 @@ A sample is predicted as circular if any gene in the sample is predicted positiv
 |-------|-------|-----|----------|-----------|--------|-----|---------|
 | baseline_mlp | 0.9918 | 0.9732 | 0.8766 | 1.0000 | 0.8376 | 0.9116 | 308 |
 | deep_residual | 0.9896 | 0.9652 | 0.8506 | 0.9947 | 0.8077 | 0.8915 | 308 |
+| dgit_super | 0.9888 | 0.9623 | 0.8929 | 0.9631 | 0.8932 | 0.9268 | 308 |
 | optimized_residual | 0.9900 | 0.9659 | 0.8961 | 0.9810 | 0.8803 | 0.9279 | 308 |
 | transformer | 0.9914 | 0.9715 | 0.8896 | 0.9808 | 0.8718 | 0.9231 | 308 |
 | xgb_new | 0.9906 | 0.9670 | 0.8864 | 0.9198 | 0.9316 | 0.9257 | 308 |
@@ -147,7 +150,7 @@ A sample is predicted as circular if any gene in the sample is predicted positiv
 |-------|---------------------|----------|---------------|------------|
 | baseline_mlp | 0.0000 | ❓ unknown | 0.0000 | 0.0000 |
 | deep_residual | 0.0000 | ❓ unknown | 0.0000 | 0.0000 |
-| dgit_super | -0.1937 | ✅ low | -0.5035 | 0.3178 |
+| dgit_super | 0.0000 | ❓ unknown | 0.0000 | 0.0000 |
 | optimized_residual | 0.0000 | ❓ unknown | 0.0000 | 0.0000 |
 | transformer | 0.0000 | ❓ unknown | 0.0000 | 0.0000 |
 | xgb_new | 0.0000 | ❓ unknown | 0.0000 | 0.0000 |
@@ -160,9 +163,9 @@ A sample is predicted as circular if any gene in the sample is predicted positiv
 | **Best auPRC** | xgb_new | 0.8339 |
 | **Best AUC** | xgb_new | 0.9980 |
 | **Best F1-Score** | xgb_paper | 0.7838 |
-| **Best Precision** | dgit_super | 0.9831 |
+| **Best Precision** | baseline_mlp | 0.9777 |
 | **Best Recall** | xgb_new | 0.7454 |
-| **Best Generalization** | dgit_super | Gap: -0.1937 |
+| **Best Generalization** | baseline_mlp | Gap: 0.0000 |
 | **Best Sample-Level auPRC** | deep_residual | 1.0000 |
 
 ## Architecture Details

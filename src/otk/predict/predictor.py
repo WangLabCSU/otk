@@ -288,7 +288,12 @@ class UnifiedPredictor:
     
     def _load_gene_frequencies(self):
         """Load precomputed gene frequencies"""
-        gene_freq_path = self.model_path.parent.parent.parent / 'src' / 'otk' / 'data' / 'gene_frequencies.csv'
+        import os
+        # Find project root: otk/otk/otk_api -> otk/otk
+        current = Path(__file__).resolve()
+        # otk/predict/predictor.py -> otk/src/otk -> otk/src -> otk
+        project_root = current.parent.parent.parent.parent
+        gene_freq_path = project_root / 'src' / 'otk' / 'data' / 'gene_frequencies.csv'
         
         if gene_freq_path.exists():
             gene_freqs = pd.read_csv(gene_freq_path)
@@ -300,10 +305,10 @@ class UnifiedPredictor:
                     'freq_Circular': row.get('freq_Circular', 0),
                     'freq_HR': row.get('freq_HR', 0)
                 }
-            logger.info(f"Loaded frequencies for {len(gene_freq_dict)} genes")
+            logger.info(f"Loaded frequencies for {len(gene_freq_dict)} genes from {gene_freq_path}")
             return gene_freq_dict
         else:
-            logger.warning(f"Gene frequencies file not found")
+            logger.warning(f"Gene frequencies file not found at {gene_freq_path}")
             return {}
     
     def prepare_features(self, df):
@@ -338,9 +343,14 @@ class UnifiedPredictor:
         gene_ids = df['gene_id'].tolist() if 'gene_id' in df.columns else []
         for f in ['freq_Linear', 'freq_BFB', 'freq_Circular', 'freq_HR']:
             if f in df.columns:
-                feature_df[f] = df[f].fillna(0)
+                feature_df[f] = df[f].copy()
+                if gene_ids and self.gene_freqs:
+                    for idx in feature_df[f].index[feature_df[f].isna()]:
+                        gene_id = gene_ids[idx] if idx < len(gene_ids) else None
+                        if gene_id and gene_id in self.gene_freqs:
+                            feature_df.loc[idx, f] = self.gene_freqs[gene_id].get(f, 0)
+                feature_df[f] = feature_df[f].fillna(0)
             else:
-                # Try to get from gene_frequencies prior
                 feature_df[f] = 0
                 if gene_ids and self.gene_freqs:
                     feature_df[f] = [
