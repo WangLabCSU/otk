@@ -1,6 +1,6 @@
 # Model Performance Analysis Report
 
-**Generated**: 2026-02-15 06:22:40
+**Generated**: 2026-02-15 06:44:30
 **Total Models**: 7 trained models
 
 ## Abstract
@@ -35,7 +35,7 @@ which presents significant challenges for model training and evaluation.
 | deep_residual | DeepResidual | 57→512→256→128→64→32→1 | BCEWithLogitsLoss | AdamW |
 | dgit_super | DGITSuper | 57→256→Transformer(6 layers)→128→64→1 | BCEWithLogitsLoss | AdamW |
 | optimized_residual | OptimizedResidual | 57→128→64→32→16→1 | BCEWithLogitsLoss | AdamW |
-| transformer | Transformer | N/A | BCEWithLogitsLoss | AdamW |
+| transformer | Transformer | 57→128(embedding)→Transformer(3 layers)→64→1 | BCEWithLogitsLoss | AdamW |
 | xgb_new | XGBNew | Gradient Boosted Trees with 57 features | Unknown | Unknown |
 | xgb_paper | XGB11 | Gradient Boosted Trees with 11 features | Unknown | Unknown |
 
@@ -52,6 +52,32 @@ which presents significant challenges for model training and evaluation.
 | xgb_paper | 0.000000 | 0.0000 | 4096 | 0 | 0 | No |
 
 ## Performance Metrics
+
+### Performance Visualization
+
+#### Gene-Level Performance Comparison
+
+![Performance Comparison](performance_comparison.png)
+
+*Figure 1: Model performance comparison on test set. (a) auPRC - primary metric for imbalanced classification. (b) AUC - overall discriminative ability. (c) Precision-Recall trade-off. (d) F1-Score - harmonic mean of precision and recall.*
+
+#### Sample-Level Performance (Circular Detection)
+
+![Sample-Level Performance](sample_level_performance.png)
+
+*Figure 2: Sample-level performance for circular ecDNA detection. A sample is predicted as circular if any gene is predicted positive.*
+
+#### Performance Across Datasets
+
+![Dataset Comparison](dataset_comparison.png)
+
+*Figure 3: Model performance comparison across training, validation, and test datasets. Lower performance on test set indicates potential overfitting.*
+
+#### Multi-dimensional Performance Radar
+
+![Radar Chart](radar_chart.png)
+
+*Figure 4: Multi-dimensional performance comparison of top 5 models. Larger area indicates better overall performance.*
 
 ### Test Set Performance (Primary Evaluation)
 
@@ -148,13 +174,13 @@ A sample is predicted as circular if any gene in the sample is predicted positiv
 
 | Model | Train-Val auPRC Gap | Severity | Precision Gap | Recall Gap |
 |-------|---------------------|----------|---------------|------------|
-| baseline_mlp | 0.0000 | ❓ unknown | 0.0000 | 0.0000 |
-| deep_residual | 0.0000 | ❓ unknown | 0.0000 | 0.0000 |
-| dgit_super | 0.0000 | ❓ unknown | 0.0000 | 0.0000 |
-| optimized_residual | 0.0000 | ❓ unknown | 0.0000 | 0.0000 |
-| transformer | 0.0000 | ❓ unknown | 0.0000 | 0.0000 |
-| xgb_new | 0.0000 | ❓ unknown | 0.0000 | 0.0000 |
-| xgb_paper | 0.0000 | ❓ unknown | 0.0000 | 0.0000 |
+| baseline_mlp | 0.1165 | ⚠️ medium | 0.0039 | 0.0033 |
+| deep_residual | 0.0686 | ✅ low | -0.0274 | -0.1319 |
+| dgit_super | 0.1247 | ⚠️ medium | 0.1092 | 0.0631 |
+| optimized_residual | 0.0815 | ⚠️ medium | 0.0265 | 0.0440 |
+| transformer | 0.1111 | ⚠️ medium | 0.0046 | 0.0941 |
+| xgb_new | 0.2681 | ❌ high | 0.1583 | 0.2013 |
+| xgb_paper | 0.2265 | ❌ high | 0.2369 | 0.0860 |
 
 ## Best Model Recommendations
 
@@ -165,7 +191,7 @@ A sample is predicted as circular if any gene in the sample is predicted positiv
 | **Best F1-Score** | xgb_paper | 0.7838 |
 | **Best Precision** | baseline_mlp | 0.9777 |
 | **Best Recall** | xgb_new | 0.7454 |
-| **Best Generalization** | baseline_mlp | Gap: 0.0000 |
+| **Best Generalization** | deep_residual | Gap: 0.0686 |
 | **Best Sample-Level auPRC** | deep_residual | 1.0000 |
 
 ## Architecture Details
@@ -238,13 +264,13 @@ A sample is predicted as circular if any gene in the sample is predicted positiv
 
 - **Type**: `Transformer`
 
-- **Description**: N/A
+- **Description**: Transformer Attention Model
 
-- **Structure**: `N/A`
+- **Structure**: `57→128(embedding)→Transformer(3 layers)→64→1`
 
-- **Key Features**: 
+- **Key Features**: Self-attention mechanism, LayerNorm, GELU activation, norm_first=True
 
-- **Suitable For**: N/A
+- **Suitable For**: Feature interaction learning, balanced precision-recall
 
 - **Loss Function**: `BCEWithLogitsLoss`
 

@@ -127,6 +127,12 @@ class ModelAnalyzer:
             "features": ["Self-attention mechanism", "LayerNorm", "GELU activation", "norm_first=True"],
             "suitable_for": "Feature interaction learning, balanced precision-recall"
         },
+        "Transformer": {
+            "description": "Transformer Attention Model",
+            "structure": "57→128(embedding)→Transformer(3 layers)→64→1",
+            "features": ["Self-attention mechanism", "LayerNorm", "GELU activation", "norm_first=True"],
+            "suitable_for": "Feature interaction learning, balanced precision-recall"
+        },
         "BaselineMLP": {
             "description": "Simple MLP Network",
             "structure": "57→128→64→1",
@@ -391,7 +397,27 @@ class ModelAnalyzer:
                 test_positive=test_sample.get('positive_samples', 0)
             )
             
-            result['overfitting'] = OverfittingAnalysis()
+            # 计算过拟合分析
+            train_metrics = result['train_metrics']
+            val_metrics = result['val_metrics']
+            auprc_gap = train_metrics.auPRC - val_metrics.auPRC if train_metrics.auPRC > 0 and val_metrics.auPRC > 0 else 0.0
+            precision_gap = train_metrics.Precision - val_metrics.Precision if train_metrics.Precision > 0 and val_metrics.Precision > 0 else 0.0
+            recall_gap = train_metrics.Recall - val_metrics.Recall if train_metrics.Recall > 0 and val_metrics.Recall > 0 else 0.0
+            
+            # 判断过拟合严重程度
+            if auprc_gap > 0.15:
+                severity = "high"
+            elif auprc_gap > 0.08:
+                severity = "medium"
+            else:
+                severity = "low"
+            
+            result['overfitting'] = OverfittingAnalysis(
+                train_val_auPRC_gap=auprc_gap,
+                train_val_precision_gap=precision_gap,
+                train_val_recall_gap=recall_gap,
+                overfitting_severity=severity
+            )
             result['best_val_auPRC'] = result['val_metrics'].auPRC
             result['epochs_trained'] = 0
             result['best_epoch'] = 0
@@ -701,6 +727,38 @@ class ModelAnalyzer:
         
         lines.append("## Performance Metrics")
         lines.append("")
+        lines.append("### Performance Visualization")
+        lines.append("")
+        lines.append("#### Gene-Level Performance Comparison")
+        lines.append("")
+        lines.append("![Performance Comparison](performance_comparison.png)")
+        lines.append("")
+        lines.append("*Figure 1: Model performance comparison on test set. (a) auPRC - primary metric for imbalanced classification. (b) AUC - overall discriminative ability. (c) Precision-Recall trade-off. (d) F1-Score - harmonic mean of precision and recall.*")
+        lines.append("")
+        
+        sample_evaluated = any(m.sample_test_metrics.auPRC > 0 for m in trained_models)
+        if sample_evaluated:
+            lines.append("#### Sample-Level Performance (Circular Detection)")
+            lines.append("")
+            lines.append("![Sample-Level Performance](sample_level_performance.png)")
+            lines.append("")
+            lines.append("*Figure 2: Sample-level performance for circular ecDNA detection. A sample is predicted as circular if any gene is predicted positive.*")
+            lines.append("")
+        
+        lines.append("#### Performance Across Datasets")
+        lines.append("")
+        lines.append("![Dataset Comparison](dataset_comparison.png)")
+        lines.append("")
+        lines.append("*Figure 3: Model performance comparison across training, validation, and test datasets. Lower performance on test set indicates potential overfitting.*")
+        lines.append("")
+        
+        lines.append("#### Multi-dimensional Performance Radar")
+        lines.append("")
+        lines.append("![Radar Chart](radar_chart.png)")
+        lines.append("")
+        lines.append("*Figure 4: Multi-dimensional performance comparison of top 5 models. Larger area indicates better overall performance.*")
+        lines.append("")
+        
         lines.append("### Test Set Performance (Primary Evaluation)")
         lines.append("")
         lines.append("| Model | auPRC | AUC | Precision | Recall | F1-Score |")
@@ -1175,9 +1233,9 @@ def main():
         f.write(report)
     print(f"\nReport saved to: {report_path}")
     
-    # 生成图表
+    # 生成图表（直接放在 models 目录下）
     print("\nGenerating performance plots...")
-    plots_dir = analyzer.models_dir / "analysis_plots"
+    plots_dir = analyzer.models_dir
     analyzer.generate_performance_plots(plots_dir)
 
 
