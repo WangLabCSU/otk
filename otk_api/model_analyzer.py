@@ -7,6 +7,7 @@ Model Analyzer - 自动分析 otk_api/models 下的模型架构和性能
 2. 解析 config.yml 和 training_summary.yml
 3. 生成架构对比和性能汇总报告 (SCI论文级别)
 4. 样本级别评估 (sample-level circular detection)
+5. 生成论文风格图表
 """
 
 import yaml
@@ -19,6 +20,17 @@ from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime
 from sklearn.metrics import precision_recall_curve, auc, roc_auc_score, accuracy_score
+
+# 图表生成
+import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')  # 非交互式后端
+plt.rcParams['font.size'] = 10
+plt.rcParams['axes.labelsize'] = 11
+plt.rcParams['axes.titlesize'] = 12
+plt.rcParams['xtick.labelsize'] = 9
+plt.rcParams['ytick.labelsize'] = 9
+plt.rcParams['legend.fontsize'] = 9
 
 
 @dataclass
@@ -892,6 +904,220 @@ class ModelAnalyzer:
         
         return "\n".join(lines)
     
+    def generate_performance_plots(self, output_dir: Path):
+        """生成论文风格的性能对比图表"""
+        if not self.models:
+            self.analyze_all()
+        
+        trained_models = [m for m in self.models if m.is_trained]
+        if not trained_models:
+            print("No trained models found for plotting")
+            return
+        
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 按 test auPRC 排序
+        sorted_models = sorted(trained_models, key=lambda x: x.test_metrics.auPRC, reverse=True)
+        model_names = [m.name for m in sorted_models]
+        
+        # 设置颜色方案 - 使用科学论文常用的配色
+        colors = plt.cm.Set2(np.linspace(0, 1, len(sorted_models)))
+        
+        # 1. Test Set Performance - 综合性能柱状图
+        fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+        fig.suptitle('Model Performance Comparison (Test Set)', fontsize=14, fontweight='bold')
+        
+        metrics = ['auPRC', 'AUC', 'Precision', 'Recall', 'F1']
+        metric_data = {
+            'auPRC': [m.test_metrics.auPRC for m in sorted_models],
+            'AUC': [m.test_metrics.AUC for m in sorted_models],
+            'Precision': [m.test_metrics.Precision for m in sorted_models],
+            'Recall': [m.test_metrics.Recall for m in sorted_models],
+            'F1': [m.test_metrics.F1 for m in sorted_models]
+        }
+        
+        # auPRC
+        ax = axes[0, 0]
+        bars = ax.barh(model_names, metric_data['auPRC'], color=colors)
+        ax.set_xlabel('auPRC', fontweight='bold')
+        ax.set_xlim(0, 1)
+        ax.invert_yaxis()
+        for i, (bar, val) in enumerate(zip(bars, metric_data['auPRC'])):
+            ax.text(val + 0.01, bar.get_y() + bar.get_height()/2, f'{val:.3f}', 
+                   va='center', fontsize=8)
+        ax.set_title('(a) Area under Precision-Recall Curve', fontweight='bold')
+        ax.grid(axis='x', alpha=0.3)
+        
+        # AUC
+        ax = axes[0, 1]
+        bars = ax.barh(model_names, metric_data['AUC'], color=colors)
+        ax.set_xlabel('AUC', fontweight='bold')
+        ax.set_xlim(0.9, 1.0)
+        ax.invert_yaxis()
+        for i, (bar, val) in enumerate(zip(bars, metric_data['AUC'])):
+            ax.text(val + 0.001, bar.get_y() + bar.get_height()/2, f'{val:.3f}', 
+                   va='center', fontsize=8)
+        ax.set_title('(b) Area under ROC Curve', fontweight='bold')
+        ax.grid(axis='x', alpha=0.3)
+        
+        # Precision vs Recall
+        ax = axes[1, 0]
+        scatter = ax.scatter(metric_data['Recall'], metric_data['Precision'], 
+                           c=range(len(sorted_models)), cmap='Set2', s=150, edgecolors='black', linewidth=1)
+        for i, name in enumerate(model_names):
+            ax.annotate(name, (metric_data['Recall'][i], metric_data['Precision'][i]),
+                       xytext=(5, 5), textcoords='offset points', fontsize=7)
+        ax.set_xlabel('Recall', fontweight='bold')
+        ax.set_ylabel('Precision', fontweight='bold')
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        ax.set_title('(c) Precision-Recall Trade-off', fontweight='bold')
+        ax.grid(alpha=0.3)
+        
+        # F1 Score
+        ax = axes[1, 1]
+        bars = ax.barh(model_names, metric_data['F1'], color=colors)
+        ax.set_xlabel('F1-Score', fontweight='bold')
+        ax.set_xlim(0, 1)
+        ax.invert_yaxis()
+        for i, (bar, val) in enumerate(zip(bars, metric_data['F1'])):
+            ax.text(val + 0.01, bar.get_y() + bar.get_height()/2, f'{val:.3f}', 
+                   va='center', fontsize=8)
+        ax.set_title('(d) F1-Score', fontweight='bold')
+        ax.grid(axis='x', alpha=0.3)
+        
+        plt.tight_layout()
+        plt.savefig(output_dir / 'performance_comparison.png', dpi=300, bbox_inches='tight')
+        plt.savefig(output_dir / 'performance_comparison.pdf', bbox_inches='tight')
+        plt.close()
+        print(f"Saved: {output_dir / 'performance_comparison.png'}")
+        
+        # 2. Sample-Level Performance
+        sample_evaluated = any(m.sample_test_metrics.auPRC > 0 for m in trained_models)
+        if sample_evaluated:
+            fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+            fig.suptitle('Sample-Level Performance (Circular Detection)', fontsize=14, fontweight='bold')
+            
+            sorted_sample = sorted(trained_models, key=lambda x: x.sample_test_metrics.auPRC, reverse=True)
+            sample_names = [m.name for m in sorted_sample]
+            sample_colors = plt.cm.Set2(np.linspace(0, 1, len(sorted_sample)))
+            
+            # Sample auPRC
+            ax = axes[0]
+            sample_auprc = [m.sample_test_metrics.auPRC for m in sorted_sample]
+            bars = ax.barh(sample_names, sample_auprc, color=sample_colors)
+            ax.set_xlabel('auPRC', fontweight='bold')
+            ax.set_xlim(0.95, 1.0)
+            ax.invert_yaxis()
+            for bar, val in zip(bars, sample_auprc):
+                ax.text(val + 0.0005, bar.get_y() + bar.get_height()/2, f'{val:.4f}', 
+                       va='center', fontsize=8)
+            ax.set_title('(a) Sample-Level auPRC', fontweight='bold')
+            ax.grid(axis='x', alpha=0.3)
+            
+            # Sample Precision
+            ax = axes[1]
+            sample_prec = [m.sample_test_metrics.Precision for m in sorted_sample]
+            bars = ax.barh(sample_names, sample_prec, color=sample_colors)
+            ax.set_xlabel('Precision', fontweight='bold')
+            ax.set_xlim(0.9, 1.0)
+            ax.invert_yaxis()
+            for bar, val in zip(bars, sample_prec):
+                ax.text(val + 0.005, bar.get_y() + bar.get_height()/2, f'{val:.3f}', 
+                       va='center', fontsize=8)
+            ax.set_title('(b) Sample-Level Precision', fontweight='bold')
+            ax.grid(axis='x', alpha=0.3)
+            
+            # Sample Recall
+            ax = axes[2]
+            sample_recall = [m.sample_test_metrics.Recall for m in sorted_sample]
+            bars = ax.barh(sample_names, sample_recall, color=sample_colors)
+            ax.set_xlabel('Recall', fontweight='bold')
+            ax.set_xlim(0.7, 1.0)
+            ax.invert_yaxis()
+            for bar, val in zip(bars, sample_recall):
+                ax.text(val + 0.005, bar.get_y() + bar.get_height()/2, f'{val:.3f}', 
+                       va='center', fontsize=8)
+            ax.set_title('(c) Sample-Level Recall', fontweight='bold')
+            ax.grid(axis='x', alpha=0.3)
+            
+            plt.tight_layout()
+            plt.savefig(output_dir / 'sample_level_performance.png', dpi=300, bbox_inches='tight')
+            plt.savefig(output_dir / 'sample_level_performance.pdf', bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {output_dir / 'sample_level_performance.png'}")
+        
+        # 3. Train/Val/Test 对比图
+        fig, ax = plt.subplots(figsize=(12, 6))
+        
+        x = np.arange(len(sorted_models))
+        width = 0.25
+        
+        train_auprc = [m.train_metrics.auPRC for m in sorted_models]
+        val_auprc = [m.val_metrics.auPRC for m in sorted_models]
+        test_auprc = [m.test_metrics.auPRC for m in sorted_models]
+        
+        ax.bar(x - width, train_auprc, width, label='Training', color='#3498db', alpha=0.8)
+        ax.bar(x, val_auprc, width, label='Validation', color='#f39c12', alpha=0.8)
+        ax.bar(x + width, test_auprc, width, label='Test', color='#e74c3c', alpha=0.8)
+        
+        ax.set_xlabel('Model', fontweight='bold')
+        ax.set_ylabel('auPRC', fontweight='bold')
+        ax.set_title('Model Performance Across Datasets', fontsize=12, fontweight='bold')
+        ax.set_xticks(x)
+        ax.set_xticklabels(model_names, rotation=45, ha='right')
+        ax.legend(loc='upper right')
+        ax.grid(axis='y', alpha=0.3)
+        ax.set_ylim(0, 1)
+        
+        plt.tight_layout()
+        plt.savefig(output_dir / 'dataset_comparison.png', dpi=300, bbox_inches='tight')
+        plt.savefig(output_dir / 'dataset_comparison.pdf', bbox_inches='tight')
+        plt.close()
+        print(f"Saved: {output_dir / 'dataset_comparison.png'}")
+        
+        # 4. 雷达图 - 多维度性能对比
+        from math import pi
+        
+        fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(projection='polar'))
+        
+        # 选择前5个模型
+        top_models = sorted_models[:5]
+        categories = ['auPRC', 'AUC', 'Precision', 'Recall', 'F1']
+        N = len(categories)
+        
+        angles = [n / float(N) * 2 * pi for n in range(N)]
+        angles += angles[:1]
+        
+        for i, model in enumerate(top_models):
+            values = [
+                model.test_metrics.auPRC,
+                model.test_metrics.AUC,
+                model.test_metrics.Precision,
+                model.test_metrics.Recall,
+                model.test_metrics.F1
+            ]
+            values += values[:1]
+            
+            ax.plot(angles, values, 'o-', linewidth=2, label=model.name, color=colors[i])
+            ax.fill(angles, values, alpha=0.15, color=colors[i])
+        
+        ax.set_xticks(angles[:-1])
+        ax.set_xticklabels(categories, fontweight='bold')
+        ax.set_ylim(0, 1)
+        ax.set_title('Multi-dimensional Performance Comparison\n(Top 5 Models)', 
+                    fontsize=12, fontweight='bold', pad=20)
+        ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.1))
+        ax.grid(True)
+        
+        plt.tight_layout()
+        plt.savefig(output_dir / 'radar_chart.png', dpi=300, bbox_inches='tight')
+        plt.savefig(output_dir / 'radar_chart.pdf', bbox_inches='tight')
+        plt.close()
+        print(f"Saved: {output_dir / 'radar_chart.png'}")
+        
+        print(f"\nAll plots saved to: {output_dir}")
+    
     def generate_report(self) -> str:
         """生成分析报告 (兼容旧接口)"""
         return self.generate_sci_report()
@@ -942,12 +1168,17 @@ def main():
     
     analyzer.print_comparison_table()
     
+    # 生成报告
     report = analyzer.generate_sci_report()
-    
     report_path = analyzer.models_dir / "model_analysis_report.md"
     with open(report_path, 'w', encoding='utf-8') as f:
         f.write(report)
     print(f"\nReport saved to: {report_path}")
+    
+    # 生成图表
+    print("\nGenerating performance plots...")
+    plots_dir = analyzer.models_dir / "analysis_plots"
+    analyzer.generate_performance_plots(plots_dir)
 
 
 if __name__ == "__main__":
