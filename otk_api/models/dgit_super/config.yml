@@ -65,9 +65,9 @@ data:
 training:
   seed: 2026
   batch_size: 4096
-  epochs: 150
+  epochs: 200
   early_stopping:
-    patience: 50
+    patience: 25
     min_delta: 0.001
 prediction:
   threshold: 0.5
@@ -78,20 +78,7 @@ model:
     input_dim: 57
     hidden_dim: 256
     num_heads: 8
-    num_layers: 6
-    dropout: 0.3
-    classifier:
-    - input_dim: 256
-      output_dim: 128
-      activation: ReLU
-      dropout: 0.3
-    - input_dim: 128
-      output_dim: 64
-      activation: ReLU
-      dropout: 0.3
-    - input_dim: 64
-      output_dim: 1
-      activation: null
+    dropout: 0.2
   optimizer:
     type: AdamW
     lr: 0.001
@@ -99,6 +86,8 @@ model:
   loss_function:
     type: BCEWithLogitsLoss
     pos_weight: 10.0
+    aux_weight: 0.3
   scheduler:
-    type: ReduceLROnPlateau
-    patience: 10
+    type: CosineAnnealingWarmRestarts
+    T_0: 20
+    T_mult: 2

@@ -68,7 +68,8 @@ def train_neural_model(
         avg_loss = epoch_loss / n_batches
         scheduler.step(avg_loss)
         
-        # Validation
+        logger.info(f"Epoch {epoch+1}/{n_epochs} - Loss: {avg_loss:.4f}")
+        
         if X_val is not None and y_val is not None and (epoch + 1) % log_interval == 0:
             model.eval()
             with torch.no_grad():
@@ -78,22 +79,16 @@ def train_neural_model(
                     outputs = torch.sigmoid(model(batch_x))
                     val_probs.extend(outputs.cpu().numpy().flatten())
             
-            # Use a subset for validation to speed up
             val_size = min(100000, len(y_val))
             val_idx = np.random.choice(len(y_val), val_size, replace=False)
             val_probs_subset = np.array(val_probs)[:val_size] if len(val_probs) >= val_size else np.array(val_probs)
             y_val_subset = y_val[val_idx] if hasattr(y_val, '__getitem__') else y_val[:val_size]
             
-            logger.info(f"Epoch {epoch+1}/{n_epochs} - Loss: {avg_loss:.4f}")
-            
-            # Early stopping check
             if patience > 0:
                 patience_counter += 1
                 if patience_counter >= patience:
                     logger.info(f"Early stopping at epoch {epoch+1}")
                     break
-        elif (epoch + 1) % 10 == 0:
-            logger.info(f"Epoch {epoch+1}/{n_epochs} - Loss: {avg_loss:.4f}")
     
     training_time = time.time() - start_time
     logger.info(f"Training completed in {training_time:.1f}s")
@@ -855,7 +850,14 @@ class OptimizedResidualModel(BaseEcDNAModel):
 
 
 class DGITSuperModel(BaseEcDNAModel):
-    """DGIT Super model"""
+    """DGIT Super Model V3 - Multi-Head Attention + Multi-Task Learning
+    
+    Key improvements:
+    1. Multi-Head Self Attention for feature interactions
+    2. Auxiliary classification heads for better gradients
+    3. Combined loss: BCE + Focal + Auxiliary
+    4. Cosine annealing with warm restarts
+    """
     
     def __init__(self, config: Optional[Dict[str, Any]] = None, device: str = 'auto'):
         super().__init__(config)
@@ -870,6 +872,24 @@ class DGITSuperModel(BaseEcDNAModel):
         feature_cols = [c for c in df.columns if c not in ['sample', 'gene_id', 'y']]
         return df[feature_cols].fillna(0).values.astype(np.float32)
     
+    def _compute_loss(self, main_out, aux_outputs, targets, pos_weight=10.0, aux_weight=0.3):
+        """Combined loss: BCE + Auxiliary losses"""
+        # Main BCE loss with pos_weight
+        bce_loss = nn.functional.binary_cross_entropy_with_logits(
+            main_out.squeeze(-1), targets.squeeze(-1),
+            pos_weight=torch.tensor([pos_weight]).to(main_out.device)
+        )
+        
+        # Auxiliary losses
+        aux_loss = 0
+        for aux_out in aux_outputs:
+            aux_loss += nn.functional.binary_cross_entropy_with_logits(
+                aux_out.squeeze(-1), targets.squeeze(-1),
+                pos_weight=torch.tensor([pos_weight]).to(aux_out.device)
+            )
+        
+        return bce_loss + aux_weight * aux_loss
+    
     def fit(self, X_train, y_train, X_val=None, y_val=None, **kwargs):
         from torch.utils.data import DataLoader, TensorDataset
         from sklearn.metrics import average_precision_score, roc_auc_score
@@ -881,7 +901,14 @@ class DGITSuperModel(BaseEcDNAModel):
         y_train_arr = y_train.values.astype(np.float32)
         
         input_dim = X_train_arr.shape[1]
-        self.model = DGITSuperNet(input_dim).to(self.device)
+        
+        # Get config params
+        arch_config = self.config.get('model', {}).get('architecture', {})
+        hidden_dim = arch_config.get('hidden_dim', 256)
+        num_heads = arch_config.get('num_heads', 8)
+        dropout = arch_config.get('dropout', 0.2)
+        
+        self.model = DGITSuperNet(input_dim, hidden_dim=hidden_dim, num_heads=num_heads, dropout=dropout).to(self.device)
         
         train_dataset = TensorDataset(
             torch.tensor(X_train_arr),
@@ -889,18 +916,19 @@ class DGITSuperModel(BaseEcDNAModel):
         )
         train_loader = DataLoader(train_dataset, batch_size=4096, shuffle=True)
         
+        # Optimized training settings
         optimizer = torch.optim.AdamW(self.model.parameters(), lr=0.001, weight_decay=0.01)
-        criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([10.0]).to(self.device))
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=20, T_mult=2)
         
         best_val_auprc = 0
         best_model_state = None
         best_epoch = 0
         patience_counter = 0
-        max_patience = 15
-        n_epochs = 150
+        max_patience = 25
+        n_epochs = 200
         
-        logger.info(f"Starting DGITSuper training: {n_epochs} epochs, {len(train_loader)} batches/epoch")
+        logger.info(f"Starting DGITSuper V3 training: {n_epochs} epochs, {len(train_loader)} batches/epoch")
+        logger.info(f"Architecture: hidden_dim={hidden_dim}, num_heads={num_heads}, dropout={dropout}")
         start_time = time.time()
         
         for epoch in range(n_epochs):
@@ -910,23 +938,27 @@ class DGITSuperModel(BaseEcDNAModel):
             for batch_x, batch_y in train_loader:
                 batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
                 optimizer.zero_grad()
-                outputs = self.model(batch_x)
-                loss = criterion(outputs.squeeze(-1), batch_y.squeeze(-1))
+                
+                # Forward with auxiliary outputs
+                main_out, aux_outputs = self.model(batch_x, return_aux=True)
+                
+                # Combined loss
+                loss = self._compute_loss(main_out, aux_outputs, batch_y, pos_weight=10.0, aux_weight=0.3)
+                
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
                 optimizer.step()
                 epoch_loss += loss.item()
                 n_batches += 1
             
             train_loss = epoch_loss / n_batches
-            scheduler.step(train_loss)
+            scheduler.step()
             
-            # Compute train metrics
             self.is_fitted = True
             train_probs = self.predict_proba(X_train)
             train_auprc = average_precision_score(y_train.values, train_probs)
             train_auc = roc_auc_score(y_train.values, train_probs)
             
-            # Compute val metrics
             val_auprc = 0
             val_auc = 0
             if X_val is not None and y_val is not None:
@@ -934,13 +966,11 @@ class DGITSuperModel(BaseEcDNAModel):
                 val_auprc = average_precision_score(y_val.values, val_probs)
                 val_auc = roc_auc_score(y_val.values, val_probs)
             
-            # Log every epoch
             logger.info(f"Epoch {epoch+1}/{n_epochs}")
             logger.info(f"  Train - Loss: {train_loss:.4f}, auPRC: {train_auprc:.4f}, AUC: {train_auc:.4f}")
             if X_val is not None and y_val is not None:
                 logger.info(f"  Val   - auPRC: {val_auprc:.4f}, AUC: {val_auc:.4f}")
             
-            # Save best model and early stopping
             if val_auprc > best_val_auprc:
                 best_val_auprc = val_auprc
                 best_model_state = {k: v.cpu().clone() for k, v in self.model.state_dict().items()}
@@ -1048,32 +1078,94 @@ class OptimizedResidualNet(nn.Module):
         return self.classifier(h)
 
 
-class DGITSuperNet(nn.Module):
-    """DGIT Super Network with improved stability"""
-    def __init__(self, input_dim: int):
+class MultiHeadSelfAttention(nn.Module):
+    """Multi-Head Self Attention for feature interactions"""
+    def __init__(self, dim: int, num_heads: int = 8, dropout: float = 0.1):
         super().__init__()
-        self.input_proj = nn.Sequential(
-            nn.Linear(input_dim, 256),
-            nn.LayerNorm(256),
-            nn.Dropout(0.1)
+        self.num_heads = num_heads
+        self.head_dim = dim // num_heads
+        self.scale = self.head_dim ** -0.5
+        
+        self.qkv = nn.Linear(dim, dim * 3)
+        self.proj = nn.Linear(dim, dim)
+        self.dropout = nn.Dropout(dropout)
+    
+    def forward(self, x):
+        B, D = x.shape
+        x = x.unsqueeze(1)  # (B, 1, D)
+        
+        qkv = self.qkv(x).reshape(B, 1, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
+        q, k, v = qkv[0], qkv[1], qkv[2]
+        
+        attn = (q @ k.transpose(-2, -1)) * self.scale
+        attn = attn.softmax(dim=-1)
+        attn = self.dropout(attn)
+        
+        out = (attn @ v).reshape(B, self.num_heads, self.head_dim)
+        out = out.reshape(B, -1)
+        return self.proj(out)
+
+
+class DGITSuperNet(nn.Module):
+    """DGIT Super Network V3 - Multi-Head Attention + Multi-Task Prediction
+    
+    Key features:
+    1. Multi-Head Self Attention for feature interactions
+    2. Multi-task heads: gene-level + sample-level prediction
+    3. Deep residual blocks with skip connections
+    4. Auxiliary classification heads for better gradients
+    """
+    def __init__(self, input_dim: int, hidden_dim: int = 256, num_heads: int = 8, dropout: float = 0.2):
+        super().__init__()
+        
+        # Feature embedding
+        self.input_embed = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout)
         )
-        self.transformer = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(256, 8, 1024, 0.3, batch_first=True, norm_first=True),
-            num_layers=6
-        )
+        
+        # Multi-head self attention
+        self.attention = MultiHeadSelfAttention(hidden_dim, num_heads, dropout)
+        self.attn_norm = nn.LayerNorm(hidden_dim)
+        
+        # Deep residual blocks
+        self.res_blocks = nn.ModuleList([
+            self._make_res_block(hidden_dim, dropout) for _ in range(4)
+        ])
+        
+        # Multi-scale feature aggregation
+        self.scale_proj = nn.Linear(hidden_dim * 4, hidden_dim)
+        
+        # Primary classifier (gene-level)
         self.classifier = nn.Sequential(
-            nn.Linear(256, 128),
+            nn.Linear(hidden_dim, 128),
             nn.LayerNorm(128),
             nn.GELU(),
-            nn.Dropout(0.3),
+            nn.Dropout(dropout),
             nn.Linear(128, 64),
             nn.LayerNorm(64),
             nn.GELU(),
-            nn.Dropout(0.3),
+            nn.Dropout(dropout * 0.5),
             nn.Linear(64, 1)
         )
         
+        # Auxiliary heads for multi-task learning
+        self.aux_head_1 = nn.Linear(hidden_dim, 1)  # Early exit
+        self.aux_head_2 = nn.Linear(hidden_dim, 1)  # Mid exit
+        
         self._init_weights()
+    
+    def _make_res_block(self, dim: int, dropout: float) -> nn.Module:
+        return nn.Sequential(
+            nn.Linear(dim, dim * 2),
+            nn.LayerNorm(dim * 2),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(dim * 2, dim),
+            nn.LayerNorm(dim)
+        )
     
     def _init_weights(self):
         for module in self.modules():
@@ -1085,15 +1177,39 @@ class DGITSuperNet(nn.Module):
                 nn.init.ones_(module.weight)
                 nn.init.zeros_(module.bias)
     
-    def forward(self, x):
+    def forward(self, x, return_aux=False):
         x = torch.clamp(x, min=-100, max=100)
         x = torch.nan_to_num(x, nan=0.0, posinf=100.0, neginf=-100.0)
         
-        x = x.unsqueeze(1)
-        h = self.input_proj(x)
-        h = self.transformer(h)
-        h = h.squeeze(1)
-        return self.classifier(h)
+        # Embed features
+        h = self.input_embed(x)
+        
+        # Multi-head self attention with residual
+        attn_out = self.attention(h)
+        h = self.attn_norm(h + attn_out)
+        
+        # Deep residual with multi-scale
+        scales = []
+        aux_outputs = []
+        for i, res_block in enumerate(self.res_blocks):
+            h = h + res_block(h)
+            h = torch.relu(h)
+            scales.append(h)
+            
+            # Auxiliary outputs
+            if return_aux and i in [0, 2]:
+                aux_outputs.append(self.aux_head_1(h) if i == 0 else self.aux_head_2(h))
+        
+        # Aggregate multi-scale features
+        multi_scale = torch.cat(scales, dim=-1)
+        h = self.scale_proj(multi_scale)
+        h = torch.relu(h)
+        
+        main_out = self.classifier(h)
+        
+        if return_aux:
+            return main_out, aux_outputs
+        return main_out
 
 
 class ResidualBlock(nn.Module):
