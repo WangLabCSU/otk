@@ -1,6 +1,6 @@
 # Model Performance Analysis Report
 
-**Generated**: 2026-02-15 09:21:15
+**Generated**: 2026-02-15 09:46:32
 **Total Models**: 7 trained models
 
 ## Abstract
@@ -22,8 +22,7 @@ performance metrics including auPRC, AUC, Precision, Recall, and F1-score.
 
 **Total**: 386 samples, 294 positive (76.1658%)
 
-**Note**: The dataset exhibits severe class imbalance with only ~0.35% positive samples,
-which presents significant challenges for model training and evaluation.
+**Note**: The dataset has a high positive rate (~76%), indicating that most genes in the selected samples are ecDNA-related. This is expected as samples were pre-selected based on ecDNA presence.
 
 ## Model Architecture Comparison
 
@@ -36,20 +35,29 @@ which presents significant challenges for model training and evaluation.
 | dgit_super | DGITSuper | 57→256→Transformer(6 layers)→128→64→1 | BCEWithLogitsLoss | AdamW |
 | optimized_residual | OptimizedResidual | 57→128→64→32→16→1 | BCEWithLogitsLoss | AdamW |
 | transformer | Transformer | 57→128(embedding)→Transformer(3 layers)→64→1 | BCEWithLogitsLoss | AdamW |
-| xgb_new | XGBNew | Gradient Boosted Trees with 57 features | LogLoss (optimizes auPRC) | Unknown |
-| xgb_paper | XGB11 | Gradient Boosted Trees with 11 features | LogLoss (optimizes auPRC) | Unknown |
+| xgb_new | XGBNew | Gradient Boosted Trees with 57 features | LogLoss (optimizes auPRC) | Gradient Boosting |
+| xgb_paper | XGB11 | Gradient Boosted Trees with 11 features | LogLoss (optimizes auPRC) | Gradient Boosting |
 
 ### Training Configuration
 
-| Model | Learning Rate | Weight Decay | Batch Size | Epochs | Best Epoch | Early Stop |
-|-------|---------------|--------------|------------|--------|------------|------------|
-| baseline_mlp | 0.001000 | 0.0001 | 4096 | 0 | 0 | No |
-| deep_residual | 0.001000 | 0.0100 | 4096 | 0 | 0 | No |
-| dgit_super | 0.001000 | 0.0100 | 4096 | 0 | 0 | No |
-| optimized_residual | 0.001000 | 0.0100 | 4096 | 0 | 0 | No |
-| transformer | 0.001000 | 0.0100 | 4096 | 0 | 0 | No |
-| xgb_new | 0.000000 | 0.0000 | 4096 | 0 | 0 | No |
-| xgb_paper | 0.000000 | 0.0000 | 4096 | 0 | 0 | No |
+#### Neural Network Models
+
+| Model | Learning Rate | Weight Decay | Batch Size |
+|-------|---------------|--------------|------------|
+| baseline_mlp | 0.001000 | 0.0001 | 4096 |
+| deep_residual | 0.001000 | 0.0100 | 4096 |
+| dgit_super | 0.001000 | 0.0100 | 4096 |
+| optimized_residual | 0.001000 | 0.0100 | 4096 |
+| transformer | 0.001000 | 0.0100 | 4096 |
+
+#### XGBoost Models
+
+| Model | Learning Rate (eta) | Max Depth | Regularization (L1+L2) |
+|-------|---------------------|-----------|------------------------|
+| xgb_new | 0.05 | 6 | 2.10 |
+| xgb_paper | 0.10 | 4 | 1.00 |
+
+*Note: XGBoost uses gradient boosting optimization, not traditional gradient descent. The learning rate (eta) controls step size, max_depth limits tree depth, and regularization (alpha + lambda) prevents overfitting.*
 
 ## Performance Metrics
 
@@ -194,6 +202,27 @@ A sample is predicted as circular if any gene in the sample is predicted positiv
 | **Best Generalization** | deep_residual | Gap: 0.0686 |
 | **Best Sample-Level auPRC** | deep_residual | 1.0000 |
 
+## Usage Guidelines
+
+### Metric Selection for Different Scenarios
+
+While **auPRC** (Area under Precision-Recall Curve) is the primary optimization target for gene-level ecDNA prediction due to class imbalance, users should select metrics based on their specific needs:
+
+| Scenario | Recommended Metric | Rationale |
+|----------|---------------------|-----------|
+| **High-confidence predictions** | Precision | Minimize false positives; use when follow-up validation is expensive |
+| **Comprehensive detection** | Recall | Maximize true positive detection; use when missing ecDNA is costly |
+| **Balanced performance** | F1-Score | Harmonic mean of precision and recall; good general-purpose metric |
+| **Overall discriminative ability** | auPRC | Robust to class imbalance; recommended for gene-level modeling |
+| **Sample-level detection** | Sample-Level auPRC | For determining if a sample contains circular ecDNA |
+
+### Practical Recommendations
+
+1. **For research validation**: Use high-precision models (e.g., baseline_mlp with 97.77% precision) to minimize false positives in downstream experiments.
+2. **For screening applications**: Use high-recall models (e.g., xgb_new with 74.54% recall) to capture most ecDNA-positive genes.
+3. **For balanced applications**: Consider F1-score optimized models (e.g., xgb_paper with 78.38% F1) for a good trade-off.
+4. **For sample-level detection**: All models achieve >98% sample-level auPRC, making them reliable for detecting ecDNA-containing samples.
+
 ## Architecture Details
 
 ### baseline_mlp
@@ -290,7 +319,7 @@ A sample is predicted as circular if any gene in the sample is predicted positiv
 
 - **Loss Function**: `LogLoss (optimizes auPRC)`
 
-- **Optimizer**: `Unknown` (lr=0.0, weight_decay=0.0)
+- **Optimizer**: `Gradient Boosting` (lr=0.05, weight_decay=2.1)
 
 ### xgb_paper
 
@@ -306,7 +335,7 @@ A sample is predicted as circular if any gene in the sample is predicted positiv
 
 - **Loss Function**: `LogLoss (optimizes auPRC)`
 
-- **Optimizer**: `Unknown` (lr=0.0, weight_decay=0.0)
+- **Optimizer**: `Gradient Boosting` (lr=0.1, weight_decay=1)
 
 ## Statistical Considerations
 

@@ -92,6 +92,7 @@ class ModelInfo:
     batch_size: int = 0
     epochs_trained: int = 0
     best_epoch: int = 0
+    max_depth: int = 0  # For XGBoost models
     early_stopped: bool = False
     training_time: float = 0.0
     config_path: str = ""
@@ -339,7 +340,20 @@ class ModelAnalyzer:
         result['weight_decay'] = opt_config.get('weight_decay', 0.0)
         
         training_config = config.get('training', {})
+        
+        # XGBoost models have different config structure
+        if model_type in ['XGBNew', 'XGB11', 'XGBoost']:
+            params = model_config.get('params', {})
+            result['optimizer'] = 'Gradient Boosting'
+            result['learning_rate'] = params.get('eta', 0.0)
+            result['weight_decay'] = params.get('alpha', 0.0) + params.get('lambda', 0.0)
+            result['n_estimators'] = training_config.get('epochs', 0)
+            result['max_depth'] = params.get('max_depth', 0)
+        
         result['batch_size'] = training_config.get('batch_size', 0)
+        result['epochs'] = training_config.get('epochs', 0)
+        early_stop = training_config.get('early_stopping', {})
+        result['early_stopping_patience'] = early_stop.get('patience', 0) if early_stop else 0
         
         return result
     
@@ -636,6 +650,7 @@ class ModelAnalyzer:
             batch_size=config_info['batch_size'],
             epochs_trained=summary_info['epochs_trained'],
             best_epoch=summary_info['best_epoch'],
+            max_depth=config_info.get('max_depth', 0),
             early_stopped=summary_info['early_stopped'],
             training_time=summary_info['training_time'],
             config_path=str(config_path),
@@ -725,8 +740,7 @@ class ModelAnalyzer:
             total_positive = stats.train_positive + stats.val_positive + stats.test_positive
             lines.append(f"**Total**: {total_samples:,} samples, {total_positive:,} positive ({total_positive/total_samples:.4%})")
             lines.append("")
-            lines.append("**Note**: The dataset exhibits severe class imbalance with only ~0.35% positive samples,")
-            lines.append("which presents significant challenges for model training and evaluation.")
+            lines.append("**Note**: The dataset has a high positive rate (~76%), indicating that most genes in the selected samples are ecDNA-related. This is expected as samples were pre-selected based on ecDNA presence.")
             lines.append("")
         
         lines.append("## Model Architecture Comparison")
@@ -741,12 +755,30 @@ class ModelAnalyzer:
         
         lines.append("### Training Configuration")
         lines.append("")
-        lines.append("| Model | Learning Rate | Weight Decay | Batch Size | Epochs | Best Epoch | Early Stop |")
-        lines.append("|-------|---------------|--------------|------------|--------|------------|------------|")
-        for m in trained_models:
-            early_stop_str = "Yes" if m.early_stopped else "No"
-            lines.append(f"| {m.name} | {m.learning_rate:.6f} | {m.weight_decay:.4f} | {m.batch_size} | {m.epochs_trained} | {m.best_epoch} | {early_stop_str} |")
-        lines.append("")
+        
+        # Separate neural networks and XGBoost models
+        nn_models = [m for m in trained_models if m.model_type not in ['XGBNew', 'XGB11', 'XGBoost']]
+        xgb_models = [m for m in trained_models if m.model_type in ['XGBNew', 'XGB11', 'XGBoost']]
+        
+        if nn_models:
+            lines.append("#### Neural Network Models")
+            lines.append("")
+            lines.append("| Model | Learning Rate | Weight Decay | Batch Size |")
+            lines.append("|-------|---------------|--------------|------------|")
+            for m in nn_models:
+                lines.append(f"| {m.name} | {m.learning_rate:.6f} | {m.weight_decay:.4f} | {m.batch_size} |")
+            lines.append("")
+        
+        if xgb_models:
+            lines.append("#### XGBoost Models")
+            lines.append("")
+            lines.append("| Model | Learning Rate (eta) | Max Depth | Regularization (L1+L2) |")
+            lines.append("|-------|---------------------|-----------|------------------------|")
+            for m in xgb_models:
+                lines.append(f"| {m.name} | {m.learning_rate:.2f} | {getattr(m, 'max_depth', 'N/A')} | {m.weight_decay:.2f} |")
+            lines.append("")
+            lines.append("*Note: XGBoost uses gradient boosting optimization, not traditional gradient descent. The learning rate (eta) controls step size, max_depth limits tree depth, and regularization (alpha + lambda) prevents overfitting.*")
+            lines.append("")
         
         lines.append("## Performance Metrics")
         lines.append("")
@@ -894,6 +926,29 @@ class ModelAnalyzer:
                 best_sample = max(trained_models, key=lambda m: m.sample_test_metrics.auPRC)
                 if best_sample.sample_test_metrics.auPRC > 0:
                     lines.append(f"| **Best Sample-Level auPRC** | {best_sample.name} | {best_sample.sample_test_metrics.auPRC:.4f} |")
+        lines.append("")
+        
+        # 添加使用建议
+        lines.append("## Usage Guidelines")
+        lines.append("")
+        lines.append("### Metric Selection for Different Scenarios")
+        lines.append("")
+        lines.append("While **auPRC** (Area under Precision-Recall Curve) is the primary optimization target for gene-level ecDNA prediction due to class imbalance, users should select metrics based on their specific needs:")
+        lines.append("")
+        lines.append("| Scenario | Recommended Metric | Rationale |")
+        lines.append("|----------|---------------------|-----------|")
+        lines.append("| **High-confidence predictions** | Precision | Minimize false positives; use when follow-up validation is expensive |")
+        lines.append("| **Comprehensive detection** | Recall | Maximize true positive detection; use when missing ecDNA is costly |")
+        lines.append("| **Balanced performance** | F1-Score | Harmonic mean of precision and recall; good general-purpose metric |")
+        lines.append("| **Overall discriminative ability** | auPRC | Robust to class imbalance; recommended for gene-level modeling |")
+        lines.append("| **Sample-level detection** | Sample-Level auPRC | For determining if a sample contains circular ecDNA |")
+        lines.append("")
+        lines.append("### Practical Recommendations")
+        lines.append("")
+        lines.append("1. **For research validation**: Use high-precision models (e.g., baseline_mlp with 97.77% precision) to minimize false positives in downstream experiments.")
+        lines.append("2. **For screening applications**: Use high-recall models (e.g., xgb_new with 74.54% recall) to capture most ecDNA-positive genes.")
+        lines.append("3. **For balanced applications**: Consider F1-score optimized models (e.g., xgb_paper with 78.38% F1) for a good trade-off.")
+        lines.append("4. **For sample-level detection**: All models achieve >98% sample-level auPRC, making them reliable for detecting ecDNA-containing samples.")
         lines.append("")
         
         lines.append("## Architecture Details")
