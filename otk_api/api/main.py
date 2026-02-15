@@ -1335,6 +1335,10 @@ async def models_page(lang: str = Query(default="en", description="Language code
             .metric-highlight {{ background: #e3f2fd; padding: 2px 6px; border-radius: 3px; font-weight: bold; }}
             strong {{ color: #333; }}
             hr {{ border: none; border-top: 2px solid #eee; margin: 30px 0; }}
+            img {{ max-width: 100%; height: auto; display: block; margin: 20px auto; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }}
+            figure {{ margin: 20px 0; text-align: center; }}
+            figure img {{ max-width: 100%; height: auto; }}
+            figure figcaption {{ color: #666; font-size: 0.9em; margin-top: 10px; font-style: italic; }}
         </style>
     </head>
     <body>
