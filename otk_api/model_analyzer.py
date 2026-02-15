@@ -941,7 +941,7 @@ class ModelAnalyzer:
         lines.append("| **Comprehensive detection** | Recall | Maximize true positive detection; use when missing ecDNA is costly |")
         lines.append("| **Balanced performance** | F1-Score | Harmonic mean of precision and recall; good general-purpose metric |")
         lines.append("| **Overall discriminative ability** | auPRC | Robust to class imbalance; recommended for gene-level modeling |")
-        lines.append("| **Sample-level detection** | Sample-Level auPRC | For determining if a sample contains circular ecDNA |")
+        lines.append("| **Sample-level detection** | Sample-Level auPRC, Precision, Recall | For determining if a sample contains circular ecDNA; consider precision/recall trade-offs |")
         lines.append("")
         lines.append("### Practical Recommendations")
         lines.append("")

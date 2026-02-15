@@ -1,6 +1,6 @@
 # Model Performance Analysis Report
 
-**Generated**: 2026-02-15 09:46:32
+**Generated**: 2026-02-15 10:08:02
 **Total Models**: 7 trained models
 
 ## Abstract
@@ -214,7 +214,7 @@ While **auPRC** (Area under Precision-Recall Curve) is the primary optimization 
 | **Comprehensive detection** | Recall | Maximize true positive detection; use when missing ecDNA is costly |
 | **Balanced performance** | F1-Score | Harmonic mean of precision and recall; good general-purpose metric |
 | **Overall discriminative ability** | auPRC | Robust to class imbalance; recommended for gene-level modeling |
-| **Sample-level detection** | Sample-Level auPRC | For determining if a sample contains circular ecDNA |
+| **Sample-level detection** | Sample-Level auPRC, Precision, Recall | For determining if a sample contains circular ecDNA; consider precision/recall trade-offs |
 
 ### Practical Recommendations
 
