@@ -320,6 +320,19 @@ class ModelAnalyzer:
         loss_config = model_config.get('loss_function', {})
         result['loss_function'] = loss_config.get('type', 'Unknown')
         
+        # XGBoost models use objective from params
+        if result['loss_function'] == 'Unknown' and model_type in ['XGBNew', 'XGB11', 'XGBoost']:
+            params = model_config.get('params', {})
+            objective = params.get('objective', '')
+            eval_metric = params.get('eval_metric', '')
+            if objective == 'binary:logistic':
+                if eval_metric == 'aucpr':
+                    result['loss_function'] = 'LogLoss (optimizes auPRC)'
+                elif eval_metric == 'auc':
+                    result['loss_function'] = 'LogLoss (optimizes AUC)'
+                else:
+                    result['loss_function'] = 'LogLoss (binary:logistic)'
+        
         opt_config = model_config.get('optimizer', {})
         result['optimizer'] = opt_config.get('type', 'Unknown')
         result['learning_rate'] = opt_config.get('lr', 0.0)
@@ -388,13 +401,23 @@ class ModelAnalyzer:
             train_sample = sample_level.get('train', {})
             val_sample = sample_level.get('val', {})
             
+            train_samples = train_sample.get('total_samples', 0)
+            val_samples = val_sample.get('total_samples', 0)
+            test_samples = test_sample.get('total_samples', 0)
+            train_positive = train_sample.get('positive_samples', 0)
+            val_positive = val_sample.get('positive_samples', 0)
+            test_positive = test_sample.get('positive_samples', 0)
+            
             result['dataset_stats'] = DatasetStatistics(
-                train_samples=train_sample.get('total_samples', 0),
-                val_samples=val_sample.get('total_samples', 0),
-                test_samples=test_sample.get('total_samples', 0),
-                train_positive=train_sample.get('positive_samples', 0),
-                val_positive=val_sample.get('positive_samples', 0),
-                test_positive=test_sample.get('positive_samples', 0)
+                train_samples=train_samples,
+                val_samples=val_samples,
+                test_samples=test_samples,
+                train_positive=train_positive,
+                val_positive=val_positive,
+                test_positive=test_positive,
+                train_positive_rate=train_positive / train_samples if train_samples > 0 else 0.0,
+                val_positive_rate=val_positive / val_samples if val_samples > 0 else 0.0,
+                test_positive_rate=test_positive / test_samples if test_samples > 0 else 0.0
             )
             
             # 计算过拟合分析
@@ -1237,6 +1260,18 @@ def main():
     print("\nGenerating performance plots...")
     plots_dir = analyzer.models_dir
     analyzer.generate_performance_plots(plots_dir)
+    
+    # 复制报告和图表到 static 目录供网页访问
+    static_dir = Path(__file__).parent / "static"
+    if static_dir.exists():
+        import shutil
+        try:
+            shutil.copy(report_path, static_dir / "model_analysis_report.md")
+            for png_file in plots_dir.glob("*.png"):
+                shutil.copy(png_file, static_dir / png_file.name)
+            print(f"\nCopied report and plots to: {static_dir}")
+        except Exception as e:
+            print(f"\nWarning: Could not copy to static dir: {e}")
 
 
 if __name__ == "__main__":

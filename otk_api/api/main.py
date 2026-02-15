@@ -1288,6 +1288,10 @@ async def models_page(lang: str = Query(default="en", description="Language code
         
         report_content = re.sub(r'^(- )(.+)$', r'\1\2', report_content, flags=re.MULTILINE)
         
+        # Fix image paths - convert relative paths to absolute paths with BASE_PATH
+        static_url = f"{BASE_PATH}/static" if BASE_PATH else "/static"
+        report_content = re.sub(r'!\[([^\]]*)\]\(([^)]+)\)', rf'![\1]({static_url}/\2)', report_content)
+        
         html_content = markdown.markdown(report_content, extensions=['tables', 'fenced_code'])
     except Exception as e:
         html_content = f"<p>Error loading model analysis report: {e}</p>"

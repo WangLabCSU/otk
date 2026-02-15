@@ -1,6 +1,6 @@
 # Model Performance Analysis Report
 
-**Generated**: 2026-02-15 06:44:30
+**Generated**: 2026-02-15 09:21:15
 **Total Models**: 7 trained models
 
 ## Abstract
@@ -16,9 +16,9 @@ performance metrics including auPRC, AUC, Precision, Recall, and F1-score.
 
 | Dataset | Total Samples | Positive Samples | Positive Rate |
 |---------|---------------|------------------|---------------|
-| Training | 308 | 234 | 0.0000% |
-| Validation | 38 | 29 | 0.0000% |
-| Test | 40 | 31 | 0.0000% |
+| Training | 308 | 234 | 75.9740% |
+| Validation | 38 | 29 | 76.3158% |
+| Test | 40 | 31 | 77.5000% |
 
 **Total**: 386 samples, 294 positive (76.1658%)
 
@@ -36,8 +36,8 @@ which presents significant challenges for model training and evaluation.
 | dgit_super | DGITSuper | 57→256→Transformer(6 layers)→128→64→1 | BCEWithLogitsLoss | AdamW |
 | optimized_residual | OptimizedResidual | 57→128→64→32→16→1 | BCEWithLogitsLoss | AdamW |
 | transformer | Transformer | 57→128(embedding)→Transformer(3 layers)→64→1 | BCEWithLogitsLoss | AdamW |
-| xgb_new | XGBNew | Gradient Boosted Trees with 57 features | Unknown | Unknown |
-| xgb_paper | XGB11 | Gradient Boosted Trees with 11 features | Unknown | Unknown |
+| xgb_new | XGBNew | Gradient Boosted Trees with 57 features | LogLoss (optimizes auPRC) | Unknown |
+| xgb_paper | XGB11 | Gradient Boosted Trees with 11 features | LogLoss (optimizes auPRC) | Unknown |
 
 ### Training Configuration
 
@@ -288,7 +288,7 @@ A sample is predicted as circular if any gene in the sample is predicted positiv
 
 - **Suitable For**: Tabular data, interpretable predictions, high performance
 
-- **Loss Function**: `Unknown`
+- **Loss Function**: `LogLoss (optimizes auPRC)`
 
 - **Optimizer**: `Unknown` (lr=0.0, weight_decay=0.0)
 
@@ -304,7 +304,7 @@ A sample is predicted as circular if any gene in the sample is predicted positiv
 
 - **Suitable For**: Reproducible paper results, minimal feature set
 
-- **Loss Function**: `Unknown`
+- **Loss Function**: `LogLoss (optimizes auPRC)`
 
 - **Optimizer**: `Unknown` (lr=0.0, weight_decay=0.0)
 
