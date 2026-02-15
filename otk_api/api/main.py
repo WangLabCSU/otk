@@ -49,8 +49,10 @@ start_cleanup_scheduler()
 static_dir = Path(__file__).parent.parent / "static"
 static_dir.mkdir(exist_ok=True)
 
-static_path = f"{BASE_PATH}/static" if BASE_PATH else "/static"
-app.mount(static_path, StaticFiles(directory=str(static_dir)), name="static")
+# Mount static files - path should be relative to root_path
+# When root_path is set, mount path should not include BASE_PATH
+static_mount_path = "/static"
+app.mount(static_mount_path, StaticFiles(directory=str(static_dir)), name="static")
 
 task_queue = queue.Queue()
 active_jobs = {}
