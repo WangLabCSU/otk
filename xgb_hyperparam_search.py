@@ -129,6 +129,8 @@ def train_and_evaluate(
     """Train model and return validation auPRC"""
     params = params.copy()
     params['device'] = device
+    params['tree_method'] = 'hist'
+    params['nthread'] = 1
     
     dtrain = xgb.DMatrix(X_train, label=y_train)
     dval = xgb.DMatrix(X_val, label=y_val)

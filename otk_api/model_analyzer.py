@@ -740,7 +740,7 @@ class ModelAnalyzer:
             total_positive = stats.train_positive + stats.val_positive + stats.test_positive
             lines.append(f"**Total**: {total_samples:,} samples, {total_positive:,} positive ({total_positive/total_samples:.4%})")
             lines.append("")
-            lines.append("**Note**: The dataset has a high positive rate (~76%), indicating that most genes in the selected samples are ecDNA-related. This is expected as samples were pre-selected based on ecDNA presence.")
+            lines.append("**Note**: The dataset has a high positive rate (~76%). This is expected as samples were pre-selected based on ecDNA presence for model training.")
             lines.append("")
         
         lines.append("## Model Architecture Comparison")

@@ -22,7 +22,7 @@ performance metrics including auPRC, AUC, Precision, Recall, and F1-score.
 
 **Total**: 386 samples, 294 positive (76.1658%)
 
-**Note**: The dataset has a high positive rate (~76%), indicating that most genes in the selected samples are ecDNA-related. This is expected as samples were pre-selected based on ecDNA presence.
+**Note**: The dataset has a high positive rate (~76%). This is expected as samples were pre-selected based on ecDNA presence for model training.
 
 ## Model Architecture Comparison
 
