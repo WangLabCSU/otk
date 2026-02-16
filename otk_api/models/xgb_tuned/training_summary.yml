@@ -1,0 +1,35 @@
+best_params:
+  alpha: 5.312266468168577
+  colsample_bylevel: 0.5474940903238178
+  colsample_bytree: 0.524353030306076
+  eta: 0.2996493330511307
+  gamma: 1.4682518289618922
+  lambda: 6.431405882523245
+  max_delta_step: 0
+  max_depth: 11
+  min_child_weight: 14
+  scale_pos_weight: 6.844048176757999
+  subsample: 0.7425286103592272
+gene_level:
+  test:
+    AUC: 0.995897934205784
+    F1: 0.6923896823704967
+    Precision: 0.8588048651507139
+    Recall: 0.58
+    auPRC: 0.8147522809748053
+    threshold: 0.5668644309043884
+hyperparameter_search:
+  best_val_auPRC: 0.8646157680917986
+  n_trials: 1000
+  search_time_seconds: 33586.58236527443
+model_name: xgb_tuned
+sample_level:
+  test:
+    AUC: 0.982078853046595
+    F1: 0.8928571428571428
+    Precision: 1.0
+    Recall: 0.8064516129032258
+    auPRC: 0.9949588407285448
+    positive_samples: 31
+    predicted_positive: 25
+    total_samples: 40

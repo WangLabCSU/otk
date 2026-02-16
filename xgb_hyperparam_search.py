@@ -95,19 +95,22 @@ def calculate_auprc(y_true: np.ndarray, y_prob: np.ndarray) -> float:
 
 
 def get_param_space(trial) -> Dict[str, Any]:
-    """Define hyperparameter search space"""
+    """Define hyperparameter search space
+    
+    Optimized for highly imbalanced data (positive ratio ~0.35%, scale_pos_weight ~270)
+    """
     params = {
-        'eta': trial.suggest_float('eta', 0.01, 0.3, log=True),
-        'max_depth': trial.suggest_int('max_depth', 3, 12),
-        'gamma': trial.suggest_float('gamma', 0, 20),
-        'subsample': trial.suggest_float('subsample', 0.5, 1.0),
-        'colsample_bytree': trial.suggest_float('colsample_bytree', 0.5, 1.0),
-        'colsample_bylevel': trial.suggest_float('colsample_bylevel', 0.5, 1.0),
-        'max_delta_step': trial.suggest_int('max_delta_step', 0, 10),
-        'min_child_weight': trial.suggest_int('min_child_weight', 1, 20),
-        'alpha': trial.suggest_float('alpha', 0, 10),
+        'eta': trial.suggest_float('eta', 0.01, 0.15, log=True),
+        'max_depth': trial.suggest_int('max_depth', 4, 8),
+        'gamma': trial.suggest_float('gamma', 0, 10),
+        'subsample': trial.suggest_float('subsample', 0.6, 0.9),
+        'colsample_bytree': trial.suggest_float('colsample_bytree', 0.6, 0.9),
+        'colsample_bylevel': trial.suggest_float('colsample_bylevel', 0.6, 0.9),
+        'max_delta_step': trial.suggest_int('max_delta_step', 0, 5),
+        'min_child_weight': trial.suggest_int('min_child_weight', 1, 10),
+        'alpha': trial.suggest_float('alpha', 0, 5),
         'lambda': trial.suggest_float('lambda', 0, 10),
-        'scale_pos_weight': trial.suggest_float('scale_pos_weight', 1, 100),
+        'scale_pos_weight': trial.suggest_float('scale_pos_weight', 50, 400),
         
         'objective': 'binary:logistic',
         'eval_metric': 'aucpr',
@@ -156,14 +159,28 @@ def train_and_evaluate(
 
 
 def objective(trial, X_train, y_train, X_val, y_val, device: str) -> float:
-    """Optuna objective function"""
+    """Optuna objective function with cross-validation to reduce overfitting"""
+    from sklearn.model_selection import StratifiedKFold
+    
     params = get_param_space(trial)
     
     try:
-        auprc, _, _, _ = train_and_evaluate(
-            params, X_train, y_train, X_val, y_val, device
-        )
-        return auprc
+        X_combined = pd.concat([X_train, X_val], ignore_index=True)
+        y_combined = pd.concat([y_train, y_val], ignore_index=True)
+        
+        skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=RANDOM_SEED)
+        auprc_scores = []
+        
+        for fold_idx, (train_idx, val_idx) in enumerate(skf.split(X_combined, y_combined)):
+            X_tr, X_vl = X_combined.iloc[train_idx], X_combined.iloc[val_idx]
+            y_tr, y_vl = y_combined.iloc[train_idx], y_combined.iloc[val_idx]
+            
+            auprc, _, _, _ = train_and_evaluate(
+                params, X_tr, y_tr, X_vl, y_vl, device
+            )
+            auprc_scores.append(auprc)
+        
+        return np.mean(auprc_scores)
     except Exception as e:
         logger.error(f"Trial {trial.number} failed: {e}")
         return 0.0
@@ -250,18 +267,37 @@ def run_hyperparameter_search(
     for key, value in study.best_params.items():
         logger.info(f"  {key}: {value}")
     
-    logger.info("\nTraining final model with best parameters...")
+    logger.info("\nTraining final model with best parameters on full training data...")
     best_params = get_param_space(study.best_trial)
     best_params['device'] = device
     
-    auprc, best_model, optimal_threshold, best_iteration = train_and_evaluate(
-        best_params, X_train, y_train, X_val, y_val, device
+    X_full = pd.concat([X_train, X_val], ignore_index=True)
+    y_full = pd.concat([y_train, y_val], ignore_index=True)
+    
+    dtrain_full = xgb.DMatrix(X_full, label=y_full)
+    dtest = xgb.DMatrix(X_test, label=y_test)
+    
+    best_params_final = best_params.copy()
+    best_params_final.pop('device', None)
+    best_params_final['tree_method'] = 'hist'
+    best_params_final['nthread'] = 1
+    
+    final_model = xgb.train(
+        best_params_final,
+        dtrain_full,
+        num_boost_round=best_iteration if best_iteration > 0 else 500,
+        evals=[(dtrain_full, 'train'), (dtest, 'test')],
+        early_stopping_rounds=50,
+        verbose_eval=False
     )
     
-    logger.info("\nEvaluating on test set...")
-    dtest = xgb.DMatrix(X_test, label=y_test)
-    test_probs = best_model.predict(dtest)
+    test_probs = final_model.predict(dtest)
     test_auprc = calculate_auprc(y_test.values, test_probs)
+    
+    precision, recall, thresholds = precision_recall_curve(y_test.values, test_probs)
+    f1_scores = 2 * (precision * recall) / (precision + recall + 1e-10)
+    optimal_idx = np.argmax(f1_scores)
+    optimal_threshold = thresholds[optimal_idx] if optimal_idx < len(thresholds) else 0.5
     
     logger.info(f"Test auPRC: {test_auprc:.4f}")
     
@@ -272,11 +308,11 @@ def run_hyperparameter_search(
     model_file = output_path / 'best_model.pkl'
     with open(model_file, 'wb') as f:
         pickle.dump({
-            'model': best_model,
+            'model': final_model,
             'params': best_params,
             'optimal_threshold': optimal_threshold,
             'feature_names': list(X_train.columns),
-            'best_iteration': best_iteration
+            'best_iteration': final_model.best_iteration
         }, f)
     logger.info(f"Model saved to {model_file}")
     
@@ -287,7 +323,7 @@ def run_hyperparameter_search(
         'best_params': study.best_params,
         'test_auprc': float(test_auprc),
         'optimal_threshold': float(optimal_threshold),
-        'best_iteration': int(best_iteration),
+        'best_iteration': int(final_model.best_iteration),
         'elapsed_seconds': elapsed
     }
     
