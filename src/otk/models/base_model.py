@@ -294,7 +294,7 @@ class ModelTrainer:
         
         # Train model
         logger.info("Fitting model...")
-        self.model.fit(X_train, y_train, X_val, y_val)
+        self.model.fit(X_train, y_train, X_val, y_val, train_df=train_df)
         
         # Evaluate on all splits
         logger.info("Evaluating gene-level performance...")

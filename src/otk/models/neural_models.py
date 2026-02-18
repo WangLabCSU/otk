@@ -897,13 +897,13 @@ class DGITSuperModel(BaseEcDNAModel):
         
         return loss
     
-    def fit(self, X_train, y_train, X_val=None, y_val=None, teacher_probs=None, **kwargs):
-        """Fit model with strong regularization
+    def fit(self, X_train, y_train, X_val=None, y_val=None, teacher_probs=None, train_df=None, **kwargs):
+        """Fit model with Transformer + Multi-Task Learning
         
         Key improvements:
-        1. L1 regularization (feature sparsity)
-        2. Feature dropout
-        3. ListNet loss for ranking
+        1. Transformer Encoder - learns global feature interactions
+        2. Multi-task heads - Gene-level + Sample-level prediction
+        3. Focal Loss - handles class imbalance
         4. Early stopping with validation
         """
         from torch.utils.data import DataLoader, TensorDataset
@@ -912,45 +912,65 @@ class DGITSuperModel(BaseEcDNAModel):
         
         set_random_seed(RANDOM_SEED)
         
-        X_train_arr = self.prepare_features(X_train)
-        y_train_arr = y_train.values.astype(np.float32)
+        X_train_arr = self.prepare_features(X_train) if isinstance(X_train, pd.DataFrame) else X_train
+        y_train_arr = y_train.values.astype(np.float32) if isinstance(y_train, pd.Series) else y_train.astype(np.float32)
+        
+        # Prepare sample-level labels from original DataFrame
+        if train_df is not None and 'sample' in train_df.columns:
+            train_samples = train_df['sample'].values
+            sample_to_label = train_df.groupby('sample')['y'].max().to_dict()
+            sample_labels = np.array([sample_to_label.get(s, 0) for s in train_samples], dtype=np.float32)
+        else:
+            # Fallback: use gene labels as sample labels
+            sample_labels = y_train_arr.copy()
         
         input_dim = X_train_arr.shape[1]
         
         arch_config = self.config.get('model', {}).get('architecture', {})
-        hidden_dim = arch_config.get('hidden_dim', 128)
-        dropout = arch_config.get('dropout', 0.3)
+        hidden_dim = arch_config.get('hidden_dim', 256)
+        num_heads = arch_config.get('num_heads', 8)
+        num_transformer_layers = arch_config.get('num_transformer_layers', 2)
+        num_cross_layers = arch_config.get('num_cross_layers', 2)
+        dropout = arch_config.get('dropout', 0.2)
         
         loss_config = self.config.get('model', {}).get('loss_function', {})
         pos_weight = loss_config.get('pos_weight', 10.0)
-        l1_lambda = loss_config.get('l1_lambda', 0.001)
-        feature_dropout = loss_config.get('feature_dropout', 0.1)
+        focal_gamma = loss_config.get('focal_gamma', 2.0)
+        sample_weight = loss_config.get('sample_weight', 0.3)
         
-        self.model = DGITSuperNet(input_dim, hidden_dim=hidden_dim, dropout=dropout).to(self.device)
+        self.model = DGITSuperNet(
+            input_dim, 
+            hidden_dim=hidden_dim,
+            num_heads=num_heads,
+            num_transformer_layers=num_transformer_layers,
+            num_cross_layers=num_cross_layers,
+            dropout=dropout
+        ).to(self.device)
         
         train_dataset = TensorDataset(
             torch.tensor(X_train_arr),
-            torch.tensor(y_train_arr).unsqueeze(1)
+            torch.tensor(y_train_arr).unsqueeze(1),
+            torch.tensor(sample_labels).unsqueeze(1)
         )
-        train_loader = DataLoader(train_dataset, batch_size=2048, shuffle=True)
+        train_loader = DataLoader(train_dataset, batch_size=4096, shuffle=True)
         
         optimizer = torch.optim.AdamW(
             self.model.parameters(), 
             lr=0.001,
-            weight_decay=0.1  # Strong L2 regularization
+            weight_decay=0.01
         )
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=50)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=2)
         
         best_val_auprc = 0
         best_model_state = None
         best_epoch = 0
         patience_counter = 0
-        max_patience = 15
-        n_epochs = 100
+        max_patience = 20
+        n_epochs = 150
         
-        logger.info(f"Starting DGITSuper V6 (Simplified & Regularized) training: {n_epochs} epochs")
-        logger.info(f"Architecture: hidden_dim={hidden_dim}, dropout={dropout}")
-        logger.info(f"Regularization: L1={l1_lambda}, L2=0.1, feature_dropout={feature_dropout}")
+        logger.info(f"Starting DGITSuper V8 (Transformer + Multi-Task) training: {n_epochs} epochs")
+        logger.info(f"Architecture: hidden_dim={hidden_dim}, num_heads={num_heads}, transformer_layers={num_transformer_layers}, cross_layers={num_cross_layers}, dropout={dropout}")
+        logger.info(f"Multi-task: sample_weight={sample_weight}")
         start_time = time.time()
         
         for epoch in range(n_epochs):
@@ -958,33 +978,37 @@ class DGITSuperModel(BaseEcDNAModel):
             epoch_loss = 0
             n_batches = 0
             
-            for batch_x, batch_y in train_loader:
-                batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
-                
-                # Feature dropout (randomly zero out features)
-                if feature_dropout > 0:
-                    mask = torch.rand(batch_x.shape[1], device=self.device) > feature_dropout
-                    batch_x = batch_x * mask.float()
+            for batch_x, batch_y, batch_sample_y in train_loader:
+                batch_x = batch_x.to(self.device)
+                batch_y = batch_y.to(self.device)
+                batch_sample_y = batch_sample_y.to(self.device)
                 
                 optimizer.zero_grad()
                 
-                outputs = self.model(batch_x)
+                # Multi-task forward
+                gene_out, sample_out = self.model(batch_x, return_sample_pred=True)
                 
-                # Combined loss: BCE + ListNet
-                bce_loss = nn.functional.binary_cross_entropy_with_logits(
-                    outputs.squeeze(-1), batch_y.squeeze(-1),
+                # Gene-level Focal Loss
+                logits_flat = gene_out.view(-1)
+                targets_flat = batch_y.view(-1).float()
+                probs = torch.sigmoid(logits_flat)
+                pt = targets_flat * probs + (1.0 - targets_flat) * (1.0 - probs)
+                focal_weight = (1.0 - pt) ** focal_gamma
+                bce = nn.functional.binary_cross_entropy_with_logits(
+                    logits_flat, targets_flat,
+                    pos_weight=torch.tensor([pos_weight], device=self.device),
+                    reduction='none'
+                )
+                gene_loss = (focal_weight * bce).mean()
+                
+                # Sample-level BCE Loss
+                sample_loss = nn.functional.binary_cross_entropy_with_logits(
+                    sample_out.view(-1), batch_sample_y.view(-1).float(),
                     pos_weight=torch.tensor([pos_weight], device=self.device)
                 )
                 
-                listnet_loss = self._listnet_loss(outputs, batch_y)
-                
-                loss = 0.7 * bce_loss + 0.3 * listnet_loss
-                
-                # L1 regularization
-                l1_reg = torch.tensor(0.0, device=self.device)
-                for param in self.model.parameters():
-                    l1_reg += torch.abs(param).sum()
-                loss += l1_lambda * l1_reg
+                # Combined loss
+                loss = gene_loss + sample_weight * sample_loss
                 
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
@@ -1149,63 +1173,110 @@ class MultiHeadSelfAttention(nn.Module):
 
 
 class DGITSuperNet(nn.Module):
-    """DGIT Super Network V6 - Simplified & Regularized
+    """DGIT Super Network V8 - Transformer + Multi-Task Learning
     
     Key design principles:
-    1. Simple architecture - avoid overfitting
-    2. Feature binning - mimic tree models
-    3. Strong regularization - L1+L2+Feature dropout
-    4. Direct ranking optimization
+    1. Transformer Encoder - learns global feature interactions
+    2. Feature Cross Layer - mimics tree-based feature splits
+    3. Multi-task heads - Gene-level + Sample-level prediction
+    4. Strong regularization - prevents overfitting
     """
-    def __init__(self, input_dim: int, hidden_dim: int = 128, num_bins: int = 16, dropout: float = 0.3):
+    def __init__(self, input_dim: int, hidden_dim: int = 256, num_heads: int = 8, 
+                 num_transformer_layers: int = 2, num_cross_layers: int = 2,
+                 dropout: float = 0.2):
         super().__init__()
         
-        self.num_bins = num_bins
-        
-        # Feature embedding with binning (mimics tree splits)
-        self.feature_bins = nn.ModuleList([
-            nn.Sequential(
-                nn.Linear(1, 8),
-                nn.ReLU(),
-                nn.Linear(8, 1)
-            ) for _ in range(min(input_dim, 20))  # Only for top 20 features
-        ])
-        
-        # Main network - simple and effective
-        self.net = nn.Sequential(
+        # Input embedding
+        self.input_embed = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
-            nn.BatchNorm1d(hidden_dim),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.BatchNorm1d(hidden_dim),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            
-            nn.Linear(hidden_dim, hidden_dim // 2),
-            nn.BatchNorm1d(hidden_dim // 2),
-            nn.ReLU(),
-            nn.Dropout(dropout * 0.5),
-            
-            nn.Linear(hidden_dim // 2, 1)
+            nn.LayerNorm(hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout)
         )
         
-        # L1 regularization will be applied in training
+        # Transformer Encoder for global feature interactions
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=hidden_dim,
+            nhead=num_heads,
+            dim_feedforward=hidden_dim * 4,
+            dropout=dropout,
+            activation='gelu',
+            batch_first=True,
+            norm_first=True
+        )
+        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_transformer_layers)
+        
+        # Feature Cross Layers (DCN-style)
+        self.cross_layers = nn.ModuleList([
+            nn.Linear(hidden_dim, hidden_dim, bias=False) 
+            for _ in range(num_cross_layers)
+        ])
+        self.cross_bias = nn.ParameterList([
+            nn.Parameter(torch.zeros(hidden_dim))
+            for _ in range(num_cross_layers)
+        ])
+        
+        # Gene-level prediction head
+        self.gene_head = nn.Sequential(
+            nn.Linear(hidden_dim * 2, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, 64),
+            nn.LayerNorm(64),
+            nn.GELU(),
+            nn.Dropout(dropout * 0.5),
+            nn.Linear(64, 1)
+        )
+        
+        # Sample-level prediction head (auxiliary task)
+        self.sample_head = nn.Sequential(
+            nn.Linear(hidden_dim * 2, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, 1)
+        )
+        
         self._init_weights()
     
     def _init_weights(self):
         for module in self.modules():
             if isinstance(module, nn.Linear):
-                nn.init.kaiming_normal_(module.weight, nonlinearity='relu')
+                nn.init.xavier_uniform_(module.weight, gain=0.5)
                 if module.bias is not None:
                     nn.init.zeros_(module.bias)
+            elif isinstance(module, nn.LayerNorm):
+                nn.init.ones_(module.weight)
+                nn.init.zeros_(module.bias)
     
-    def forward(self, x):
+    def forward(self, x, return_sample_pred=False):
         x = torch.clamp(x, min=-100, max=100)
         x = torch.nan_to_num(x, nan=0.0, posinf=100.0, neginf=-100.0)
         
-        return self.net(x)
+        # Embed
+        h = self.input_embed(x)
+        
+        # Transformer (treat features as sequence)
+        h_seq = h.unsqueeze(1)  # [batch, 1, hidden]
+        h_trans = self.transformer(h_seq).squeeze(1)  # [batch, hidden]
+        
+        # Feature Cross
+        cross = h
+        for layer, bias in zip(self.cross_layers, self.cross_bias):
+            cross = h * layer(cross) + bias + cross
+        
+        # Combine Transformer and Cross features
+        combined = torch.cat([h_trans, cross], dim=-1)  # [batch, hidden*2]
+        
+        # Gene-level prediction
+        gene_out = self.gene_head(combined)
+        
+        if return_sample_pred:
+            sample_out = self.sample_head(combined)
+            return gene_out, sample_out
+        
+        return gene_out
 
 
 class ResidualBlock(nn.Module):

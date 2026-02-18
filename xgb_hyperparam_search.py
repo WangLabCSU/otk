@@ -158,8 +158,8 @@ def train_and_evaluate(
     return auprc, model, optimal_threshold, model.best_iteration
 
 
-def objective(trial, X_train, y_train, X_val, y_val, device: str) -> float:
-    """Optuna objective function with cross-validation to reduce overfitting"""
+def objective(trial, X_train, y_train, X_val, y_val, device: str, train_samples, val_samples) -> float:
+    """Optuna objective function with sample-level cross-validation to prevent data leakage"""
     from sklearn.model_selection import StratifiedKFold
     
     params = get_param_space(trial)
@@ -167,13 +167,26 @@ def objective(trial, X_train, y_train, X_val, y_val, device: str) -> float:
     try:
         X_combined = pd.concat([X_train, X_val], ignore_index=True)
         y_combined = pd.concat([y_train, y_val], ignore_index=True)
+        samples_combined = pd.concat([train_samples, val_samples], ignore_index=True)
+        
+        sample_labels = samples_combined.groupby(samples_combined).transform(lambda x: y_combined.loc[x.index].max())
+        unique_samples = samples_combined.unique()
+        sample_y = pd.Series({s: y_combined[samples_combined == s].max() for s in unique_samples})
         
         skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=RANDOM_SEED)
         auprc_scores = []
         
-        for fold_idx, (train_idx, val_idx) in enumerate(skf.split(X_combined, y_combined)):
-            X_tr, X_vl = X_combined.iloc[train_idx], X_combined.iloc[val_idx]
-            y_tr, y_vl = y_combined.iloc[train_idx], y_combined.iloc[val_idx]
+        for fold_idx, (sample_train_idx, sample_val_idx) in enumerate(skf.split(unique_samples.reshape(-1, 1), sample_y.values)):
+            train_samples_fold = set(unique_samples[sample_train_idx])
+            val_samples_fold = set(unique_samples[sample_val_idx])
+            
+            gene_train_mask = samples_combined.isin(train_samples_fold).values
+            gene_val_mask = samples_combined.isin(val_samples_fold).values
+            
+            X_tr = X_combined[gene_train_mask]
+            y_tr = y_combined[gene_train_mask]
+            X_vl = X_combined[gene_val_mask]
+            y_vl = y_combined[gene_val_mask]
             
             auprc, _, _, _ = train_and_evaluate(
                 params, X_tr, y_tr, X_vl, y_vl, device
@@ -218,13 +231,17 @@ def run_hyperparameter_search(
     logger.info("Preparing features...")
     X_train = prepare_features(train_df)
     y_train = train_df['y']
+    train_samples = train_df['sample']
     X_val = prepare_features(val_df)
     y_val = val_df['y']
+    val_samples = val_df['sample']
     X_test = prepare_features(test_df)
     y_test = test_df['y']
+    test_samples = test_df['sample']
     
     logger.info(f"Train: {len(X_train)}, Val: {len(X_val)}, Test: {len(X_test)}")
     logger.info(f"Features: {X_train.shape[1]}")
+    logger.info(f"Unique samples - Train: {train_samples.nunique()}, Val: {val_samples.nunique()}, Test: {test_samples.nunique()}")
     
     if storage_path is None:
         storage_path = f"sqlite:///logs/{study_name}.db"
@@ -250,7 +267,7 @@ def run_hyperparameter_search(
     start_time = time.time()
     
     study.optimize(
-        lambda trial: objective(trial, X_train, y_train, X_val, y_val, device),
+        lambda trial: objective(trial, X_train, y_train, X_val, y_val, device, train_samples, val_samples),
         n_trials=n_trials,
         n_jobs=n_jobs,
         show_progress_bar=True
