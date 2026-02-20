@@ -1087,60 +1087,40 @@ class ModelAnalyzer:
         plt.close()
         print(f"Saved: {output_dir / 'performance_comparison.png'}")
         
-        # 2. Sample-Level Performance
+        # 2. Sample-Level Performance - 单列布局
         sample_evaluated = any(m.sample_test_metrics.auPRC > 0 for m in trained_models)
         if sample_evaluated:
             sorted_sample = sorted(trained_models, key=lambda x: x.sample_test_metrics.auPRC, reverse=True)
             sample_names = [m.name for m in sorted_sample]
             n_models = len(sorted_sample)
             
-            fig_height = max(6, n_models * 0.5 + 2)
-            fig, axes = plt.subplots(1, 3, figsize=(14, fig_height))
-            fig.suptitle('Sample-Level Performance (Circular Detection)', fontsize=14, fontweight='bold', y=1.02)
+            fig, ax = plt.subplots(figsize=(10, max(5, n_models * 0.6)))
+            fig.suptitle('Sample-Level Performance (Circular Detection)', fontsize=14, fontweight='bold')
             
-            sample_colors = plt.cm.Set2(np.linspace(0, 1, n_models))
+            x = np.arange(n_models)
+            width = 0.25
             
-            # Sample auPRC
-            ax = axes[0]
             sample_auprc = [m.sample_test_metrics.auPRC for m in sorted_sample]
-            bars = ax.barh(sample_names, sample_auprc, color=sample_colors, height=0.7)
-            ax.set_xlabel('auPRC', fontweight='bold')
-            ax.set_xlim(0.98, 1.005)
-            ax.invert_yaxis()
-            for bar, val in zip(bars, sample_auprc):
-                ax.text(val + 0.0003, bar.get_y() + bar.get_height()/2, f'{val:.4f}', 
-                       va='center', fontsize=9)
-            ax.set_title('(a) Sample-Level auPRC', fontweight='bold')
-            ax.grid(axis='x', alpha=0.3)
-            ax.tick_params(axis='y', labelsize=9)
-            
-            # Sample Precision
-            ax = axes[1]
             sample_prec = [m.sample_test_metrics.Precision for m in sorted_sample]
-            bars = ax.barh(sample_names, sample_prec, color=sample_colors, height=0.7)
-            ax.set_xlabel('Precision', fontweight='bold')
-            ax.set_xlim(0.98, 1.005)
-            ax.invert_yaxis()
-            for bar, val in zip(bars, sample_prec):
-                ax.text(val + 0.0003, bar.get_y() + bar.get_height()/2, f'{val:.3f}', 
-                       va='center', fontsize=9)
-            ax.set_title('(b) Sample-Level Precision', fontweight='bold')
-            ax.grid(axis='x', alpha=0.3)
-            ax.tick_params(axis='y', labelsize=9)
-            
-            # Sample Recall
-            ax = axes[2]
             sample_recall = [m.sample_test_metrics.Recall for m in sorted_sample]
-            bars = ax.barh(sample_names, sample_recall, color=sample_colors, height=0.7)
-            ax.set_xlabel('Recall', fontweight='bold')
+            
+            bars1 = ax.barh(x - width, sample_auprc, width, label='auPRC', color='#3498db', alpha=0.8)
+            bars2 = ax.barh(x, sample_prec, width, label='Precision', color='#2ecc71', alpha=0.8)
+            bars3 = ax.barh(x + width, sample_recall, width, label='Recall', color='#e74c3c', alpha=0.8)
+            
+            ax.set_yticks(x)
+            ax.set_yticklabels(sample_names, fontsize=10)
+            ax.set_xlabel('Score', fontweight='bold')
             ax.set_xlim(0.7, 1.02)
-            ax.invert_yaxis()
-            for bar, val in zip(bars, sample_recall):
-                ax.text(val + 0.005, bar.get_y() + bar.get_height()/2, f'{val:.3f}', 
-                       va='center', fontsize=9)
-            ax.set_title('(c) Sample-Level Recall', fontweight='bold')
+            ax.legend(loc='lower right', fontsize=10)
             ax.grid(axis='x', alpha=0.3)
-            ax.tick_params(axis='y', labelsize=9)
+            ax.invert_yaxis()
+            
+            for bars in [bars1, bars2, bars3]:
+                for bar in bars:
+                    width_val = bar.get_width()
+                    ax.text(width_val + 0.005, bar.get_y() + bar.get_height()/2, f'{width_val:.3f}', 
+                           va='center', fontsize=8)
             
             plt.tight_layout()
             plt.savefig(output_dir / 'sample_level_performance.png', dpi=300, bbox_inches='tight')
