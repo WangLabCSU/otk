@@ -1,0 +1,33 @@
+model:
+  type: XGBoost
+  variant: xgb_tuned
+  params:
+    objective: binary:logistic
+    eval_metric: aucpr
+    eta: 0.03672687007849265
+    max_depth: 7
+    gamma: 1.0101014509217294
+    subsample: 0.7317547889815181
+    colsample_bytree: 0.8299162998058248
+    colsample_bylevel: 0.6703227610602337
+    max_delta_step: 0
+    min_child_weight: 8
+    alpha: 3.8492339676801373
+    lambda: 2.8615832217707435
+    scale_pos_weight: 50.2846484902362
+    tree_method: hist
+    random_state: 2026
+  architecture:
+    input_dim: 68
+
+training:
+  epochs: 153
+  early_stopping:
+    patience: 50
+
+hyperparameter_search:
+  n_trials: 500
+  best_cv_auPRC: 0.7701
+  search_time_hours: 26.2
+  cv_method: sample-level 3-fold
+  notes: "Sample-level cross-validation to prevent data leakage"

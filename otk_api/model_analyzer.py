@@ -230,6 +230,24 @@ class ModelAnalyzer:
             "features": ["Feature gating", "Transformer encoder", "Gated residual blocks"],
             "suitable_for": "Feature interaction learning with gating mechanism"
         },
+        "xgb_tuned_v3": {
+            "description": "XGBoost with Optimized Hyperparameters",
+            "structure": "Gradient Boosted Trees (500 trials, sample-level CV)",
+            "features": ["Optimized scale_pos_weight", "Sample-level cross-validation", "No data leakage"],
+            "suitable_for": "High F1, balanced precision-recall"
+        },
+        "xgb_tuned": {
+            "description": "XGBoost with Hyperparameter Search",
+            "structure": "Gradient Boosted Trees (1000 trials)",
+            "features": ["Optuna optimization", "Cross-validation", "Feature importance"],
+            "suitable_for": "Optimized XGBoost performance"
+        },
+        "EnsembleSuper": {
+            "description": "Ensemble Super Model",
+            "structure": "Multi-model ensemble with meta-learner",
+            "features": ["Model fusion", "Weighted voting", "Meta-learning"],
+            "suitable_for": "Best performance through ensemble"
+        },
     }
 
     def __init__(self, models_dir: Optional[Path] = None, data_path: Optional[Path] = None):
@@ -608,6 +626,52 @@ class ModelAnalyzer:
             traceback.print_exc()
             return SampleLevelMetrics(), SampleLevelMetrics(), SampleLevelMetrics()
     
+    def _infer_architecture_info(self, model_type: str, config_info: Dict) -> Dict[str, Any]:
+        """Infer architecture info for unknown models from config"""
+        if model_type in self.MODEL_ARCHITECTURE_INFO:
+            return self.MODEL_ARCHITECTURE_INFO[model_type]
+        
+        # Infer from config
+        model_name = config_info.get('model_type', model_type)
+        hidden_dims = config_info.get('hidden_dims', [])
+        layers = config_info.get('layers', [])
+        input_dim = config_info.get('input_dim', 57)
+        
+        # Build structure string
+        if hidden_dims:
+            structure = f"{input_dim}→" + "→".join(map(str, hidden_dims)) + "→1"
+        elif layers:
+            dims = [layers[0].get('input_dim', input_dim)]
+            for layer in layers:
+                if 'output_dim' in layer:
+                    dims.append(layer['output_dim'])
+            structure = "→".join(map(str, dims)) + "→1"
+        else:
+            structure = f"{input_dim}→...→1"
+        
+        # Infer features
+        features = []
+        dropout_rate = config_info.get('dropout_rate') or 0
+        if dropout_rate > 0:
+            features.append(f"Dropout({dropout_rate})")
+        if 'Transformer' in model_type or 'transformer' in model_name.lower():
+            features.append("Transformer architecture")
+        if 'XGB' in model_type or 'xgb' in model_name.lower():
+            features.append("Gradient Boosted Trees")
+        if 'Residual' in model_type or 'residual' in model_name.lower():
+            features.append("Residual connections")
+        if 'Ensemble' in model_type or 'ensemble' in model_name.lower():
+            features.append("Multi-model ensemble")
+        if not features:
+            features.append("Custom architecture")
+        
+        return {
+            "description": f"{model_type} Model",
+            "structure": structure,
+            "features": features,
+            "suitable_for": "Custom model - see config for details"
+        }
+
     def analyze_model(self, model_name: str) -> Optional[ModelInfo]:
         """分析单个模型"""
         model_dir = self.models_dir / model_name
@@ -628,12 +692,7 @@ class ModelAnalyzer:
         summary_info = self.parse_training_summary(summary)
         
         model_type = config_info['model_type']
-        arch_info = self.MODEL_ARCHITECTURE_INFO.get(model_type, {
-            "description": "Unknown architecture",
-            "structure": "N/A",
-            "features": [],
-            "suitable_for": "N/A"
-        })
+        arch_info = self._infer_architecture_info(model_type, config_info)
         
         is_trained = summary_info['test_metrics'].auPRC > 0
         
