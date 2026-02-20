@@ -1090,43 +1090,47 @@ class ModelAnalyzer:
         # 2. Sample-Level Performance - 单列布局
         sample_evaluated = any(m.sample_test_metrics.auPRC > 0 for m in trained_models)
         if sample_evaluated:
-            sorted_sample = sorted(trained_models, key=lambda x: x.sample_test_metrics.auPRC, reverse=True)
+            sorted_sample = sorted([m for m in trained_models if m.sample_test_metrics.auPRC > 0], 
+                                   key=lambda x: x.sample_test_metrics.auPRC, reverse=True)
             sample_names = [m.name for m in sorted_sample]
             n_models = len(sorted_sample)
             
-            fig, ax = plt.subplots(figsize=(10, max(5, n_models * 0.6)))
-            fig.suptitle('Sample-Level Performance (Circular Detection)', fontsize=14, fontweight='bold')
-            
-            x = np.arange(n_models)
-            width = 0.25
-            
-            sample_auprc = [m.sample_test_metrics.auPRC for m in sorted_sample]
-            sample_prec = [m.sample_test_metrics.Precision for m in sorted_sample]
-            sample_recall = [m.sample_test_metrics.Recall for m in sorted_sample]
-            
-            bars1 = ax.barh(x - width, sample_auprc, width, label='auPRC', color='#3498db', alpha=0.8)
-            bars2 = ax.barh(x, sample_prec, width, label='Precision', color='#2ecc71', alpha=0.8)
-            bars3 = ax.barh(x + width, sample_recall, width, label='Recall', color='#e74c3c', alpha=0.8)
-            
-            ax.set_yticks(x)
-            ax.set_yticklabels(sample_names, fontsize=10)
-            ax.set_xlabel('Score', fontweight='bold')
-            ax.set_xlim(0.7, 1.02)
-            ax.legend(loc='lower right', fontsize=10)
-            ax.grid(axis='x', alpha=0.3)
-            ax.invert_yaxis()
-            
-            for bars in [bars1, bars2, bars3]:
-                for bar in bars:
-                    width_val = bar.get_width()
-                    ax.text(width_val + 0.005, bar.get_y() + bar.get_height()/2, f'{width_val:.3f}', 
-                           va='center', fontsize=8)
-            
-            plt.tight_layout()
-            plt.savefig(output_dir / 'sample_level_performance.png', dpi=300, bbox_inches='tight')
-            plt.savefig(output_dir / 'sample_level_performance.pdf', bbox_inches='tight')
-            plt.close()
-            print(f"Saved: {output_dir / 'sample_level_performance.png'}")
+            if n_models > 0:
+                fig_height = max(4, n_models * 0.5 + 1)
+                fig, ax = plt.subplots(figsize=(8, fig_height))
+                
+                x = np.arange(n_models)
+                width = 0.25
+                
+                sample_auprc = [m.sample_test_metrics.auPRC for m in sorted_sample]
+                sample_prec = [m.sample_test_metrics.Precision for m in sorted_sample]
+                sample_recall = [m.sample_test_metrics.Recall for m in sorted_sample]
+                
+                bars1 = ax.barh(x - width, sample_auprc, width, label='auPRC', color='#3498db', alpha=0.8)
+                bars2 = ax.barh(x, sample_prec, width, label='Precision', color='#2ecc71', alpha=0.8)
+                bars3 = ax.barh(x + width, sample_recall, width, label='Recall', color='#e74c3c', alpha=0.8)
+                
+                ax.set_yticks(x)
+                ax.set_yticklabels(sample_names, fontsize=9)
+                ax.set_xlabel('Score', fontweight='bold')
+                ax.set_xlim(0.7, 1.05)
+                ax.legend(loc='lower right', fontsize=9)
+                ax.grid(axis='x', alpha=0.3)
+                ax.invert_yaxis()
+                ax.set_title('Sample-Level Performance (Circular Detection)', fontsize=12, fontweight='bold')
+                
+                for bars in [bars1, bars2, bars3]:
+                    for bar in bars:
+                        w = bar.get_width()
+                        if w > 0:
+                            ax.text(w + 0.005, bar.get_y() + bar.get_height()/2, f'{w:.3f}', 
+                                   va='center', fontsize=7)
+                
+                plt.tight_layout()
+                plt.savefig(output_dir / 'sample_level_performance.png', dpi=150, bbox_inches='tight')
+                plt.savefig(output_dir / 'sample_level_performance.pdf', bbox_inches='tight')
+                plt.close()
+                print(f"Saved: {output_dir / 'sample_level_performance.png'}")
         
         # 3. Train/Val/Test 对比图
         fig, ax = plt.subplots(figsize=(12, 6))
