@@ -109,144 +109,36 @@ class ModelInfo:
 
 
 class ModelAnalyzer:
-    MODEL_ARCHITECTURE_INFO = {
-        "XGBNew": {
-            "description": "XGBoost Gradient Boosting (New Features)",
-            "structure": "Gradient Boosted Trees with 57 features",
+    MODEL_TYPE_TEMPLATES = {
+        "XGB": {
+            "description": "XGBoost Gradient Boosting",
             "features": ["Tree-based ensemble", "Feature importance", "Native missing value handling"],
-            "suitable_for": "Tabular data, interpretable predictions, high performance"
-        },
-        "XGB11": {
-            "description": "XGBoost Gradient Boosting (Paper Features)",
-            "structure": "Gradient Boosted Trees with 11 features",
-            "features": ["Tree-based ensemble", "Paper feature set", "Native missing value handling"],
-            "suitable_for": "Reproducible paper results, minimal feature set"
-        },
-        "TransformerEcDNA": {
-            "description": "Transformer Attention Model",
-            "structure": "57→128(embedding)→Transformer(3 layers)→64→1",
-            "features": ["Self-attention mechanism", "LayerNorm", "GELU activation", "norm_first=True"],
-            "suitable_for": "Feature interaction learning, balanced precision-recall"
+            "suitable_for": "Tabular data, interpretable predictions"
         },
         "Transformer": {
             "description": "Transformer Attention Model",
-            "structure": "57→128(embedding)→Transformer(3 layers)→64→1",
-            "features": ["Self-attention mechanism", "LayerNorm", "GELU activation", "norm_first=True"],
-            "suitable_for": "Feature interaction learning, balanced precision-recall"
+            "features": ["Self-attention mechanism", "LayerNorm", "GELU activation"],
+            "suitable_for": "Feature interaction learning"
         },
-        "BaselineMLP": {
-            "description": "Simple MLP Network",
-            "structure": "57→128→64→1",
-            "features": ["ReLU activation", "Dropout(0.3)", "Simple architecture"],
+        "MLP": {
+            "description": "Multi-Layer Perceptron",
+            "features": ["Fully connected layers", "Non-linear activation"],
             "suitable_for": "Baseline model, quick training"
         },
-        "DeepResidual": {
-            "description": "Deep Residual Network",
-            "structure": "57→512→256→128→64→32→1",
-            "features": ["Residual connections", "LayerNorm", "GELU activation", "Progressive dimension reduction"],
-            "suitable_for": "Deep feature learning, high precision scenarios"
+        "Residual": {
+            "description": "Residual Network",
+            "features": ["Residual connections", "Skip connections"],
+            "suitable_for": "Deep feature learning"
         },
-        "OptimizedResidual": {
-            "description": "Optimized Residual Network",
-            "structure": "57→128→64→32→16→1",
-            "features": ["Residual blocks", "LayerNorm", "GELU activation"],
-            "suitable_for": "Balanced training, stable convergence"
-        },
-        "DGITSuper": {
-            "description": "Super Deep Gated Interaction Transformer",
-            "structure": "57→256→Transformer(6 layers)→128→64→1",
-            "features": ["Deep Transformer", "LayerNorm", "GELU activation", "norm_first=True"],
-            "suitable_for": "High-performance ecDNA prediction"
+        "Ensemble": {
+            "description": "Ensemble Model",
+            "features": ["Multi-model fusion", "Weighted voting"],
+            "suitable_for": "Robust prediction, reduced overfitting"
         },
         "TabPFN": {
             "description": "TabPFN Foundation Model",
-            "structure": "Prior-Fitted Network for Tabular Data",
-            "features": ["Pre-trained foundation model", "In-context learning", "Ensemble predictions"],
-            "suitable_for": "Small datasets, zero-shot tabular prediction"
-        },
-        "Baseline": {
-            "description": "Simple MLP Network",
-            "structure": "57→256→128→64→1",
-            "features": ["ReLU activation", "Sigmoid output", "No regularization"],
-            "suitable_for": "Baseline model, high precision low recall scenarios"
-        },
-        "PrecisionFocusedEcDNA": {
-            "description": "Deep Residual Network",
-            "structure": "57→512→256→128→64→32→1",
-            "features": ["Residual connections", "LayerNorm", "GELU activation", "Progressive dimension reduction"],
-            "suitable_for": "Deep feature learning, high precision scenarios"
-        },
-        "AdvancedEcDNA": {
-            "description": "CNN-Transformer Hybrid Model",
-            "structure": "CNN→Transformer→FPN→Classification Head",
-            "features": ["CNN local features", "Transformer global interactions", "Feature Pyramid Network"],
-            "suitable_for": "Complex feature learning, multi-scale representation"
-        },
-        "OptimizedEcDNA": {
-            "description": "Optimized Residual Network",
-            "structure": "57→128→64→32→16→1",
-            "features": ["Residual blocks", "BatchNorm", "Combined loss function"],
-            "suitable_for": "Balanced training, stable convergence"
-        },
-        "EnsembleEcDNA": {
-            "description": "Ensemble Model",
-            "structure": "Advanced + Precision → Meta classifier",
-            "features": ["Multi-model fusion", "Weighted voting", "Meta-learning"],
-            "suitable_for": "Best performance, production deployment"
-        },
-        "EnsembleOptimizedEcDNA": {
-            "description": "Optimized Ensemble Model",
-            "structure": "3×OptimizedEcDNA → Meta classifier",
-            "features": ["Multi-model ensemble", "Meta-classifier fusion"],
-            "suitable_for": "Robust prediction, reduced overfitting"
-        },
-        "ImprovedV2": {
-            "description": "Improved V2 Model",
-            "structure": "57→256→128→64→1",
-            "features": ["BatchNorm", "Dropout", "Residual connections"],
-            "suitable_for": "Improved baseline, better generalization"
-        },
-        "ImprovedV2_Deep": {
-            "description": "Deep Improved V2 Model",
-            "structure": "57→512→256→128→64→1",
-            "features": ["Deeper network", "Residual connections", "BatchNorm"],
-            "suitable_for": "Complex pattern learning"
-        },
-        "EnhancedTransformerEcDNA": {
-            "description": "Enhanced Transformer Model",
-            "structure": "57→256(embedding)→4-layer Transformer→64→1",
-            "features": ["Deep Transformer", "Multi-head attention", "Gradient checkpointing"],
-            "suitable_for": "Large-scale feature interaction"
-        },
-        "LightweightTransformerEcDNA": {
-            "description": "Lightweight Transformer Model",
-            "structure": "57→64(embedding)→2-layer Transformer→1",
-            "features": ["Lightweight design", "Fast inference", "Low memory footprint"],
-            "suitable_for": "Fast training, resource-constrained scenarios"
-        },
-        "DeepGatedInteractionTransformer": {
-            "description": "Deep Gated Interaction Transformer",
-            "structure": "57→128→Transformer→Gated Residual→1",
-            "features": ["Feature gating", "Transformer encoder", "Gated residual blocks"],
-            "suitable_for": "Feature interaction learning with gating mechanism"
-        },
-        "xgb_tuned_v3": {
-            "description": "XGBoost with Optimized Hyperparameters",
-            "structure": "Gradient Boosted Trees (500 trials, sample-level CV)",
-            "features": ["Optimized scale_pos_weight", "Sample-level cross-validation", "No data leakage"],
-            "suitable_for": "High F1, balanced precision-recall"
-        },
-        "xgb_tuned": {
-            "description": "XGBoost with Hyperparameter Search",
-            "structure": "Gradient Boosted Trees (1000 trials)",
-            "features": ["Optuna optimization", "Cross-validation", "Feature importance"],
-            "suitable_for": "Optimized XGBoost performance"
-        },
-        "EnsembleSuper": {
-            "description": "Ensemble Super Model",
-            "structure": "Multi-model ensemble with meta-learner",
-            "features": ["Model fusion", "Weighted voting", "Meta-learning"],
-            "suitable_for": "Best performance through ensemble"
+            "features": ["Pre-trained foundation model", "In-context learning"],
+            "suitable_for": "Small datasets, zero-shot prediction"
         },
     }
 
@@ -627,18 +519,20 @@ class ModelAnalyzer:
             return SampleLevelMetrics(), SampleLevelMetrics(), SampleLevelMetrics()
     
     def _infer_architecture_info(self, model_type: str, config_info: Dict) -> Dict[str, Any]:
-        """Infer architecture info for unknown models from config"""
-        if model_type in self.MODEL_ARCHITECTURE_INFO:
-            return self.MODEL_ARCHITECTURE_INFO[model_type]
-        
-        # Infer from config
-        model_name = config_info.get('model_type', model_type)
+        """Infer architecture info from config and model type templates"""
         hidden_dims = config_info.get('hidden_dims', [])
         layers = config_info.get('layers', [])
         input_dim = config_info.get('input_dim', 57)
+        max_depth = config_info.get('max_depth', 0)
         
         # Build structure string
-        if hidden_dims:
+        if 'XGB' in model_type or 'xgb' in model_type.lower():
+            n_features = input_dim
+            structure = f"Gradient Boosted Trees ({n_features} features"
+            if max_depth > 0:
+                structure += f", max_depth={max_depth}"
+            structure += ")"
+        elif hidden_dims:
             structure = f"{input_dim}→" + "→".join(map(str, hidden_dims)) + "→1"
         elif layers:
             dims = [layers[0].get('input_dim', input_dim)]
@@ -649,27 +543,33 @@ class ModelAnalyzer:
         else:
             structure = f"{input_dim}→...→1"
         
-        # Infer features
-        features = []
+        # Determine base type and get template
+        base_type = None
+        for type_key in self.MODEL_TYPE_TEMPLATES:
+            if type_key.lower() in model_type.lower():
+                base_type = type_key
+                break
+        
+        if base_type:
+            template = self.MODEL_TYPE_TEMPLATES[base_type].copy()
+        else:
+            template = {
+                "description": f"{model_type} Model",
+                "features": [],
+                "suitable_for": "Custom model"
+            }
+        
+        # Add specific features from config
+        features = list(template.get('features', []))
         dropout_rate = config_info.get('dropout_rate') or 0
         if dropout_rate > 0:
             features.append(f"Dropout({dropout_rate})")
-        if 'Transformer' in model_type or 'transformer' in model_name.lower():
-            features.append("Transformer architecture")
-        if 'XGB' in model_type or 'xgb' in model_name.lower():
-            features.append("Gradient Boosted Trees")
-        if 'Residual' in model_type or 'residual' in model_name.lower():
-            features.append("Residual connections")
-        if 'Ensemble' in model_type or 'ensemble' in model_name.lower():
-            features.append("Multi-model ensemble")
-        if not features:
-            features.append("Custom architecture")
         
         return {
-            "description": f"{model_type} Model",
+            "description": template.get('description', f"{model_type} Model"),
             "structure": structure,
             "features": features,
-            "suitable_for": "Custom model - see config for details"
+            "suitable_for": template.get('suitable_for', "Custom model - see config for details")
         }
 
     def analyze_model(self, model_name: str) -> Optional[ModelInfo]:
@@ -1013,7 +913,7 @@ class ModelAnalyzer:
         lines.append("## Architecture Details")
         lines.append("")
         for m in trained_models:
-            arch_info = self.MODEL_ARCHITECTURE_INFO.get(m.model_type, {})
+            arch_info = self._infer_architecture_info(m.model_type, {'input_dim': m.input_dim})
             lines.append(f"### {m.name}")
             lines.append("")
             features_str = ", ".join(arch_info.get('features', []))
