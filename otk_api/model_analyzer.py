@@ -1090,51 +1090,57 @@ class ModelAnalyzer:
         # 2. Sample-Level Performance
         sample_evaluated = any(m.sample_test_metrics.auPRC > 0 for m in trained_models)
         if sample_evaluated:
-            fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-            fig.suptitle('Sample-Level Performance (Circular Detection)', fontsize=14, fontweight='bold')
-            
             sorted_sample = sorted(trained_models, key=lambda x: x.sample_test_metrics.auPRC, reverse=True)
             sample_names = [m.name for m in sorted_sample]
-            sample_colors = plt.cm.Set2(np.linspace(0, 1, len(sorted_sample)))
+            n_models = len(sorted_sample)
+            
+            fig_height = max(6, n_models * 0.5 + 2)
+            fig, axes = plt.subplots(1, 3, figsize=(14, fig_height))
+            fig.suptitle('Sample-Level Performance (Circular Detection)', fontsize=14, fontweight='bold', y=1.02)
+            
+            sample_colors = plt.cm.Set2(np.linspace(0, 1, n_models))
             
             # Sample auPRC
             ax = axes[0]
             sample_auprc = [m.sample_test_metrics.auPRC for m in sorted_sample]
-            bars = ax.barh(sample_names, sample_auprc, color=sample_colors)
+            bars = ax.barh(sample_names, sample_auprc, color=sample_colors, height=0.7)
             ax.set_xlabel('auPRC', fontweight='bold')
-            ax.set_xlim(0.95, 1.0)
+            ax.set_xlim(0.98, 1.005)
             ax.invert_yaxis()
             for bar, val in zip(bars, sample_auprc):
-                ax.text(val + 0.0005, bar.get_y() + bar.get_height()/2, f'{val:.4f}', 
-                       va='center', fontsize=8)
+                ax.text(val + 0.0003, bar.get_y() + bar.get_height()/2, f'{val:.4f}', 
+                       va='center', fontsize=9)
             ax.set_title('(a) Sample-Level auPRC', fontweight='bold')
             ax.grid(axis='x', alpha=0.3)
+            ax.tick_params(axis='y', labelsize=9)
             
             # Sample Precision
             ax = axes[1]
             sample_prec = [m.sample_test_metrics.Precision for m in sorted_sample]
-            bars = ax.barh(sample_names, sample_prec, color=sample_colors)
+            bars = ax.barh(sample_names, sample_prec, color=sample_colors, height=0.7)
             ax.set_xlabel('Precision', fontweight='bold')
-            ax.set_xlim(0.9, 1.0)
+            ax.set_xlim(0.98, 1.005)
             ax.invert_yaxis()
             for bar, val in zip(bars, sample_prec):
-                ax.text(val + 0.005, bar.get_y() + bar.get_height()/2, f'{val:.3f}', 
-                       va='center', fontsize=8)
+                ax.text(val + 0.0003, bar.get_y() + bar.get_height()/2, f'{val:.3f}', 
+                       va='center', fontsize=9)
             ax.set_title('(b) Sample-Level Precision', fontweight='bold')
             ax.grid(axis='x', alpha=0.3)
+            ax.tick_params(axis='y', labelsize=9)
             
             # Sample Recall
             ax = axes[2]
             sample_recall = [m.sample_test_metrics.Recall for m in sorted_sample]
-            bars = ax.barh(sample_names, sample_recall, color=sample_colors)
+            bars = ax.barh(sample_names, sample_recall, color=sample_colors, height=0.7)
             ax.set_xlabel('Recall', fontweight='bold')
-            ax.set_xlim(0.7, 1.0)
+            ax.set_xlim(0.7, 1.02)
             ax.invert_yaxis()
             for bar, val in zip(bars, sample_recall):
                 ax.text(val + 0.005, bar.get_y() + bar.get_height()/2, f'{val:.3f}', 
-                       va='center', fontsize=8)
+                       va='center', fontsize=9)
             ax.set_title('(c) Sample-Level Recall', fontweight='bold')
             ax.grid(axis='x', alpha=0.3)
+            ax.tick_params(axis='y', labelsize=9)
             
             plt.tight_layout()
             plt.savefig(output_dir / 'sample_level_performance.png', dpi=300, bbox_inches='tight')
