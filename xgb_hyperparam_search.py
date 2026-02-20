@@ -302,7 +302,7 @@ def run_hyperparameter_search(
     final_model = xgb.train(
         best_params_final,
         dtrain_full,
-        num_boost_round=best_iteration if best_iteration > 0 else 500,
+        num_boost_round=1000,
         evals=[(dtrain_full, 'train'), (dtest, 'test')],
         early_stopping_rounds=50,
         verbose_eval=False

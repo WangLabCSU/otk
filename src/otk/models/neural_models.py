@@ -937,6 +937,9 @@ class DGITSuperModel(BaseEcDNAModel):
         pos_weight = loss_config.get('pos_weight', 10.0)
         focal_gamma = loss_config.get('focal_gamma', 2.0)
         sample_weight = loss_config.get('sample_weight', 0.3)
+        label_smoothing = loss_config.get('label_smoothing', 0.05)
+        mixup_alpha = loss_config.get('mixup_alpha', 0.2)
+        use_mixup = loss_config.get('use_mixup', True)
         
         self.model = DGITSuperNet(
             input_dim, 
@@ -970,7 +973,7 @@ class DGITSuperModel(BaseEcDNAModel):
         
         logger.info(f"Starting DGITSuper V8 (Transformer + Multi-Task) training: {n_epochs} epochs")
         logger.info(f"Architecture: hidden_dim={hidden_dim}, num_heads={num_heads}, transformer_layers={num_transformer_layers}, cross_layers={num_cross_layers}, dropout={dropout}")
-        logger.info(f"Multi-task: sample_weight={sample_weight}")
+        logger.info(f"Multi-task: sample_weight={sample_weight}, label_smoothing={label_smoothing}, mixup={use_mixup}")
         start_time = time.time()
         
         for epoch in range(n_epochs):
@@ -982,6 +985,19 @@ class DGITSuperModel(BaseEcDNAModel):
                 batch_x = batch_x.to(self.device)
                 batch_y = batch_y.to(self.device)
                 batch_sample_y = batch_sample_y.to(self.device)
+                
+                # Mixup augmentation
+                if use_mixup and np.random.random() < 0.5:
+                    lam = np.random.beta(mixup_alpha, mixup_alpha)
+                    indices = torch.randperm(batch_x.size(0), device=self.device)
+                    batch_x = lam * batch_x + (1 - lam) * batch_x[indices]
+                    batch_y = lam * batch_y + (1 - lam) * batch_y[indices]
+                    batch_sample_y = lam * batch_sample_y + (1 - lam) * batch_sample_y[indices]
+                
+                # Label smoothing
+                if label_smoothing > 0:
+                    batch_y = batch_y * (1 - label_smoothing) + 0.5 * label_smoothing
+                    batch_sample_y = batch_sample_y * (1 - label_smoothing) + 0.5 * label_smoothing
                 
                 optimizer.zero_grad()
                 
@@ -1279,6 +1295,45 @@ class DGITSuperNet(nn.Module):
         return gene_out
 
 
+class ObliviousDecisionTreeLayer(nn.Module):
+    """Oblivious Decision Tree Layer
+    
+    Implements a layer of oblivious decision trees where all nodes at the same depth
+    use the same splitting feature. This mimics tree-based models' decision boundaries.
+    """
+    def __init__(self, input_dim: int, num_trees: int, tree_dim: int):
+        super().__init__()
+        
+        self.num_trees = num_trees
+        self.tree_dim = tree_dim
+        
+        # Feature selection for each tree (which features to split on)
+        self.feature_weights = nn.Parameter(torch.randn(num_trees, input_dim) * 0.1)
+        
+        # Split thresholds for each tree
+        self.split_thresholds = nn.Parameter(torch.zeros(num_trees, tree_dim))
+        
+        # Leaf responses
+        self.leaf_responses = nn.Parameter(torch.randn(num_trees, tree_dim) * 0.1)
+        
+    def forward(self, x):
+        # Compute feature responses
+        # x: [batch, input_dim]
+        # feature_weights: [num_trees, input_dim]
+        feature_responses = torch.einsum('bi,ti->bt', x, self.feature_weights)
+        
+        # Apply sigmoid to get soft splits
+        splits = torch.sigmoid(feature_responses.unsqueeze(-1) - self.split_thresholds.unsqueeze(0))
+        # splits: [batch, num_trees, tree_dim]
+        
+        # Weighted leaf responses
+        responses = splits * self.leaf_responses.unsqueeze(0)
+        # responses: [batch, num_trees, tree_dim]
+        
+        # Flatten to [batch, num_trees * tree_dim]
+        return responses.view(responses.size(0), -1)
+
+
 class ResidualBlock(nn.Module):
     """Residual Block"""
     def __init__(self, dim: int):
@@ -1549,6 +1604,275 @@ class EnsembleSuperModel(BaseEcDNAModel):
         return self
 
 
+class HybridEnsembleNet(nn.Module):
+    """Hybrid Ensemble Network - Combines XGBoost predictions with Neural Network
+    
+    Architecture:
+    1. XGBoost predictions as additional features
+    2. Neural Network learns residuals and interactions
+    3. Meta-learner combines all signals
+    """
+    def __init__(self, input_dim: int, hidden_dim: int = 256, dropout: float = 0.2):
+        super().__init__()
+        
+        # Feature embedding
+        self.feature_embed = nn.Sequential(
+            nn.Linear(input_dim + 1, hidden_dim),  # +1 for XGBoost prediction
+            nn.LayerNorm(hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout)
+        )
+        
+        # Residual learning branch
+        self.residual_branch = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, hidden_dim // 2)
+        )
+        
+        # Interaction learning branch
+        self.interaction_branch = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, hidden_dim // 2)
+        )
+        
+        # Final prediction head
+        self.head = nn.Sequential(
+            nn.Linear(hidden_dim // 2, 64),
+            nn.LayerNorm(64),
+            nn.GELU(),
+            nn.Dropout(dropout * 0.5),
+            nn.Linear(64, 1)
+        )
+        
+        self._init_weights()
+    
+    def _init_weights(self):
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_uniform_(module.weight, gain=0.5)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+            elif isinstance(module, nn.LayerNorm):
+                nn.init.ones_(module.weight)
+                nn.init.zeros_(module.bias)
+    
+    def forward(self, x, xgb_pred):
+        x = torch.clamp(x, min=-100, max=100)
+        x = torch.nan_to_num(x, nan=0.0, posinf=100.0, neginf=-100.0)
+        
+        # Concatenate features with XGBoost prediction
+        combined = torch.cat([x, xgb_pred.unsqueeze(-1)], dim=-1)
+        
+        # Embed
+        h = self.feature_embed(combined)
+        
+        # Two branches
+        residual = self.residual_branch(h)
+        interaction = self.interaction_branch(h)
+        
+        # Combine
+        features = residual + interaction
+        
+        return self.head(features)
+
+
+class HybridEnsembleModel(BaseEcDNAModel):
+    """Hybrid Ensemble Model - XGBoost + Neural Network
+    
+    Combines the strengths of both approaches:
+    - XGBoost: Handles irregular decision boundaries
+    - Neural Network: Learns residuals and feature interactions
+    """
+    
+    def __init__(self, config: Optional[Dict[str, Any]] = None, device: str = 'auto'):
+        super().__init__(config)
+        self.config = config or {}
+        self.model = None
+        self.xgb_model = None
+        if device == 'auto':
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        else:
+            self.device = torch.device(device)
+    
+    def prepare_features(self, df: pd.DataFrame) -> np.ndarray:
+        feature_cols = [c for c in df.columns if c not in ['sample', 'gene_id', 'y']]
+        return df[feature_cols].fillna(0).values.astype(np.float32)
+    
+    def fit(self, X_train, y_train, X_val=None, y_val=None, **kwargs):
+        from torch.utils.data import DataLoader, TensorDataset
+        from sklearn.metrics import average_precision_score, roc_auc_score
+        import xgboost as xgb
+        import time
+        
+        set_random_seed(RANDOM_SEED)
+        
+        X_train_arr = self.prepare_features(X_train)
+        y_train_arr = y_train.values.astype(np.float32)
+        
+        input_dim = X_train_arr.shape[1]
+        
+        # Train XGBoost first
+        logger.info("Training XGBoost model...")
+        xgb_params = {
+            'objective': 'binary:logistic',
+            'eval_metric': 'aucpr',
+            'max_depth': 8,
+            'learning_rate': 0.1,
+            'n_estimators': 200,
+            'subsample': 0.8,
+            'colsample_bytree': 0.8,
+            'scale_pos_weight': 10,
+            'random_state': 2026,
+            'n_jobs': -1
+        }
+        self.xgb_model = xgb.XGBClassifier(**xgb_params)
+        self.xgb_model.fit(X_train_arr, y_train_arr)
+        
+        # Get XGBoost predictions
+        xgb_train_pred = self.xgb_model.predict_proba(X_train_arr)[:, 1]
+        
+        arch_config = self.config.get('model', {}).get('architecture', {})
+        hidden_dim = arch_config.get('hidden_dim', 256)
+        dropout = arch_config.get('dropout', 0.2)
+        
+        self.model = HybridEnsembleNet(input_dim, hidden_dim=hidden_dim, dropout=dropout).to(self.device)
+        
+        train_dataset = TensorDataset(
+            torch.tensor(X_train_arr),
+            torch.tensor(xgb_train_pred),
+            torch.tensor(y_train_arr).unsqueeze(1)
+        )
+        train_loader = DataLoader(train_dataset, batch_size=4096, shuffle=True)
+        
+        optimizer = torch.optim.AdamW(self.model.parameters(), lr=0.001, weight_decay=0.01)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=20, T_mult=2)
+        
+        best_val_auprc = 0
+        best_model_state = None
+        best_epoch = 0
+        patience_counter = 0
+        max_patience = 20
+        n_epochs = 100
+        
+        logger.info(f"Starting Hybrid Ensemble (XGBoost + NN) training: {n_epochs} epochs")
+        start_time = time.time()
+        
+        for epoch in range(n_epochs):
+            self.model.train()
+            epoch_loss = 0
+            n_batches = 0
+            
+            for batch_x, batch_xgb, batch_y in train_loader:
+                batch_x = batch_x.to(self.device)
+                batch_xgb = batch_xgb.to(self.device)
+                batch_y = batch_y.to(self.device)
+                
+                optimizer.zero_grad()
+                
+                outputs = self.model(batch_x, batch_xgb)
+                
+                loss = nn.functional.binary_cross_entropy_with_logits(
+                    outputs.squeeze(-1), batch_y.squeeze(-1).float(),
+                    pos_weight=torch.tensor([10.0], device=self.device)
+                )
+                
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+                optimizer.step()
+                epoch_loss += loss.item()
+                n_batches += 1
+            
+            train_loss = epoch_loss / n_batches
+            scheduler.step()
+            
+            self.is_fitted = True
+            train_probs = self.predict_proba(X_train)
+            train_auprc = average_precision_score(y_train.values, train_probs)
+            
+            val_auprc = 0
+            if X_val is not None and y_val is not None:
+                val_probs = self.predict_proba(X_val)
+                val_auprc = average_precision_score(y_val.values, val_probs)
+            
+            if (epoch + 1) % 1 == 0:
+                logger.info(f"Epoch {epoch+1}/{n_epochs} - Loss: {train_loss:.4f}, Train auPRC: {train_auprc:.4f}, Val auPRC: {val_auprc:.4f}")
+            
+            if val_auprc > best_val_auprc:
+                best_val_auprc = val_auprc
+                best_model_state = {k: v.cpu().clone() for k, v in self.model.state_dict().items()}
+                best_epoch = epoch + 1
+                patience_counter = 0
+            else:
+                patience_counter += 1
+                if patience_counter >= max_patience:
+                    logger.info(f"Early stopping at epoch {epoch+1}")
+                    break
+        
+        if best_model_state is not None:
+            self.model.load_state_dict({k: v.to(self.device) for k, v in best_model_state.items()})
+            logger.info(f"Loaded best model from epoch {best_epoch} with Val auPRC: {best_val_auprc:.4f}")
+        
+        training_time = time.time() - start_time
+        logger.info(f"Training completed in {training_time:.1f}s")
+        
+        self.is_fitted = True
+        if X_val is not None and y_val is not None:
+            val_probs = self.predict_proba(X_val)
+            self.optimal_threshold = self._find_optimal_threshold(y_val.values, val_probs)
+            logger.info(f"Optimal threshold: {self.optimal_threshold:.4f}")
+        return self
+    
+    def _find_optimal_threshold(self, y_true, y_prob):
+        from sklearn.metrics import precision_recall_curve
+        precision, recall, thresholds = precision_recall_curve(y_true, y_prob)
+        f1_scores = 2 * (precision * recall) / (precision + recall + 1e-10)
+        optimal_idx = np.argmax(f1_scores)
+        return thresholds[optimal_idx] if optimal_idx < len(thresholds) else 0.5
+    
+    def predict_proba(self, X):
+        self.model.eval()
+        X_arr = self.prepare_features(X) if isinstance(X, pd.DataFrame) else X
+        
+        # Get XGBoost predictions
+        xgb_pred = self.xgb_model.predict_proba(X_arr)[:, 1]
+        
+        with torch.no_grad():
+            x = torch.tensor(X_arr, dtype=torch.float32).to(self.device)
+            xgb = torch.tensor(xgb_pred, dtype=torch.float32).to(self.device)
+            logits = self.model(x, xgb)
+            probs = torch.sigmoid(logits).cpu().numpy().flatten()
+        return probs
+    
+    def predict(self, X, threshold=None):
+        probs = self.predict_proba(X)
+        threshold = threshold or self.optimal_threshold or 0.5
+        return (probs >= threshold).astype(int)
+    
+    def save(self, path: str):
+        import joblib
+        torch.save({
+            'model_state_dict': self.model.state_dict(),
+            'config': self.config,
+            'optimal_threshold': getattr(self, 'optimal_threshold', 0.5)
+        }, path)
+        joblib.dump(self.xgb_model, path.replace('.pkl', '_xgb.pkl'))
+    
+    def load(self, path: str):
+        import joblib
+        checkpoint = torch.load(path, map_location=self.device)
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.optimal_threshold = checkpoint.get('optimal_threshold', 0.5)
+        self.xgb_model = joblib.load(path.replace('.pkl', '_xgb.pkl'))
+        self.is_fitted = True
+        return self
+
+
 # Model registry
 NEURAL_MODELS = {
     'baseline_mlp': BaselineMLPModel,
@@ -1557,11 +1881,25 @@ NEURAL_MODELS = {
     'optimized_residual': OptimizedResidualModel,
     'dgit_super': DGITSuperModel,
     'ensemble_super': EnsembleSuperModel,
+    'hybrid_ensemble': HybridEnsembleModel,
 }
 
 
 def create_neural_model(model_name: str, config: Optional[Dict] = None, device: str = 'auto') -> BaseEcDNAModel:
-    """Factory function to create neural network models"""
+    """Factory function to create neural network models
+    
+    Automatically loads config from otk_api/models/{model_name}/config.yml if not provided
+    """
     if model_name not in NEURAL_MODELS:
         raise ValueError(f"Unknown model: {model_name}. Available: {list(NEURAL_MODELS.keys())}")
+    
+    if config is None:
+        import yaml
+        from pathlib import Path
+        config_path = Path(__file__).parent.parent.parent.parent / 'otk_api' / 'models' / model_name / 'config.yml'
+        if config_path.exists():
+            with open(config_path) as f:
+                config = yaml.safe_load(f)
+            logger.info(f"Loaded config from {config_path}")
+    
     return NEURAL_MODELS[model_name](config, device=device)
