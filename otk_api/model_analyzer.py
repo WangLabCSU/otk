@@ -1087,7 +1087,7 @@ class ModelAnalyzer:
         plt.close()
         print(f"Saved: {output_dir / 'performance_comparison.png'}")
         
-        # 2. Sample-Level Performance - 单列布局
+        # 2. Sample-Level Performance - SCI 论文风格多面板图
         sample_evaluated = any(m.sample_test_metrics.auPRC > 0 for m in trained_models)
         if sample_evaluated:
             sorted_sample = sorted([m for m in trained_models if m.sample_test_metrics.auPRC > 0], 
@@ -1096,38 +1096,48 @@ class ModelAnalyzer:
             n_models = len(sorted_sample)
             
             if n_models > 0:
-                fig_height = max(4, n_models * 0.5 + 1)
-                fig, ax = plt.subplots(figsize=(8, fig_height))
+                fig, axes = plt.subplots(2, 3, figsize=(14, 8))
+                fig.suptitle('Sample-Level Performance Across Datasets', fontsize=14, fontweight='bold', y=1.02)
                 
                 x = np.arange(n_models)
                 width = 0.25
+                colors = {'train': '#3498db', 'val': '#f39c12', 'test': '#e74c3c'}
                 
-                sample_auprc = [m.sample_test_metrics.auPRC for m in sorted_sample]
-                sample_prec = [m.sample_test_metrics.Precision for m in sorted_sample]
-                sample_recall = [m.sample_test_metrics.Recall for m in sorted_sample]
+                metrics_config = [
+                    ('auPRC', 'auPRC', 0.7, 1.02),
+                    ('Precision', 'Precision', 0.7, 1.02),
+                    ('Recall', 'Recall', 0.6, 1.02),
+                    ('Accuracy', 'Accuracy', 0.6, 1.02),
+                    ('F1', 'F1', 0.6, 1.02),
+                    ('AUC', 'AUC', 0.7, 1.02),
+                ]
                 
-                bars1 = ax.barh(x - width, sample_auprc, width, label='auPRC', color='#3498db', alpha=0.8)
-                bars2 = ax.barh(x, sample_prec, width, label='Precision', color='#2ecc71', alpha=0.8)
-                bars3 = ax.barh(x + width, sample_recall, width, label='Recall', color='#e74c3c', alpha=0.8)
-                
-                ax.set_yticks(x)
-                ax.set_yticklabels(sample_names, fontsize=9)
-                ax.set_xlabel('Score', fontweight='bold')
-                ax.set_xlim(0.7, 1.05)
-                ax.legend(loc='lower right', fontsize=9)
-                ax.grid(axis='x', alpha=0.3)
-                ax.invert_yaxis()
-                ax.set_title('Sample-Level Performance (Circular Detection)', fontsize=12, fontweight='bold')
-                
-                for bars in [bars1, bars2, bars3]:
-                    for bar in bars:
-                        w = bar.get_width()
-                        if w > 0:
-                            ax.text(w + 0.005, bar.get_y() + bar.get_height()/2, f'{w:.3f}', 
-                                   va='center', fontsize=7)
+                for idx, (metric_name, metric_key, xmin, xmax) in enumerate(metrics_config):
+                    ax = axes[idx // 3, idx % 3]
+                    
+                    train_vals = [getattr(m.sample_train_metrics, metric_key, 0) for m in sorted_sample]
+                    val_vals = [getattr(m.sample_val_metrics, metric_key, 0) for m in sorted_sample]
+                    test_vals = [getattr(m.sample_test_metrics, metric_key, 0) for m in sorted_sample]
+                    
+                    ax.barh(x - width, train_vals, width, label='Train', color=colors['train'], alpha=0.8)
+                    ax.barh(x, val_vals, width, label='Val', color=colors['val'], alpha=0.8)
+                    ax.barh(x + width, test_vals, width, label='Test', color=colors['test'], alpha=0.8)
+                    
+                    ax.set_yticks(x)
+                    ax.set_yticklabels(sample_names if idx % 3 == 0 else [], fontsize=8)
+                    ax.set_xlabel(metric_name, fontweight='bold', fontsize=9)
+                    ax.set_xlim(xmin, xmax)
+                    ax.grid(axis='x', alpha=0.3)
+                    ax.invert_yaxis()
+                    
+                    subplot_label = chr(ord('a') + idx)
+                    ax.set_title(f'({subplot_label}) {metric_name}', fontweight='bold', fontsize=10)
+                    
+                    if idx == 0:
+                        ax.legend(loc='lower right', fontsize=8)
                 
                 plt.tight_layout()
-                plt.savefig(output_dir / 'sample_level_performance.png', dpi=150, bbox_inches='tight')
+                plt.savefig(output_dir / 'sample_level_performance.png', dpi=300, bbox_inches='tight')
                 plt.savefig(output_dir / 'sample_level_performance.pdf', bbox_inches='tight')
                 plt.close()
                 print(f"Saved: {output_dir / 'sample_level_performance.png'}")
@@ -1174,6 +1184,8 @@ class ModelAnalyzer:
         angles = [n / float(N) * 2 * pi for n in range(N)]
         angles += angles[:1]
         
+        radar_colors = plt.cm.Set2(np.linspace(0, 1, len(top_models)))
+        
         for i, model in enumerate(top_models):
             values = [
                 model.test_metrics.auPRC,
@@ -1184,8 +1196,8 @@ class ModelAnalyzer:
             ]
             values += values[:1]
             
-            ax.plot(angles, values, 'o-', linewidth=2, label=model.name, color=colors[i])
-            ax.fill(angles, values, alpha=0.15, color=colors[i])
+            ax.plot(angles, values, 'o-', linewidth=2, label=model.name, color=radar_colors[i])
+            ax.fill(angles, values, alpha=0.15, color=radar_colors[i])
         
         ax.set_xticks(angles[:-1])
         ax.set_xticklabels(categories, fontweight='bold')
