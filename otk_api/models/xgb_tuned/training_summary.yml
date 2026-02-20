@@ -1,35 +1,89 @@
+best_iteration: 153
 best_params:
-  alpha: 5.312266468168577
-  colsample_bylevel: 0.5474940903238178
-  colsample_bytree: 0.524353030306076
-  eta: 0.2996493330511307
-  gamma: 1.4682518289618922
-  lambda: 6.431405882523245
+  alpha: 3.8492339676801373
+  booster: gbtree
+  colsample_bylevel: 0.6703227610602337
+  colsample_bytree: 0.8299162998058248
+  eta: 0.03672687007849265
+  eval_metric: aucpr
+  gamma: 1.0101014509217294
+  lambda: 2.8615832217707435
   max_delta_step: 0
-  max_depth: 11
-  min_child_weight: 14
-  scale_pos_weight: 6.844048176757999
-  subsample: 0.7425286103592272
+  max_depth: 7
+  min_child_weight: 8
+  objective: binary:logistic
+  random_state: 2026
+  scale_pos_weight: 50.2846484902362
+  subsample: 0.7317547889815181
+  tree_method: hist
 gene_level:
   test:
-    AUC: 0.995897934205784
-    F1: 0.6923896823704967
-    Precision: 0.8588048651507139
-    Recall: 0.58
-    auPRC: 0.8147522809748053
-    threshold: 0.5668644309043884
+    AUC: 0.9970123861915662
+    F1: 0.7941019719310712
+    Precision: 0.7900318133616119
+    Recall: 0.7982142857142858
+    auPRC: 0.8065446097747496
+    threshold: 0.7788857221603394
+  train:
+    AUC: 0.9997998076472983
+    F1: 0.880575734944667
+    Precision: 0.8137103182901836
+    Recall: 0.9594141434066475
+    auPRC: 0.9685392617954222
+    threshold: 0.7788857221603394
+  val:
+    AUC: 0.9997043702521882
+    F1: 0.8809730668983493
+    Precision: 0.8153747185590222
+    Recall: 0.9580498866213152
+    auPRC: 0.9684415318108712
+    threshold: 0.7788857221603394
 hyperparameter_search:
-  best_val_auPRC: 0.8646157680917986
-  n_trials: 1000
-  search_time_seconds: 33586.58236527443
+  best_cv_auPRC: 0.7701
+  n_trials: 500
+  search_time_hours: 26.2
 model_name: xgb_tuned
+optimal_threshold: 0.7788857221603394
 sample_level:
   test:
-    AUC: 0.982078853046595
-    F1: 0.8928571428571428
+    AUC: 0.996415770609319
+    Accuracy: 0.975
+    F1: 0.9836065573770492
+    FN: 1
+    FP: 0
     Precision: 1.0
-    Recall: 0.8064516129032258
-    auPRC: 0.9949588407285448
+    Recall: 0.967741935483871
+    TN: 9
+    TP: 30
+    auPRC: 0.9989756763787722
     positive_samples: 31
-    predicted_positive: 25
+    predicted_positive: 30
     total_samples: 40
+  train:
+    AUC: 0.9777662277662278
+    Accuracy: 0.9155844155844156
+    F1: 0.944206008583691
+    FN: 14
+    FP: 12
+    Precision: 0.9482758620689655
+    Recall: 0.9401709401709402
+    TN: 62
+    TP: 220
+    auPRC: 0.9934740783774396
+    positive_samples: 234
+    predicted_positive: 232
+    total_samples: 308
+  val:
+    AUC: 0.9540229885057471
+    Accuracy: 0.8947368421052632
+    F1: 0.9310344827586207
+    FN: 2
+    FP: 2
+    Precision: 0.9310344827586207
+    Recall: 0.9310344827586207
+    TN: 7
+    TP: 27
+    auPRC: 0.9878243460393559
+    positive_samples: 29
+    predicted_positive: 29
+    total_samples: 38
