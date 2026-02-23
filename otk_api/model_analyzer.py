@@ -915,11 +915,11 @@ class ModelAnalyzer:
         lines.append("*Figure 5: Multi-dimensional performance comparison of top 5 models on test set. (a) Gene-level radar chart. (b) Sample-level radar chart. Larger area indicates better overall performance.*")
         lines.append("")
         
-        lines.append("#### Figure 6: Model Ranking Heatmap (Test Set)")
+        lines.append("#### Figure 6: Gene-Level Model Performance Heatmap")
         lines.append("")
         lines.append("![Model Ranking Heatmap](model_ranking_heatmap.png)")
         lines.append("")
-        lines.append("*Figure 6: Heatmap visualization of model performance on test set across multiple metrics. Darker green indicates better performance.*")
+        lines.append("*Figure 6: Gene-level model performance heatmap on test set. Six metrics are compared: auPRC, AUC, Precision, Recall, F1, and Youden's J. Darker green indicates better performance.*")
         lines.append("")
         
         lines.append("### Test Set Performance (Primary Evaluation)")
@@ -1431,8 +1431,9 @@ class ModelAnalyzer:
         plt.close()
         print(f"Saved: {output_dir / 'performance_radar.png'}")
         
-        # 6. 模型排名热力图 - 适合 web 展示
+        # 6. Gene-Level Model Ranking Heatmap
         fig, ax = plt.subplots(figsize=(8, 4))
+        fig.suptitle('Gene-Level Model Performance Heatmap', fontsize=10)
         
         metrics_for_heatmap = ['auPRC', 'AUC', 'Precision', 'Recall', 'F1', "Youden's J"]
         heatmap_data = []
