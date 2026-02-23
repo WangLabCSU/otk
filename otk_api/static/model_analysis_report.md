@@ -1,6 +1,6 @@
 # Model Performance Analysis Report
 
-**Generated**: 2026-02-23 05:49:01
+**Generated**: 2026-02-23 07:19:44
 **Total Models**: 8 trained models
 
 ## Abstract
@@ -30,11 +30,11 @@ performance metrics including auPRC, AUC, Precision, Recall, and F1-score.
 
 | Model | Architecture | Network Structure | Loss Function | Optimizer |
 |-------|--------------|-------------------|---------------|-----------|
-| baseline_mlp | BaselineMLP | 57→128→64→1→1 | BCEWithLogitsLoss | Adam |
-| deep_residual | DeepResidual | 57→...→1 | BCEWithLogitsLoss | AdamW |
-| dgit_super | DGITSuper | 57→...→1 | MultiTaskFocalLoss | AdamW |
-| optimized_residual | OptimizedResidual | 57→...→1 | BCEWithLogitsLoss | AdamW |
-| transformer | Transformer | 57→...→1 | BCEWithLogitsLoss | AdamW |
+| baseline_mlp | BaselineMLP | 57→128→64→1 | BCEWithLogitsLoss | Adam |
+| deep_residual | DeepResidual | 57→128(ResNet)→1 | BCEWithLogitsLoss | AdamW |
+| dgit_super | DGITSuper | 57→192→Transformer(3 layers)→1 | MultiTaskFocalLoss | AdamW |
+| optimized_residual | OptimizedResidual | 57→128(ResNet)→1 | BCEWithLogitsLoss | AdamW |
+| transformer | Transformer | 57→128(embed)→Transformer(3 layers)→1 | BCEWithLogitsLoss | AdamW |
 | xgb_new | XGBNew | Gradient Boosted Trees (57 features, max_depth=6) | LogLoss (optimizes auPRC) | Gradient Boosting |
 | xgb_paper | XGB11 | Gradient Boosted Trees (57 features, max_depth=4) | LogLoss (optimizes auPRC) | Gradient Boosting |
 | xgb_tuned | xgb_tuned | Gradient Boosted Trees (68 features) | Unknown | Unknown |
@@ -238,7 +238,7 @@ While **auPRC** (Area under Precision-Recall Curve) is the primary optimization 
 
 - **Description**: Multi-Layer Perceptron
 
-- **Structure**: `57→128→64→1→1`
+- **Structure**: `57→128→64→1`
 
 - **Key Features**: Fully connected layers, Non-linear activation
 
@@ -254,7 +254,7 @@ While **auPRC** (Area under Precision-Recall Curve) is the primary optimization 
 
 - **Description**: Residual Network
 
-- **Structure**: `57→...→1`
+- **Structure**: `57→128(ResNet)→1`
 
 - **Key Features**: Residual connections, Skip connections
 
@@ -270,7 +270,7 @@ While **auPRC** (Area under Precision-Recall Curve) is the primary optimization 
 
 - **Description**: DGITSuper Model
 
-- **Structure**: `57→...→1`
+- **Structure**: `57→192→Transformer(3 layers)→1`
 
 - **Key Features**: 
 
@@ -286,7 +286,7 @@ While **auPRC** (Area under Precision-Recall Curve) is the primary optimization 
 
 - **Description**: Residual Network
 
-- **Structure**: `57→...→1`
+- **Structure**: `57→128(ResNet)→1`
 
 - **Key Features**: Residual connections, Skip connections
 
@@ -302,7 +302,7 @@ While **auPRC** (Area under Precision-Recall Curve) is the primary optimization 
 
 - **Description**: Transformer Attention Model
 
-- **Structure**: `57→...→1`
+- **Structure**: `57→128(embed)→Transformer(3 layers)→1`
 
 - **Key Features**: Self-attention mechanism, LayerNorm, GELU activation
 

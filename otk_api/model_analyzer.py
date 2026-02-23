@@ -250,12 +250,40 @@ class ModelAnalyzer:
         result['model_type'] = model_type
         
         arch = model_config.get('architecture', {})
-        result['layers'] = arch.get('layers', [])
+        
+        # Support multiple layer config formats
+        layers = arch.get('layers', [])
+        if not layers:
+            layers = arch.get('classifier', [])
+        result['layers'] = layers
         result['hidden_dims'] = arch.get('hidden_dims', [])
-        result['dropout_rate'] = arch.get('dropout_rate', None)
+        result['dropout_rate'] = arch.get('dropout_rate', arch.get('dropout', None))
+        
+        # Extract hidden_dim for residual networks
+        if arch.get('hidden_dim') and not result['hidden_dims']:
+            hidden_dim = arch['hidden_dim']
+            num_blocks = arch.get('num_residual_blocks', 0)
+            if num_blocks > 0:
+                result['hidden_dims'] = [hidden_dim] * num_blocks
+            else:
+                result['hidden_dims'] = [hidden_dim]
+        
+        # Extract transformer-specific info
+        if 'num_layers' in arch:
+            result['num_layers'] = arch['num_layers']
+        if 'hidden_dim' in arch:
+            result['hidden_dim'] = arch['hidden_dim']
+        if 'num_heads' in arch:
+            result['num_heads'] = arch['num_heads']
         
         if result['layers']:
-            result['input_dim'] = result['layers'][0].get('input_dim', 57)
+            first_layer_input = result['layers'][0].get('input_dim', 0)
+            # Use architecture.input_dim if it's different from layer input_dim
+            # (layer input_dim might be after embedding/residual blocks)
+            if arch.get('input_dim') and first_layer_input != arch.get('input_dim'):
+                result['input_dim'] = arch.get('input_dim', 57)
+            else:
+                result['input_dim'] = first_layer_input if first_layer_input > 0 else 57
         elif arch.get('input_dim'):
             result['input_dim'] = arch.get('input_dim', 57)
         else:
@@ -557,6 +585,9 @@ class ModelAnalyzer:
         layers = config_info.get('layers', [])
         input_dim = config_info.get('input_dim', 57)
         max_depth = config_info.get('max_depth', 0)
+        hidden_dim = config_info.get('hidden_dim', 0)
+        num_layers = config_info.get('num_layers', 0)
+        num_blocks = config_info.get('num_residual_blocks', 0)
         
         # Build structure string
         if 'XGB' in model_type or 'xgb' in model_type.lower():
@@ -565,14 +596,46 @@ class ModelAnalyzer:
             if max_depth > 0:
                 structure += f", max_depth={max_depth}"
             structure += ")"
+        elif 'Transformer' in model_type or 'transformer' in model_type.lower():
+            if hidden_dim > 0 and num_layers > 0:
+                structure = f"{input_dim}→{hidden_dim}(embed)→Transformer({num_layers} layers)→1"
+            elif hidden_dims:
+                structure = f"{input_dim}→" + "→".join(map(str, hidden_dims)) + "→1"
+            else:
+                structure = f"{input_dim}→Transformer→1"
+        elif 'Residual' in model_type or 'residual' in model_type.lower():
+            if hidden_dim > 0:
+                if num_blocks > 0:
+                    structure = f"{input_dim}→{hidden_dim}×{num_blocks}(ResBlocks)→1"
+                else:
+                    structure = f"{input_dim}→{hidden_dim}(ResNet)→1"
+            elif hidden_dims:
+                structure = f"{input_dim}→" + "→".join(map(str, hidden_dims)) + "→1"
+            else:
+                structure = f"{input_dim}→Residual→1"
+        elif 'DGIT' in model_type or 'dgit' in model_type.lower():
+            if hidden_dim > 0 and num_layers > 0:
+                structure = f"{input_dim}→{hidden_dim}→Transformer({num_layers} layers)→1"
+            else:
+                structure = f"{input_dim}→Transformer→MLP→1"
         elif hidden_dims:
             structure = f"{input_dim}→" + "→".join(map(str, hidden_dims)) + "→1"
-        elif layers:
-            dims = [layers[0].get('input_dim', input_dim)]
-            for layer in layers:
+        elif layers and len(layers) > 0:
+            dims = []
+            for i, layer in enumerate(layers):
+                if 'input_dim' in layer:
+                    dims.append(layer['input_dim'])
                 if 'output_dim' in layer:
                     dims.append(layer['output_dim'])
-            structure = "→".join(map(str, dims)) + "→1"
+            if dims:
+                dims = list(dict.fromkeys(dims))
+                last_dim = dims[-1]
+                if last_dim == 1:
+                    structure = "→".join(map(str, dims))
+                else:
+                    structure = "→".join(map(str, dims)) + "→1"
+            else:
+                structure = f"{input_dim}→...→1"
         else:
             structure = f"{input_dim}→...→1"
         
