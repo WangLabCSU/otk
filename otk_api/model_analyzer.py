@@ -87,7 +87,12 @@ class PerformanceMetrics:
     Precision: float = 0.0
     Recall: float = 0.0
     Specificity: float = 0.0
+    Youdens_J: float = 0.0
     optimal_threshold: float = 0.5
+    TP: int = 0
+    TN: int = 0
+    FP: int = 0
+    FN: int = 0
 
 
 @dataclass
@@ -98,9 +103,14 @@ class SampleLevelMetrics:
     Precision: float = 0.0
     Recall: float = 0.0
     Specificity: float = 0.0
+    Youdens_J: float = 0.0
     F1: float = 0.0
     total_samples: int = 0
     positive_samples: int = 0
+    TP: int = 0
+    TN: int = 0
+    FP: int = 0
+    FN: int = 0
     predicted_positive: int = 0
     true_positive: int = 0
 
@@ -332,14 +342,28 @@ class ModelAnalyzer:
     
     def parse_performance_metrics(self, metrics_dict: Dict) -> PerformanceMetrics:
         """解析性能指标"""
+        tp = metrics_dict.get('TP', 0)
+        tn = metrics_dict.get('TN', 0)
+        fp = metrics_dict.get('FP', 0)
+        fn = metrics_dict.get('FN', 0)
+        
+        specificity = tn / max(1, tn + fp) if (tn + fp) > 0 else 0.0
+        sensitivity = tp / max(1, tp + fn) if (tp + fn) > 0 else metrics_dict.get('Recall', 0.0)
+        youdens_j = sensitivity + specificity - 1
+        
         return PerformanceMetrics(
             auPRC=metrics_dict.get('auPRC', 0.0),
             AUC=metrics_dict.get('AUC', 0.0),
             F1=metrics_dict.get('F1', 0.0),
             Precision=metrics_dict.get('Precision', 0.0),
-            Recall=metrics_dict.get('Recall', 0.0),
-            Specificity=metrics_dict.get('Specificity', metrics_dict.get('TN', 0) / max(1, metrics_dict.get('TN', 0) + metrics_dict.get('FP', 1)) if 'TN' in metrics_dict else 0.0),
-            optimal_threshold=metrics_dict.get('optimal_threshold', 0.5)
+            Recall=metrics_dict.get('Recall', sensitivity),
+            Specificity=specificity,
+            Youdens_J=youdens_j,
+            optimal_threshold=metrics_dict.get('optimal_threshold', 0.5),
+            TP=tp,
+            TN=tn,
+            FP=fp,
+            FN=fn
         )
     
     def parse_dataset_statistics(self, stats_dict: Dict) -> DatasetStatistics:
@@ -480,22 +504,30 @@ class ModelAnalyzer:
     
     def parse_sample_level_metrics(self, metrics_dict: Dict) -> SampleLevelMetrics:
         """解析样本级别指标"""
+        tp = metrics_dict.get('TP', 0)
         tn = metrics_dict.get('TN', 0)
         fp = metrics_dict.get('FP', 0)
+        fn = metrics_dict.get('FN', 0)
+        
         specificity = tn / max(1, tn + fp) if (tn + fp) > 0 else 0.0
+        sensitivity = tp / max(1, tp + fn) if (tp + fn) > 0 else metrics_dict.get('Recall', 0.0)
+        youdens_j = sensitivity + specificity - 1
         
         return SampleLevelMetrics(
             auPRC=metrics_dict.get('auPRC', 0.0),
             AUC=metrics_dict.get('AUC', 0.0),
             Accuracy=metrics_dict.get('Accuracy', 0.0),
             Precision=metrics_dict.get('Precision', 0.0),
-            Recall=metrics_dict.get('Recall', 0.0),
+            Recall=metrics_dict.get('Recall', sensitivity),
             Specificity=specificity,
+            Youdens_J=youdens_j,
             F1=metrics_dict.get('F1', 0.0),
             total_samples=metrics_dict.get('total_samples', 0),
             positive_samples=metrics_dict.get('positive_samples', 0),
-            predicted_positive=metrics_dict.get('predicted_positive', 0),
-            true_positive=metrics_dict.get('TP', 0)
+            TP=tp,
+            TN=tn,
+            FP=fp,
+            FN=fn
         )
     
     def evaluate_sample_level(self, model_info: ModelInfo) -> Tuple[SampleLevelMetrics, SampleLevelMetrics, SampleLevelMetrics]:
@@ -851,7 +883,7 @@ class ModelAnalyzer:
         lines.append("")
         lines.append("![Gene-Level Performance](gene_level_performance.png)")
         lines.append("")
-        lines.append("*Figure 1: Gene-level performance comparison across training, validation, and test sets. Five metrics are shown: (a) auPRC - primary metric for imbalanced classification, (b) AUC - overall discriminative ability, (c) Precision - positive predictive value, (d) Recall - sensitivity, (e) F1-Score - harmonic mean of precision and recall.*")
+        lines.append("*Figure 1: Gene-level performance comparison across training, validation, and test sets. Six metrics are shown: (a) auPRC - primary metric for imbalanced classification, (b) AUC - overall discriminative ability, (c) Precision - positive predictive value, (d) Recall - sensitivity, (e) F1-Score - harmonic mean of precision and recall, (f) Youden's J - optimal threshold selection metric (Sensitivity + Specificity - 1).*")
         lines.append("")
         
         sample_evaluated = any(m.sample_test_metrics.auPRC > 0 for m in trained_models)
@@ -860,7 +892,7 @@ class ModelAnalyzer:
             lines.append("")
             lines.append("![Sample-Level Performance](sample_level_performance.png)")
             lines.append("")
-            lines.append("*Figure 2: Sample-level performance for circular ecDNA detection. A sample is predicted as circular if any gene is predicted positive. Same five metrics as gene-level are shown.*")
+            lines.append("*Figure 2: Sample-level performance for circular ecDNA detection. A sample is predicted as circular if any gene is predicted positive. Same six metrics as gene-level are shown.*")
             lines.append("")
         
         lines.append("#### Figure 3: ROC Space and auROC vs auPRC (Test Set)")
@@ -1140,11 +1172,12 @@ class ModelAnalyzer:
         width = 0.25
         
         metrics_config = [
-            ('auPRC', 'auPRC', 0.5, 1.02),
-            ('AUC', 'AUC', 0.9, 1.005),
-            ('Precision', 'Precision', 0.4, 1.02),
-            ('Recall', 'Recall', 0.3, 1.02),
-            ('F1', 'F1', 0.3, 1.02),
+            ('auPRC', 'auPRC', 0, 1.02),
+            ('AUC', 'AUC', 0, 1.005),
+            ('Precision', 'Precision', 0, 1.02),
+            ('Recall', 'Recall', 0, 1.02),
+            ('F1', 'F1', 0, 1.02),
+            ("Youden's J", 'Youdens_J', 0, 1.02),
         ]
         
         for idx, (metric_name, metric_key, xmin, xmax) in enumerate(metrics_config):
@@ -1175,9 +1208,6 @@ class ModelAnalyzer:
             
             if idx == 0:
                 ax.legend(loc='lower right', fontsize=6, frameon=True, fancybox=False, edgecolor='black')
-        
-        # Hide the 6th subplot
-        axes[1, 2].set_visible(False)
         
         plt.tight_layout()
         plt.savefig(output_dir / 'gene_level_performance.png', dpi=300, bbox_inches='tight')
@@ -1227,16 +1257,13 @@ class ModelAnalyzer:
                 if idx == 0:
                     ax.legend(loc='lower right', fontsize=6, frameon=True, fancybox=False, edgecolor='black')
             
-            # Hide the 6th subplot
-            axes[1, 2].set_visible(False)
-            
             plt.tight_layout()
             plt.savefig(output_dir / 'sample_level_performance.png', dpi=300, bbox_inches='tight')
             plt.savefig(output_dir / 'sample_level_performance.pdf', bbox_inches='tight')
             plt.close()
             print(f"Saved: {output_dir / 'sample_level_performance.png'}")
         
-        # 3. ROC Space and auROC vs auPRC (Gene-Level)
+        # 3. Precision-Recall and F1-auPRC (Gene-Level)
         try:
             from adjustText import adjust_text
             has_adjust_text = True
@@ -1246,48 +1273,48 @@ class ModelAnalyzer:
         fig, axes = plt.subplots(1, 2, figsize=(7, 3.5))
         
         ax = axes[0]
-        fprs = [1 - m.test_metrics.Specificity for m in sorted_models]
-        tprs = [m.test_metrics.Recall for m in sorted_models]
+        precisions = [m.test_metrics.Precision for m in sorted_models]
+        recalls = [m.test_metrics.Recall for m in sorted_models]
         colors_scatter = [SCI_COLORS[f'model{i+1}'] for i in range(min(n_models, 8))]
         
         for i, name in enumerate(model_names):
-            ax.scatter(fprs[i], tprs[i], c=[colors_scatter[i % 8]], s=80, edgecolors='black', linewidth=0.5, zorder=3)
+            ax.scatter(recalls[i], precisions[i], c=[colors_scatter[i % 8]], s=80, edgecolors='black', linewidth=0.5, zorder=3)
         
         texts = []
         for i, name in enumerate(model_names):
-            texts.append(ax.text(fprs[i], tprs[i], name, fontsize=6))
+            texts.append(ax.text(recalls[i], precisions[i], name, fontsize=6))
         
         if has_adjust_text:
             adjust_text(texts, arrowprops=dict(arrowstyle='-', color='gray', lw=0.5), fontsize=6)
         
-        ax.set_xlabel('False Positive Rate (FPR)')
-        ax.set_ylabel('True Positive Rate (TPR)')
+        ax.set_xlabel('Recall (Sensitivity)')
+        ax.set_ylabel('Precision (PPV)')
         ax.set_xlim(0, 1.0)
         ax.set_ylim(0, 1.0)
-        ax.set_title('(a) ROC Space')
-        ax.plot([0, 1], [0, 1], 'k--', alpha=0.3, label='Random baseline')
-        ax.legend(fontsize=6, loc='lower right')
+        ax.set_title('(a) Precision-Recall Trade-off')
+        ax.plot([0, 1], [1, 0], 'k--', alpha=0.3, label='Random baseline')
+        ax.legend(fontsize=6, loc='lower left')
         
         ax = axes[1]
-        aurocs = [m.test_metrics.AUC for m in sorted_models]
+        f1_scores = [m.test_metrics.F1 for m in sorted_models]
         auprcs = [m.test_metrics.auPRC for m in sorted_models]
         
         for i, name in enumerate(model_names):
-            ax.scatter(auprcs[i], aurocs[i], c=[colors_scatter[i % 8]], s=80, edgecolors='black', linewidth=0.5, zorder=3)
+            ax.scatter(auprcs[i], f1_scores[i], c=[colors_scatter[i % 8]], s=80, edgecolors='black', linewidth=0.5, zorder=3)
         
         texts = []
         for i, name in enumerate(model_names):
-            texts.append(ax.text(auprcs[i], aurocs[i], name, fontsize=6))
+            texts.append(ax.text(auprcs[i], f1_scores[i], name, fontsize=6))
         
         if has_adjust_text:
             adjust_text(texts, arrowprops=dict(arrowstyle='-', color='gray', lw=0.5), fontsize=6)
         
         ax.set_xlabel('auPRC')
-        ax.set_ylabel('auROC')
+        ax.set_ylabel('F1-Score')
         ax.set_xlim(0, 1.0)
         ax.set_ylim(0, 1.0)
-        ax.set_title('(b) auROC vs auPRC')
-        ax.plot([0, 1], [0, 1], 'k--', alpha=0.3, label='auROC = auPRC')
+        ax.set_title('(b) F1 vs auPRC')
+        ax.plot([0, 1], [0, 1], 'k--', alpha=0.3, label='F1 = auPRC')
         ax.legend(fontsize=6, loc='lower right')
         
         plt.tight_layout(w_pad=1.5)
