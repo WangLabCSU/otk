@@ -1,6 +1,6 @@
 # Model Performance Analysis Report
 
-**Generated**: 2026-02-23 12:04:34
+**Generated**: 2026-02-23 12:18:03
 **Total Models**: 7 trained models
 
 ## Abstract
@@ -36,7 +36,7 @@ performance metrics including auPRC, AUC, Precision, Recall, and F1-score.
 | transformer | Transformer | 57→128(embed)→Transformer(3 layers)→1 | BCEWithLogitsLoss | AdamW |
 | xgb_new | XGBNew | Gradient Boosted Trees (57 features, max_depth=6) | LogLoss (optimizes auPRC) | Gradient Boosting |
 | xgb_paper | XGB11 | Gradient Boosted Trees (57 features, max_depth=4) | LogLoss (optimizes auPRC) | Gradient Boosting |
-| xgb_tuned | xgb_tuned | Gradient Boosted Trees (68 features) | Unknown | Unknown |
+| xgb_tuned | xgb_tuned | Gradient Boosted Trees (68 features, max_depth=7) | LogLoss (optimizes auPRC) | Gradient Boosting |
 
 ### Training Configuration
 
@@ -48,7 +48,7 @@ performance metrics including auPRC, AUC, Precision, Recall, and F1-score.
 | deep_residual | 0.001000 | 0.0100 | 4096 |
 | optimized_residual | 0.001000 | 0.0100 | 4096 |
 | transformer | 0.001000 | 0.0100 | 4096 |
-| xgb_tuned | 0.000000 | 0.0000 | 0 |
+| xgb_tuned | 0.036727 | 6.7108 | 0 |
 
 #### XGBoost Models
 
@@ -154,39 +154,39 @@ A sample is predicted as circular if any gene in the sample is predicted positiv
 
 ### Test Set Sample-Level Performance
 
-| Model | auPRC | AUC | Accuracy | Precision | Recall | Specificity | F1 | Samples |
-|-------|-------|-----|----------|-----------|--------|-------------|-----|---------|
-| deep_residual | **1.0000** | 1.0000 | 0.8250 | 1.0000 | 0.7742 | 1.0000 | 0.8727 | 40 |
-| optimized_residual | **0.9990** | 0.9964 | 0.9250 | 1.0000 | 0.9032 | 1.0000 | 0.9492 | 40 |
-| xgb_tuned | **0.9990** | 0.9964 | 0.9750 | 1.0000 | 0.9677 | 1.0000 | 0.9836 | 40 |
-| xgb_new | **0.9979** | 0.9928 | 0.9500 | 1.0000 | 0.9355 | 1.0000 | 0.9667 | 40 |
-| xgb_paper | **0.9913** | 0.9677 | 0.9000 | 1.0000 | 0.8710 | 1.0000 | 0.9310 | 40 |
-| baseline_mlp | **0.9894** | 0.9642 | 0.8000 | 1.0000 | 0.7419 | 1.0000 | 0.8519 | 40 |
-| transformer | **0.9891** | 0.9606 | 0.8000 | 1.0000 | 0.7419 | 1.0000 | 0.8519 | 40 |
+| Model | auPRC | AUC | Accuracy | Precision | Recall | Specificity | Youden's J | F1 | Samples |
+|-------|-------|-----|----------|-----------|--------|-------------|------------|-----|---------|
+| deep_residual | **1.0000** | 1.0000 | 0.8250 | 1.0000 | 0.7742 | 1.0000 | 0.7742 | 0.8727 | 40 |
+| optimized_residual | **0.9990** | 0.9964 | 0.9250 | 1.0000 | 0.9032 | 1.0000 | 0.9032 | 0.9492 | 40 |
+| xgb_tuned | **0.9990** | 0.9964 | 0.9750 | 1.0000 | 0.9677 | 1.0000 | 0.9677 | 0.9836 | 40 |
+| xgb_new | **0.9979** | 0.9928 | 0.9500 | 1.0000 | 0.9355 | 1.0000 | 0.9355 | 0.9667 | 40 |
+| xgb_paper | **0.9913** | 0.9677 | 0.9000 | 1.0000 | 0.8710 | 1.0000 | 0.8710 | 0.9310 | 40 |
+| baseline_mlp | **0.9894** | 0.9642 | 0.8000 | 1.0000 | 0.7419 | 1.0000 | 0.7419 | 0.8519 | 40 |
+| transformer | **0.9891** | 0.9606 | 0.8000 | 1.0000 | 0.7419 | 1.0000 | 0.7419 | 0.8519 | 40 |
 
 ### Validation Set Sample-Level Performance
 
-| Model | auPRC | AUC | Accuracy | Precision | Recall | Specificity | F1 | Samples |
-|-------|-------|-----|----------|-----------|--------|-------------|-----|---------|
-| baseline_mlp | 0.9712 | 0.9004 | 0.8421 | 1.0000 | 0.7931 | 1.0000 | 0.8846 | 38 |
-| deep_residual | 0.9725 | 0.9042 | 0.8158 | 1.0000 | 0.7586 | 1.0000 | 0.8627 | 38 |
-| optimized_residual | 0.9856 | 0.9502 | 0.9211 | 0.9643 | 0.9310 | 0.8889 | 0.9474 | 38 |
-| transformer | 0.9742 | 0.9157 | 0.8684 | 0.9615 | 0.8621 | 0.8889 | 0.9091 | 38 |
-| xgb_new | 0.9587 | 0.8621 | 0.8158 | 0.8438 | 0.9310 | 0.4444 | 0.8852 | 38 |
-| xgb_paper | 0.9558 | 0.8621 | 0.8158 | 0.9231 | 0.8276 | 0.7778 | 0.8727 | 38 |
-| xgb_tuned | 0.9878 | 0.9540 | 0.8947 | 0.9310 | 0.9310 | 0.7778 | 0.9310 | 38 |
+| Model | auPRC | AUC | Accuracy | Precision | Recall | Specificity | Youden's J | F1 | Samples |
+|-------|-------|-----|----------|-----------|--------|-------------|------------|-----|---------|
+| baseline_mlp | 0.9712 | 0.9004 | 0.8421 | 1.0000 | 0.7931 | 1.0000 | 0.7931 | 0.8846 | 38 |
+| deep_residual | 0.9725 | 0.9042 | 0.8158 | 1.0000 | 0.7586 | 1.0000 | 0.7586 | 0.8627 | 38 |
+| optimized_residual | 0.9856 | 0.9502 | 0.9211 | 0.9643 | 0.9310 | 0.8889 | 0.8199 | 0.9474 | 38 |
+| transformer | 0.9742 | 0.9157 | 0.8684 | 0.9615 | 0.8621 | 0.8889 | 0.7510 | 0.9091 | 38 |
+| xgb_new | 0.9587 | 0.8621 | 0.8158 | 0.8438 | 0.9310 | 0.4444 | 0.3755 | 0.8852 | 38 |
+| xgb_paper | 0.9558 | 0.8621 | 0.8158 | 0.9231 | 0.8276 | 0.7778 | 0.6054 | 0.8727 | 38 |
+| xgb_tuned | 0.9878 | 0.9540 | 0.8947 | 0.9310 | 0.9310 | 0.7778 | 0.7088 | 0.9310 | 38 |
 
 ### Training Set Sample-Level Performance
 
-| Model | auPRC | AUC | Accuracy | Precision | Recall | Specificity | F1 | Samples |
-|-------|-------|-----|----------|-----------|--------|-------------|-----|---------|
-| baseline_mlp | 0.9918 | 0.9732 | 0.8766 | 1.0000 | 0.8376 | 1.0000 | 0.9116 | 308 |
-| deep_residual | 0.9896 | 0.9652 | 0.8506 | 0.9947 | 0.8077 | 0.9865 | 0.8915 | 308 |
-| optimized_residual | 0.9900 | 0.9659 | 0.8961 | 0.9810 | 0.8803 | 0.9459 | 0.9279 | 308 |
-| transformer | 0.9914 | 0.9715 | 0.8896 | 0.9808 | 0.8718 | 0.9459 | 0.9231 | 308 |
-| xgb_new | 0.9906 | 0.9670 | 0.8864 | 0.9198 | 0.9316 | 0.7432 | 0.9257 | 308 |
-| xgb_paper | 0.9808 | 0.9384 | 0.8701 | 0.9575 | 0.8675 | 0.8784 | 0.9103 | 308 |
-| xgb_tuned | 0.9935 | 0.9778 | 0.9156 | 0.9483 | 0.9402 | 0.8378 | 0.9442 | 308 |
+| Model | auPRC | AUC | Accuracy | Precision | Recall | Specificity | Youden's J | F1 | Samples |
+|-------|-------|-----|----------|-----------|--------|-------------|------------|-----|---------|
+| baseline_mlp | 0.9918 | 0.9732 | 0.8766 | 1.0000 | 0.8376 | 1.0000 | 0.8376 | 0.9116 | 308 |
+| deep_residual | 0.9896 | 0.9652 | 0.8506 | 0.9947 | 0.8077 | 0.9865 | 0.7942 | 0.8915 | 308 |
+| optimized_residual | 0.9900 | 0.9659 | 0.8961 | 0.9810 | 0.8803 | 0.9459 | 0.8263 | 0.9279 | 308 |
+| transformer | 0.9914 | 0.9715 | 0.8896 | 0.9808 | 0.8718 | 0.9459 | 0.8177 | 0.9231 | 308 |
+| xgb_new | 0.9906 | 0.9670 | 0.8864 | 0.9198 | 0.9316 | 0.7432 | 0.6749 | 0.9257 | 308 |
+| xgb_paper | 0.9808 | 0.9384 | 0.8701 | 0.9575 | 0.8675 | 0.8784 | 0.7459 | 0.9103 | 308 |
+| xgb_tuned | 0.9935 | 0.9778 | 0.9156 | 0.9483 | 0.9402 | 0.8378 | 0.7780 | 0.9442 | 308 |
 
 ### Overfitting Analysis
 
@@ -337,15 +337,15 @@ While **auPRC** (Area under Precision-Recall Curve) is the primary optimization 
 
 - **Description**: XGBoost Gradient Boosting
 
-- **Structure**: `Gradient Boosted Trees (68 features)`
+- **Structure**: `Gradient Boosted Trees (68 features, max_depth=7)`
 
 - **Key Features**: Tree-based ensemble, Feature importance, Native missing value handling
 
 - **Suitable For**: Tabular data, interpretable predictions
 
-- **Loss Function**: `Unknown`
+- **Loss Function**: `LogLoss (optimizes auPRC)`
 
-- **Optimizer**: `Unknown` (lr=0.0, weight_decay=0.0)
+- **Optimizer**: `Gradient Boosting` (lr=0.03672687007849265, weight_decay=6.71081718945088)
 
 ## Statistical Considerations
 
@@ -370,16 +370,38 @@ While **auPRC** (Area under Precision-Recall Curve) is the primary optimization 
 
 ### Class Imbalance
 
-The dataset exhibits severe class imbalance (positive rate ~0.35%). This presents
-significant challenges for model training and evaluation. Models were trained using
-specialized loss functions and techniques to handle this imbalance effectively.
+At the **gene level**, the dataset exhibits severe class imbalance (positive rate ~0.35%).
+However, at the **sample level**, the positive rate is higher (~76%) as samples were
+pre-selected based on ecDNA presence. This presents different challenges for model
+training and evaluation at each level. Models were trained using specialized loss
+functions and techniques to handle the gene-level imbalance effectively.
 
 ## Conclusions
 
 Among the 7 models evaluated, **xgb_new** achieved the highest
-test auPRC of **0.8339**, demonstrating superior performance
+gene-level test auPRC of **0.8339**, demonstrating superior performance
 for ecDNA prediction on this challenging imbalanced dataset.
 
+### Key Findings
+
+1. **Best Overall Performance**: xgb_new (auPRC: 0.8339, AUC: 0.9980)
+2. **Best F1-Score**: xgb_tuned (F1: 0.7941), balancing precision and recall
+3. **Best Generalization**: xgb_tuned (train-val gap: 0.0001)
+
+### Model Architecture Insights
+
+- **XGBoost vs Neural Networks**: XGBoost models (best: xgb_new, auPRC: 0.8339)
+  outperformed neural network models (best: deep_residual, auPRC: 0.8132)
+  on gene-level prediction, likely due to better handling of tabular data and feature interactions.
+
+- **Sample-Level Detection**: All models achieved >98% sample-level auPRC, indicating
+  excellent performance for the clinical task of identifying samples containing circular ecDNA.
+
+### Clinical Implications
+
+The high sample-level performance (auPRC > 0.98) suggests these models are suitable
+for clinical screening applications. The gene-level performance varies, allowing
+users to select models based on their specific precision/recall requirements.
 
 ## Methods
 
@@ -397,6 +419,23 @@ All models were trained using PyTorch with the following common practices:
 - Learning rate scheduling (ReduceLROnPlateau or CosineAnnealingWarmRestarts)
 - Gradient clipping for training stability
 - Model checkpointing to save best performing weights
+
+## Limitations
+
+1. **Dataset Size**: The dataset contains 386 samples, which is relatively small for
+   deep learning models. Larger datasets could improve model generalization.
+
+2. **Class Imbalance**: Gene-level positive rate (~0.35%) creates challenges for
+   model training, potentially biasing predictions toward the majority class.
+
+3. **Sample Selection Bias**: Samples were pre-selected based on ecDNA presence,
+   which may not reflect the true prevalence in clinical populations.
+
+4. **External Validation**: Models were evaluated on a single dataset. External
+   validation on independent datasets is needed to confirm generalizability.
+
+5. **Feature Engineering**: The current feature set (57-68 features) may not capture
+   all relevant biological signals. Additional genomic features could improve performance.
 
 ---
 
