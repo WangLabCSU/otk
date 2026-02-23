@@ -86,6 +86,7 @@ class PerformanceMetrics:
     F1: float = 0.0
     Precision: float = 0.0
     Recall: float = 0.0
+    Specificity: float = 0.0
     optimal_threshold: float = 0.5
 
 
@@ -96,6 +97,7 @@ class SampleLevelMetrics:
     Accuracy: float = 0.0
     Precision: float = 0.0
     Recall: float = 0.0
+    Specificity: float = 0.0
     F1: float = 0.0
     total_samples: int = 0
     positive_samples: int = 0
@@ -336,6 +338,7 @@ class ModelAnalyzer:
             F1=metrics_dict.get('F1', 0.0),
             Precision=metrics_dict.get('Precision', 0.0),
             Recall=metrics_dict.get('Recall', 0.0),
+            Specificity=metrics_dict.get('Specificity', metrics_dict.get('TN', 0) / max(1, metrics_dict.get('TN', 0) + metrics_dict.get('FP', 1)) if 'TN' in metrics_dict else 0.0),
             optimal_threshold=metrics_dict.get('optimal_threshold', 0.5)
         )
     
@@ -839,34 +842,47 @@ class ModelAnalyzer:
         lines.append("")
         lines.append("### Performance Visualization")
         lines.append("")
-        lines.append("#### Gene-Level Performance Comparison")
+        lines.append("#### Figure 1: Gene-Level Performance Across Datasets")
         lines.append("")
-        lines.append("![Performance Comparison](performance_comparison.png)")
+        lines.append("![Gene-Level Performance](gene_level_performance.png)")
         lines.append("")
-        lines.append("*Figure 1: Model performance comparison on test set. (a) auPRC - primary metric for imbalanced classification. (b) AUC - overall discriminative ability. (c) Precision-Recall trade-off. (d) F1-Score - harmonic mean of precision and recall.*")
+        lines.append("*Figure 1: Gene-level performance comparison across training, validation, and test sets. Six metrics are shown: (a) auPRC - primary metric for imbalanced classification, (b) AUC - overall discriminative ability, (c) Precision - positive predictive value, (d) Recall - sensitivity, (e) F1-Score - harmonic mean of precision and recall, (f) Specificity - true negative rate.*")
         lines.append("")
         
         sample_evaluated = any(m.sample_test_metrics.auPRC > 0 for m in trained_models)
         if sample_evaluated:
-            lines.append("#### Sample-Level Performance (Circular Detection)")
+            lines.append("#### Figure 2: Sample-Level Performance Across Datasets")
             lines.append("")
             lines.append("![Sample-Level Performance](sample_level_performance.png)")
             lines.append("")
-            lines.append("*Figure 2: Sample-level performance for circular ecDNA detection. A sample is predicted as circular if any gene is predicted positive.*")
+            lines.append("*Figure 2: Sample-level performance for circular ecDNA detection. A sample is predicted as circular if any gene is predicted positive. Same six metrics as gene-level are shown.*")
             lines.append("")
         
-        lines.append("#### Performance Across Datasets")
+        lines.append("#### Figure 3: Trade-off Analysis")
         lines.append("")
-        lines.append("![Dataset Comparison](dataset_comparison.png)")
+        lines.append("![Gene-Level Trade-off](gene_level_tradeoff.png)")
         lines.append("")
-        lines.append("*Figure 3: Model performance comparison across training, validation, and test datasets. Lower performance on test set indicates potential overfitting.*")
+        lines.append("*Figure 3: Gene-level trade-off analysis. (a) Precision-Recall trade-off: points closer to top-right indicate better balance. (b) Sensitivity-Specificity trade-off: points closer to top-right indicate better overall discrimination.*")
         lines.append("")
         
-        lines.append("#### Multi-dimensional Performance Radar")
+        if sample_evaluated:
+            lines.append("![Sample-Level Trade-off](sample_level_tradeoff.png)")
+            lines.append("")
+            lines.append("*Figure 4: Sample-level trade-off analysis with the same metrics as gene-level.*")
+            lines.append("")
+        
+        lines.append("#### Figure 5: Multi-dimensional Performance Radar")
         lines.append("")
-        lines.append("![Radar Chart](radar_chart.png)")
+        lines.append("![Performance Radar](performance_radar.png)")
         lines.append("")
-        lines.append("*Figure 4: Multi-dimensional performance comparison of top 5 models. Larger area indicates better overall performance.*")
+        lines.append("*Figure 5: Multi-dimensional performance comparison of top 5 models. (a) Gene-level radar chart. (b) Sample-level radar chart. Larger area indicates better overall performance.*")
+        lines.append("")
+        
+        lines.append("#### Figure 6: Model Ranking Heatmap")
+        lines.append("")
+        lines.append("![Model Ranking Heatmap](model_ranking_heatmap.png)")
+        lines.append("")
+        lines.append("*Figure 6: Heatmap visualization of model performance across multiple metrics. Darker green indicates better performance.*")
         lines.append("")
         
         lines.append("### Test Set Performance (Primary Evaluation)")
@@ -1124,7 +1140,7 @@ class ModelAnalyzer:
             ('Precision', 'Precision', 0.4, 1.02),
             ('Recall', 'Recall', 0.3, 1.02),
             ('F1', 'F1', 0.3, 1.02),
-            ('Accuracy', 'Accuracy', 0.8, 1.02),
+            ('Specificity', 'Specificity', 0.9, 1.02),
         ]
         
         for idx, (metric_name, metric_key, xmin, xmax) in enumerate(metrics_config):
@@ -1210,9 +1226,14 @@ class ModelAnalyzer:
             plt.close()
             print(f"Saved: {output_dir / 'sample_level_performance.png'}")
         
-        # 3. Precision-Recall and ROC Trade-off (Gene-Level)
-        fig, axes = plt.subplots(1, 2, figsize=(7, 3))
-        fig.suptitle('Gene-Level Trade-off Analysis', fontsize=10)
+        # 3. Precision-Recall and Sensitivity-Specificity Trade-off (Gene-Level)
+        try:
+            from adjustText import adjust_text
+            has_adjust_text = True
+        except ImportError:
+            has_adjust_text = False
+        
+        fig, axes = plt.subplots(1, 2, figsize=(7, 3.5))
         
         ax = axes[0]
         precisions = [m.test_metrics.Precision for m in sorted_models]
@@ -1220,32 +1241,44 @@ class ModelAnalyzer:
         colors_scatter = [SCI_COLORS[f'model{i+1}'] for i in range(min(n_models, 8))]
         
         for i, name in enumerate(model_names):
-            ax.scatter(recalls[i], precisions[i], c=[colors_scatter[i % 8]], s=60, edgecolors='black', linewidth=0.5, zorder=3)
-            ax.annotate(name, (recalls[i], precisions[i]), xytext=(3, 3), textcoords='offset points', fontsize=6)
+            ax.scatter(recalls[i], precisions[i], c=[colors_scatter[i % 8]], s=80, edgecolors='black', linewidth=0.5, zorder=3)
+        
+        texts = []
+        for i, name in enumerate(model_names):
+            texts.append(ax.text(recalls[i], precisions[i], name, fontsize=6))
+        
+        if has_adjust_text:
+            adjust_text(texts, arrowprops=dict(arrowstyle='-', color='gray', lw=0.5), fontsize=6)
         
         ax.set_xlabel('Recall (Sensitivity)')
         ax.set_ylabel('Precision (PPV)')
-        ax.set_xlim(0, 1)
+        ax.set_xlim(0, 1.05)
         ax.set_ylim(0, 1.05)
         ax.set_title('(a) Precision-Recall Trade-off')
-        ax.plot([0, 1], [1, 0], 'k--', alpha=0.3, label='Random')
-        ax.legend(fontsize=6)
+        ax.plot([0, 1], [1, 0], 'k--', alpha=0.3, label='Random baseline')
+        ax.legend(fontsize=6, loc='lower left')
         
         ax = axes[1]
-        fprs = [1 - m.test_metrics.Recall for m in sorted_models]
-        tprs = [m.test_metrics.Precision for m in sorted_models]
+        specificities = [m.test_metrics.Specificity for m in sorted_models]
+        sensitivities = [m.test_metrics.Recall for m in sorted_models]
         
         for i, name in enumerate(model_names):
-            ax.scatter(fprs[i], tprs[i], c=[colors_scatter[i % 8]], s=60, edgecolors='black', linewidth=0.5, zorder=3)
-            ax.annotate(name, (fprs[i], tprs[i]), xytext=(3, 3), textcoords='offset points', fontsize=6)
+            ax.scatter(specificities[i], sensitivities[i], c=[colors_scatter[i % 8]], s=80, edgecolors='black', linewidth=0.5, zorder=3)
         
-        ax.set_xlabel('False Positive Rate (1 - Specificity)')
-        ax.set_ylabel('True Positive Rate (Precision)')
-        ax.set_xlim(0, 1)
+        texts = []
+        for i, name in enumerate(model_names):
+            texts.append(ax.text(specificities[i], sensitivities[i], name, fontsize=6))
+        
+        if has_adjust_text:
+            adjust_text(texts, arrowprops=dict(arrowstyle='-', color='gray', lw=0.5), fontsize=6)
+        
+        ax.set_xlabel('Specificity (True Negative Rate)')
+        ax.set_ylabel('Sensitivity (True Positive Rate)')
+        ax.set_xlim(0, 1.05)
         ax.set_ylim(0, 1.05)
-        ax.set_title('(b) ROC-like Trade-off')
-        ax.plot([0, 1], [0, 1], 'k--', alpha=0.3, label='Random')
-        ax.legend(fontsize=6)
+        ax.set_title('(b) Sensitivity-Specificity Trade-off')
+        ax.plot([0, 1], [1, 0], 'k--', alpha=0.3, label='Random baseline')
+        ax.legend(fontsize=6, loc='lower left')
         
         plt.tight_layout()
         plt.savefig(output_dir / 'gene_level_tradeoff.png', dpi=300, bbox_inches='tight')
@@ -1253,40 +1286,53 @@ class ModelAnalyzer:
         plt.close()
         print(f"Saved: {output_dir / 'gene_level_tradeoff.png'}")
         
-        # 4. Precision-Recall and ROC Trade-off (Sample-Level)
+        # 4. Precision-Recall and Sensitivity-Specificity Trade-off (Sample-Level)
         if sample_evaluated:
-            fig, axes = plt.subplots(1, 2, figsize=(7, 3))
-            fig.suptitle('Sample-Level Trade-off Analysis', fontsize=10)
+            fig, axes = plt.subplots(1, 2, figsize=(7, 3.5))
             
             ax = axes[0]
             precisions = [m.sample_test_metrics.Precision for m in sorted_sample]
             recalls = [m.sample_test_metrics.Recall for m in sorted_sample]
             
             for i, name in enumerate(sample_names):
-                ax.scatter(recalls[i], precisions[i], c=[colors_scatter[i % 8]], s=60, edgecolors='black', linewidth=0.5, zorder=3)
-                ax.annotate(name, (recalls[i], precisions[i]), xytext=(3, 3), textcoords='offset points', fontsize=6)
+                ax.scatter(recalls[i], precisions[i], c=[colors_scatter[i % 8]], s=80, edgecolors='black', linewidth=0.5, zorder=3)
+            
+            texts = []
+            for i, name in enumerate(sample_names):
+                texts.append(ax.text(recalls[i], precisions[i], name, fontsize=6))
+            
+            if has_adjust_text:
+                adjust_text(texts, arrowprops=dict(arrowstyle='-', color='gray', lw=0.5), fontsize=6)
             
             ax.set_xlabel('Recall (Sensitivity)')
             ax.set_ylabel('Precision (PPV)')
             ax.set_xlim(0.6, 1.02)
-            ax.set_ylim(0.9, 1.02)
+            ax.set_ylim(0.95, 1.02)
             ax.set_title('(a) Precision-Recall Trade-off')
-            ax.plot([0, 1], [1, 0], 'k--', alpha=0.3)
+            ax.plot([0, 1], [1, 0], 'k--', alpha=0.3, label='Random baseline')
+            ax.legend(fontsize=6, loc='lower left')
             
             ax = axes[1]
-            fprs = [1 - m.sample_test_metrics.Recall for m in sorted_sample]
-            tprs = [m.sample_test_metrics.Precision for m in sorted_sample]
+            specificities = [m.sample_test_metrics.Specificity for m in sorted_sample]
+            sensitivities = [m.sample_test_metrics.Recall for m in sorted_sample]
             
             for i, name in enumerate(sample_names):
-                ax.scatter(fprs[i], tprs[i], c=[colors_scatter[i % 8]], s=60, edgecolors='black', linewidth=0.5, zorder=3)
-                ax.annotate(name, (fprs[i], tprs[i]), xytext=(3, 3), textcoords='offset points', fontsize=6)
+                ax.scatter(specificities[i], sensitivities[i], c=[colors_scatter[i % 8]], s=80, edgecolors='black', linewidth=0.5, zorder=3)
             
-            ax.set_xlabel('False Positive Rate (1 - Specificity)')
-            ax.set_ylabel('True Positive Rate (Precision)')
-            ax.set_xlim(0, 0.5)
-            ax.set_ylim(0.9, 1.02)
-            ax.set_title('(b) ROC-like Trade-off')
-            ax.plot([0, 1], [0, 1], 'k--', alpha=0.3)
+            texts = []
+            for i, name in enumerate(sample_names):
+                texts.append(ax.text(specificities[i], sensitivities[i], name, fontsize=6))
+            
+            if has_adjust_text:
+                adjust_text(texts, arrowprops=dict(arrowstyle='-', color='gray', lw=0.5), fontsize=6)
+            
+            ax.set_xlabel('Specificity (True Negative Rate)')
+            ax.set_ylabel('Sensitivity (True Positive Rate)')
+            ax.set_xlim(0, 1.02)
+            ax.set_ylim(0.6, 1.02)
+            ax.set_title('(b) Sensitivity-Specificity Trade-off')
+            ax.plot([0, 1], [1, 0], 'k--', alpha=0.3, label='Random baseline')
+            ax.legend(fontsize=6, loc='lower left')
             
             plt.tight_layout()
             plt.savefig(output_dir / 'sample_level_tradeoff.png', dpi=300, bbox_inches='tight')

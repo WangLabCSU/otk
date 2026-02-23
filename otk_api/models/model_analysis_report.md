@@ -1,6 +1,6 @@
 # Model Performance Analysis Report
 
-**Generated**: 2026-02-23 07:19:44
+**Generated**: 2026-02-23 07:46:28
 **Total Models**: 8 trained models
 
 ## Abstract
@@ -65,29 +65,39 @@ performance metrics including auPRC, AUC, Precision, Recall, and F1-score.
 
 ### Performance Visualization
 
-#### Gene-Level Performance Comparison
+#### Figure 1: Gene-Level Performance Across Datasets
 
-![Performance Comparison](performance_comparison.png)
+![Gene-Level Performance](gene_level_performance.png)
 
-*Figure 1: Model performance comparison on test set. (a) auPRC - primary metric for imbalanced classification. (b) AUC - overall discriminative ability. (c) Precision-Recall trade-off. (d) F1-Score - harmonic mean of precision and recall.*
+*Figure 1: Gene-level performance comparison across training, validation, and test sets. Six metrics are shown: (a) auPRC - primary metric for imbalanced classification, (b) AUC - overall discriminative ability, (c) Precision - positive predictive value, (d) Recall - sensitivity, (e) F1-Score - harmonic mean of precision and recall, (f) Specificity - true negative rate.*
 
-#### Sample-Level Performance (Circular Detection)
+#### Figure 2: Sample-Level Performance Across Datasets
 
 ![Sample-Level Performance](sample_level_performance.png)
 
-*Figure 2: Sample-level performance for circular ecDNA detection. A sample is predicted as circular if any gene is predicted positive.*
+*Figure 2: Sample-level performance for circular ecDNA detection. A sample is predicted as circular if any gene is predicted positive. Same six metrics as gene-level are shown.*
 
-#### Performance Across Datasets
+#### Figure 3: Trade-off Analysis
 
-![Dataset Comparison](dataset_comparison.png)
+![Gene-Level Trade-off](gene_level_tradeoff.png)
 
-*Figure 3: Model performance comparison across training, validation, and test datasets. Lower performance on test set indicates potential overfitting.*
+*Figure 3: Gene-level trade-off analysis. (a) Precision-Recall trade-off: points closer to top-right indicate better balance. (b) Sensitivity-Specificity trade-off: points closer to top-right indicate better overall discrimination.*
 
-#### Multi-dimensional Performance Radar
+![Sample-Level Trade-off](sample_level_tradeoff.png)
 
-![Radar Chart](radar_chart.png)
+*Figure 4: Sample-level trade-off analysis with the same metrics as gene-level.*
 
-*Figure 4: Multi-dimensional performance comparison of top 5 models. Larger area indicates better overall performance.*
+#### Figure 5: Multi-dimensional Performance Radar
+
+![Performance Radar](performance_radar.png)
+
+*Figure 5: Multi-dimensional performance comparison of top 5 models. (a) Gene-level radar chart. (b) Sample-level radar chart. Larger area indicates better overall performance.*
+
+#### Figure 6: Model Ranking Heatmap
+
+![Model Ranking Heatmap](model_ranking_heatmap.png)
+
+*Figure 6: Heatmap visualization of model performance across multiple metrics. Darker green indicates better performance.*
 
 ### Test Set Performance (Primary Evaluation)
 
