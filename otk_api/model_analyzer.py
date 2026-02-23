@@ -892,42 +892,42 @@ class ModelAnalyzer:
         
         lines.append("### Test Set Performance (Primary Evaluation)")
         lines.append("")
-        lines.append("| Model | auPRC | AUC | Precision | Recall | F1-Score |")
-        lines.append("|-------|-------|-----|-----------|--------|----------|")
+        lines.append("| Model | auPRC | AUC | Precision | Recall | Specificity | F1-Score |")
+        lines.append("|-------|-------|-----|-----------|--------|-------------|----------|")
         for m in sorted(trained_models, key=lambda x: x.test_metrics.auPRC, reverse=True):
             tm = m.test_metrics
-            lines.append(f"| {m.name} | **{tm.auPRC:.4f}** | {tm.AUC:.4f} | {tm.Precision:.4f} | {tm.Recall:.4f} | {tm.F1:.4f} |")
+            lines.append(f"| {m.name} | **{tm.auPRC:.4f}** | {tm.AUC:.4f} | {tm.Precision:.4f} | {tm.Recall:.4f} | {tm.Specificity:.4f} | {tm.F1:.4f} |")
         lines.append("")
         
         lines.append("### Complete Performance Comparison")
         lines.append("")
         lines.append("#### Training Set Performance")
         lines.append("")
-        lines.append("| Model | auPRC | AUC | Precision | Recall | F1-Score |")
-        lines.append("|-------|-------|-----|-----------|--------|----------|")
+        lines.append("| Model | auPRC | AUC | Precision | Recall | Specificity | F1-Score |")
+        lines.append("|-------|-------|-----|-----------|--------|-------------|----------|")
         for m in trained_models:
             tm = m.train_metrics
             if tm.auPRC > 0:
-                lines.append(f"| {m.name} | {tm.auPRC:.4f} | {tm.AUC:.4f} | {tm.Precision:.4f} | {tm.Recall:.4f} | {tm.F1:.4f} |")
+                lines.append(f"| {m.name} | {tm.auPRC:.4f} | {tm.AUC:.4f} | {tm.Precision:.4f} | {tm.Recall:.4f} | {tm.Specificity:.4f} | {tm.F1:.4f} |")
         lines.append("")
         
         lines.append("#### Validation Set Performance")
         lines.append("")
-        lines.append("| Model | auPRC | AUC | Precision | Recall | F1-Score |")
-        lines.append("|-------|-------|-----|-----------|--------|----------|")
+        lines.append("| Model | auPRC | AUC | Precision | Recall | Specificity | F1-Score |")
+        lines.append("|-------|-------|-----|-----------|--------|-------------|----------|")
         for m in trained_models:
             vm = m.val_metrics
             if vm.auPRC > 0:
-                lines.append(f"| {m.name} | {vm.auPRC:.4f} | {vm.AUC:.4f} | {vm.Precision:.4f} | {vm.Recall:.4f} | {vm.F1:.4f} |")
+                lines.append(f"| {m.name} | {vm.auPRC:.4f} | {vm.AUC:.4f} | {vm.Precision:.4f} | {vm.Recall:.4f} | {vm.Specificity:.4f} | {vm.F1:.4f} |")
         lines.append("")
         
         lines.append("#### Test Set Performance")
         lines.append("")
-        lines.append("| Model | auPRC | AUC | Precision | Recall | F1-Score |")
-        lines.append("|-------|-------|-----|-----------|--------|----------|")
+        lines.append("| Model | auPRC | AUC | Precision | Recall | Specificity | F1-Score |")
+        lines.append("|-------|-------|-----|-----------|--------|-------------|----------|")
         for m in trained_models:
             tm = m.test_metrics
-            lines.append(f"| {m.name} | {tm.auPRC:.4f} | {tm.AUC:.4f} | {tm.Precision:.4f} | {tm.Recall:.4f} | {tm.F1:.4f} |")
+            lines.append(f"| {m.name} | {tm.auPRC:.4f} | {tm.AUC:.4f} | {tm.Precision:.4f} | {tm.Recall:.4f} | {tm.Specificity:.4f} | {tm.F1:.4f} |")
         lines.append("")
         
         sample_evaluated = any(m.sample_test_metrics.auPRC > 0 for m in trained_models)
@@ -940,32 +940,32 @@ class ModelAnalyzer:
             
             lines.append("### Test Set Sample-Level Performance")
             lines.append("")
-            lines.append("| Model | auPRC | AUC | Accuracy | Precision | Recall | F1 | Samples |")
-            lines.append("|-------|-------|-----|----------|-----------|--------|-----|---------|")
+            lines.append("| Model | auPRC | AUC | Accuracy | Precision | Recall | Specificity | F1 | Samples |")
+            lines.append("|-------|-------|-----|----------|-----------|--------|-------------|-----|---------|")
             for m in sorted(trained_models, key=lambda x: x.sample_test_metrics.auPRC, reverse=True):
                 sm = m.sample_test_metrics
                 if sm.auPRC > 0:
-                    lines.append(f"| {m.name} | **{sm.auPRC:.4f}** | {sm.AUC:.4f} | {sm.Accuracy:.4f} | {sm.Precision:.4f} | {sm.Recall:.4f} | {sm.F1:.4f} | {sm.total_samples} |")
+                    lines.append(f"| {m.name} | **{sm.auPRC:.4f}** | {sm.AUC:.4f} | {sm.Accuracy:.4f} | {sm.Precision:.4f} | {sm.Recall:.4f} | {sm.Specificity:.4f} | {sm.F1:.4f} | {sm.total_samples} |")
             lines.append("")
             
             lines.append("### Validation Set Sample-Level Performance")
             lines.append("")
-            lines.append("| Model | auPRC | AUC | Accuracy | Precision | Recall | F1 | Samples |")
-            lines.append("|-------|-------|-----|----------|-----------|--------|-----|---------|")
+            lines.append("| Model | auPRC | AUC | Accuracy | Precision | Recall | Specificity | F1 | Samples |")
+            lines.append("|-------|-------|-----|----------|-----------|--------|-------------|-----|---------|")
             for m in trained_models:
                 sm = m.sample_val_metrics
                 if sm.auPRC > 0:
-                    lines.append(f"| {m.name} | {sm.auPRC:.4f} | {sm.AUC:.4f} | {sm.Accuracy:.4f} | {sm.Precision:.4f} | {sm.Recall:.4f} | {sm.F1:.4f} | {sm.total_samples} |")
+                    lines.append(f"| {m.name} | {sm.auPRC:.4f} | {sm.AUC:.4f} | {sm.Accuracy:.4f} | {sm.Precision:.4f} | {sm.Recall:.4f} | {sm.Specificity:.4f} | {sm.F1:.4f} | {sm.total_samples} |")
             lines.append("")
             
             lines.append("### Training Set Sample-Level Performance")
             lines.append("")
-            lines.append("| Model | auPRC | AUC | Accuracy | Precision | Recall | F1 | Samples |")
-            lines.append("|-------|-------|-----|----------|-----------|--------|-----|---------|")
+            lines.append("| Model | auPRC | AUC | Accuracy | Precision | Recall | Specificity | F1 | Samples |")
+            lines.append("|-------|-------|-----|----------|-----------|--------|-------------|-----|---------|")
             for m in trained_models:
                 sm = m.sample_train_metrics
                 if sm.auPRC > 0:
-                    lines.append(f"| {m.name} | {sm.auPRC:.4f} | {sm.AUC:.4f} | {sm.Accuracy:.4f} | {sm.Precision:.4f} | {sm.Recall:.4f} | {sm.F1:.4f} | {sm.total_samples} |")
+                    lines.append(f"| {m.name} | {sm.auPRC:.4f} | {sm.AUC:.4f} | {sm.Accuracy:.4f} | {sm.Precision:.4f} | {sm.Recall:.4f} | {sm.Specificity:.4f} | {sm.F1:.4f} | {sm.total_samples} |")
             lines.append("")
         
         lines.append("### Overfitting Analysis")
@@ -1290,7 +1290,7 @@ class ModelAnalyzer:
         ax.plot([0, 1], [0, 1], 'k--', alpha=0.3, label='F1 = auPRC')
         ax.legend(fontsize=6, loc='lower right')
         
-        plt.tight_layout()
+        plt.tight_layout(w_pad=1.5)
         plt.savefig(output_dir / 'gene_level_tradeoff.png', dpi=300, bbox_inches='tight')
         plt.savefig(output_dir / 'gene_level_tradeoff.pdf', bbox_inches='tight')
         plt.close()
@@ -1298,7 +1298,7 @@ class ModelAnalyzer:
         
         # 4. Precision-Recall and Sensitivity-Specificity Trade-off (Sample-Level)
         if sample_evaluated:
-            fig, axes = plt.subplots(1, 2, figsize=(7, 3.5))
+            fig, axes = plt.subplots(1, 2, figsize=(6.5, 3.2))
             
             ax = axes[0]
             precisions = [m.sample_test_metrics.Precision for m in sorted_sample]
@@ -1316,8 +1316,8 @@ class ModelAnalyzer:
             
             ax.set_xlabel('Recall (Sensitivity)')
             ax.set_ylabel('Precision (PPV)')
-            ax.set_xlim(0.6, 1.02)
-            ax.set_ylim(0.95, 1.02)
+            ax.set_xlim(0.7, 1.0)
+            ax.set_ylim(0.98, 1.01)
             ax.set_title('(a) Precision-Recall Trade-off')
             ax.plot([0, 1], [1, 0], 'k--', alpha=0.3, label='Random baseline')
             ax.legend(fontsize=6, loc='lower left')
@@ -1336,15 +1336,15 @@ class ModelAnalyzer:
             if has_adjust_text:
                 adjust_text(texts, arrowprops=dict(arrowstyle='-', color='gray', lw=0.5), fontsize=6)
             
-            ax.set_xlabel('Specificity (True Negative Rate)')
-            ax.set_ylabel('Sensitivity (True Positive Rate)')
-            ax.set_xlim(0, 1.02)
-            ax.set_ylim(0.6, 1.02)
+            ax.set_xlabel('Specificity (TNR)')
+            ax.set_ylabel('Sensitivity (TPR)')
+            ax.set_xlim(0.98, 1.01)
+            ax.set_ylim(0.7, 1.0)
             ax.set_title('(b) Sensitivity-Specificity Trade-off')
             ax.plot([0, 1], [1, 0], 'k--', alpha=0.3, label='Random baseline')
             ax.legend(fontsize=6, loc='lower left')
             
-            plt.tight_layout()
+            plt.tight_layout(w_pad=1.5)
             plt.savefig(output_dir / 'sample_level_tradeoff.png', dpi=300, bbox_inches='tight')
             plt.savefig(output_dir / 'sample_level_tradeoff.pdf', bbox_inches='tight')
             plt.close()
@@ -1454,16 +1454,19 @@ class ModelAnalyzer:
                 'Train_AUC': m.train_metrics.AUC,
                 'Train_Precision': m.train_metrics.Precision,
                 'Train_Recall': m.train_metrics.Recall,
+                'Train_Specificity': m.train_metrics.Specificity,
                 'Train_F1': m.train_metrics.F1,
                 'Val_auPRC': m.val_metrics.auPRC,
                 'Val_AUC': m.val_metrics.AUC,
                 'Val_Precision': m.val_metrics.Precision,
                 'Val_Recall': m.val_metrics.Recall,
+                'Val_Specificity': m.val_metrics.Specificity,
                 'Val_F1': m.val_metrics.F1,
                 'Test_auPRC': m.test_metrics.auPRC,
                 'Test_AUC': m.test_metrics.AUC,
                 'Test_Precision': m.test_metrics.Precision,
                 'Test_Recall': m.test_metrics.Recall,
+                'Test_Specificity': m.test_metrics.Specificity,
                 'Test_F1': m.test_metrics.F1,
             })
         pd.DataFrame(gene_table).to_csv(source_data_path / 'gene_level_performance.csv', index=False)
@@ -1478,14 +1481,17 @@ class ModelAnalyzer:
                     'Train_Precision': m.sample_train_metrics.Precision,
                     'Train_Recall': m.sample_train_metrics.Recall,
                     'Train_Accuracy': m.sample_train_metrics.Accuracy,
+                    'Train_Specificity': m.sample_train_metrics.Specificity,
                     'Val_auPRC': m.sample_val_metrics.auPRC,
                     'Val_Precision': m.sample_val_metrics.Precision,
                     'Val_Recall': m.sample_val_metrics.Recall,
                     'Val_Accuracy': m.sample_val_metrics.Accuracy,
+                    'Val_Specificity': m.sample_val_metrics.Specificity,
                     'Test_auPRC': m.sample_test_metrics.auPRC,
                     'Test_Precision': m.sample_test_metrics.Precision,
                     'Test_Recall': m.sample_test_metrics.Recall,
                     'Test_Accuracy': m.sample_test_metrics.Accuracy,
+                    'Test_Specificity': m.sample_test_metrics.Specificity,
                 })
         if sample_table:
             pd.DataFrame(sample_table).to_csv(source_data_path / 'sample_level_performance.csv', index=False)
