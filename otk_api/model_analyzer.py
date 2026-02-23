@@ -1044,203 +1044,246 @@ class ModelAnalyzer:
         
         output_dir.mkdir(parents=True, exist_ok=True)
         
-        # 按 test auPRC 排序
         sorted_models = sorted(trained_models, key=lambda x: x.test_metrics.auPRC, reverse=True)
         model_names = [m.name for m in sorted_models]
+        n_models = len(sorted_models)
         
-        # 设置颜色方案 - 使用科学论文常用的配色
-        colors = plt.cm.Set2(np.linspace(0, 1, len(sorted_models)))
+        # 1. Gene-Level Performance (Train/Val/Test)
+        fig, axes = plt.subplots(2, 3, figsize=(10, 6))
+        fig.suptitle('Gene-Level Performance Across Datasets', fontsize=11)
         
-        # 1. Test Set Performance - 综合性能柱状图
-        fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-        fig.suptitle('Model Performance Comparison (Test Set)', fontsize=14, fontweight='bold')
+        x = np.arange(n_models)
+        width = 0.25
         
-        metrics = ['auPRC', 'AUC', 'Precision', 'Recall', 'F1']
-        metric_data = {
-            'auPRC': [m.test_metrics.auPRC for m in sorted_models],
-            'AUC': [m.test_metrics.AUC for m in sorted_models],
-            'Precision': [m.test_metrics.Precision for m in sorted_models],
-            'Recall': [m.test_metrics.Recall for m in sorted_models],
-            'F1': [m.test_metrics.F1 for m in sorted_models]
-        }
+        metrics_config = [
+            ('auPRC', 'auPRC', 0.5, 1.02),
+            ('AUC', 'AUC', 0.9, 1.005),
+            ('Precision', 'Precision', 0.4, 1.02),
+            ('Recall', 'Recall', 0.3, 1.02),
+            ('F1', 'F1', 0.3, 1.02),
+            ('Accuracy', 'Accuracy', 0.8, 1.02),
+        ]
         
-        # auPRC
-        ax = axes[0, 0]
-        bars = ax.barh(model_names, metric_data['auPRC'], color=colors)
-        ax.set_xlabel('auPRC', fontweight='bold')
-        ax.set_xlim(0, 1)
-        ax.invert_yaxis()
-        for i, (bar, val) in enumerate(zip(bars, metric_data['auPRC'])):
-            ax.text(val + 0.01, bar.get_y() + bar.get_height()/2, f'{val:.3f}', 
-                   va='center', fontsize=8)
-        ax.set_title('(a) Area under Precision-Recall Curve', fontweight='bold')
-        ax.grid(axis='x', alpha=0.3)
-        
-        # AUC
-        ax = axes[0, 1]
-        bars = ax.barh(model_names, metric_data['AUC'], color=colors)
-        ax.set_xlabel('AUC', fontweight='bold')
-        ax.set_xlim(0.9, 1.0)
-        ax.invert_yaxis()
-        for i, (bar, val) in enumerate(zip(bars, metric_data['AUC'])):
-            ax.text(val + 0.001, bar.get_y() + bar.get_height()/2, f'{val:.3f}', 
-                   va='center', fontsize=8)
-        ax.set_title('(b) Area under ROC Curve', fontweight='bold')
-        ax.grid(axis='x', alpha=0.3)
-        
-        # Precision vs Recall
-        ax = axes[1, 0]
-        scatter = ax.scatter(metric_data['Recall'], metric_data['Precision'], 
-                           c=range(len(sorted_models)), cmap='Set2', s=150, edgecolors='black', linewidth=1)
-        for i, name in enumerate(model_names):
-            ax.annotate(name, (metric_data['Recall'][i], metric_data['Precision'][i]),
-                       xytext=(5, 5), textcoords='offset points', fontsize=7)
-        ax.set_xlabel('Recall', fontweight='bold')
-        ax.set_ylabel('Precision', fontweight='bold')
-        ax.set_xlim(0, 1)
-        ax.set_ylim(0, 1)
-        ax.set_title('(c) Precision-Recall Trade-off', fontweight='bold')
-        ax.grid(alpha=0.3)
-        
-        # F1 Score
-        ax = axes[1, 1]
-        bars = ax.barh(model_names, metric_data['F1'], color=colors)
-        ax.set_xlabel('F1-Score', fontweight='bold')
-        ax.set_xlim(0, 1)
-        ax.invert_yaxis()
-        for i, (bar, val) in enumerate(zip(bars, metric_data['F1'])):
-            ax.text(val + 0.01, bar.get_y() + bar.get_height()/2, f'{val:.3f}', 
-                   va='center', fontsize=8)
-        ax.set_title('(d) F1-Score', fontweight='bold')
-        ax.grid(axis='x', alpha=0.3)
+        for idx, (metric_name, metric_key, xmin, xmax) in enumerate(metrics_config):
+            ax = axes[idx // 3, idx % 3]
+            
+            train_vals = [getattr(m.train_metrics, metric_key, 0) for m in sorted_models]
+            val_vals = [getattr(m.val_metrics, metric_key, 0) for m in sorted_models]
+            test_vals = [getattr(m.test_metrics, metric_key, 0) for m in sorted_models]
+            
+            bars1 = ax.barh(x - width, train_vals, width, label='Train', color=SCI_COLORS['train'], alpha=0.9)
+            bars2 = ax.barh(x, val_vals, width, label='Val', color=SCI_COLORS['val'], alpha=0.9, edgecolor='black', linewidth=0.3)
+            bars3 = ax.barh(x + width, test_vals, width, label='Test', color=SCI_COLORS['test'], alpha=0.9)
+            
+            ax.set_yticks(x)
+            ax.set_yticklabels(model_names if idx % 3 == 0 else [], fontsize=6)
+            ax.set_xlabel(metric_name)
+            ax.set_xlim(xmin, xmax)
+            ax.invert_yaxis()
+            
+            subplot_label = chr(ord('a') + idx)
+            ax.set_title(f'({subplot_label}) {metric_name}')
+            
+            for bars in [bars1, bars2, bars3]:
+                for bar in bars:
+                    w = bar.get_width()
+                    ax.text(w + 0.002, bar.get_y() + bar.get_height()/2, f'{w:.2f}',
+                           va='center', fontsize=5)
+            
+            if idx == 0:
+                ax.legend(loc='lower right', fontsize=6, frameon=True, fancybox=False, edgecolor='black')
         
         plt.tight_layout()
-        plt.savefig(output_dir / 'performance_comparison.png', dpi=300, bbox_inches='tight')
-        plt.savefig(output_dir / 'performance_comparison.pdf', bbox_inches='tight')
+        plt.savefig(output_dir / 'gene_level_performance.png', dpi=300, bbox_inches='tight')
+        plt.savefig(output_dir / 'gene_level_performance.pdf', bbox_inches='tight')
         plt.close()
-        print(f"Saved: {output_dir / 'performance_comparison.png'}")
+        print(f"Saved: {output_dir / 'gene_level_performance.png'}")
         
-        # 2. Sample-Level Performance - SCI 论文风格多面板图
+        # 2. Sample-Level Performance (Train/Val/Test)
         sample_evaluated = any(m.sample_test_metrics.auPRC > 0 for m in trained_models)
         if sample_evaluated:
             sorted_sample = sorted([m for m in trained_models if m.sample_test_metrics.auPRC > 0], 
                                    key=lambda x: x.sample_test_metrics.auPRC, reverse=True)
             sample_names = [m.name for m in sorted_sample]
-            n_models = len(sorted_sample)
+            n_sample_models = len(sorted_sample)
             
-            if n_models > 0:
-                # SCI 论文推荐尺寸: 单栏 3.5in, 双栏 7in
-                fig, axes = plt.subplots(2, 3, figsize=(7.5, 5))
+            fig, axes = plt.subplots(2, 3, figsize=(10, 6))
+            fig.suptitle('Sample-Level Performance Across Datasets', fontsize=11)
+            
+            x_sample = np.arange(n_sample_models)
+            
+            for idx, (metric_name, metric_key, xmin, xmax) in enumerate(metrics_config):
+                ax = axes[idx // 3, idx % 3]
                 
-                x = np.arange(n_models)
-                width = 0.25
+                train_vals = [getattr(m.sample_train_metrics, metric_key, 0) for m in sorted_sample]
+                val_vals = [getattr(m.sample_val_metrics, metric_key, 0) for m in sorted_sample]
+                test_vals = [getattr(m.sample_test_metrics, metric_key, 0) for m in sorted_sample]
                 
-                metrics_config = [
-                    ('auPRC', 'auPRC', 0.7, 1.02),
-                    ('Precision', 'Precision', 0.7, 1.02),
-                    ('Recall', 'Recall', 0.6, 1.02),
-                    ('Accuracy', 'Accuracy', 0.6, 1.02),
-                    ('F1', 'F1', 0.6, 1.02),
-                    ('AUC', 'AUC', 0.7, 1.02),
-                ]
+                bars1 = ax.barh(x_sample - width, train_vals, width, label='Train', color=SCI_COLORS['train'], alpha=0.9)
+                bars2 = ax.barh(x_sample, val_vals, width, label='Val', color=SCI_COLORS['val'], alpha=0.9, edgecolor='black', linewidth=0.3)
+                bars3 = ax.barh(x_sample + width, test_vals, width, label='Test', color=SCI_COLORS['test'], alpha=0.9)
                 
-                for idx, (metric_name, metric_key, xmin, xmax) in enumerate(metrics_config):
-                    ax = axes[idx // 3, idx % 3]
-                    
-                    train_vals = [getattr(m.sample_train_metrics, metric_key, 0) for m in sorted_sample]
-                    val_vals = [getattr(m.sample_val_metrics, metric_key, 0) for m in sorted_sample]
-                    test_vals = [getattr(m.sample_test_metrics, metric_key, 0) for m in sorted_sample]
-                    
-                    ax.barh(x - width, train_vals, width, label='Train', color=SCI_COLORS['train'], alpha=0.9)
-                    ax.barh(x, val_vals, width, label='Val', color=SCI_COLORS['val'], alpha=0.9, edgecolor='black', linewidth=0.5)
-                    ax.barh(x + width, test_vals, width, label='Test', color=SCI_COLORS['test'], alpha=0.9)
-                    
-                    ax.set_yticks(x)
-                    ax.set_yticklabels(sample_names if idx % 3 == 0 else [], fontsize=7)
-                    ax.set_xlabel(metric_name)
-                    ax.set_xlim(xmin, xmax)
-                    ax.invert_yaxis()
-                    
-                    subplot_label = chr(ord('a') + idx)
-                    ax.set_title(f'({subplot_label}) {metric_name}')
-                    
-                    if idx == 0:
-                        ax.legend(loc='lower right', frameon=True, fancybox=False, edgecolor='black', framealpha=0.9)
+                ax.set_yticks(x_sample)
+                ax.set_yticklabels(sample_names if idx % 3 == 0 else [], fontsize=6)
+                ax.set_xlabel(metric_name)
+                ax.set_xlim(xmin, xmax)
+                ax.invert_yaxis()
                 
-                plt.tight_layout()
-                plt.savefig(output_dir / 'sample_level_performance.png', dpi=300, bbox_inches='tight')
-                plt.savefig(output_dir / 'sample_level_performance.pdf', bbox_inches='tight')
-                plt.close()
-                print(f"Saved: {output_dir / 'sample_level_performance.png'}")
+                subplot_label = chr(ord('a') + idx)
+                ax.set_title(f'({subplot_label}) {metric_name}')
+                
+                for bars in [bars1, bars2, bars3]:
+                    for bar in bars:
+                        w = bar.get_width()
+                        ax.text(w + 0.002, bar.get_y() + bar.get_height()/2, f'{w:.2f}',
+                               va='center', fontsize=5)
+                
+                if idx == 0:
+                    ax.legend(loc='lower right', fontsize=6, frameon=True, fancybox=False, edgecolor='black')
+            
+            plt.tight_layout()
+            plt.savefig(output_dir / 'sample_level_performance.png', dpi=300, bbox_inches='tight')
+            plt.savefig(output_dir / 'sample_level_performance.pdf', bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {output_dir / 'sample_level_performance.png'}")
         
-        # 3. Train/Val/Test 对比图
-        fig, ax = plt.subplots(figsize=(7, 3.5))
+        # 3. Precision-Recall and ROC Trade-off (Gene-Level)
+        fig, axes = plt.subplots(1, 2, figsize=(7, 3))
+        fig.suptitle('Gene-Level Trade-off Analysis', fontsize=10)
         
-        x = np.arange(len(sorted_models))
-        width = 0.25
+        ax = axes[0]
+        precisions = [m.test_metrics.Precision for m in sorted_models]
+        recalls = [m.test_metrics.Recall for m in sorted_models]
+        colors_scatter = [SCI_COLORS[f'model{i+1}'] for i in range(min(n_models, 8))]
         
-        train_auprc = [m.train_metrics.auPRC for m in sorted_models]
-        val_auprc = [m.val_metrics.auPRC for m in sorted_models]
-        test_auprc = [m.test_metrics.auPRC for m in sorted_models]
+        for i, name in enumerate(model_names):
+            ax.scatter(recalls[i], precisions[i], c=[colors_scatter[i % 8]], s=60, edgecolors='black', linewidth=0.5, zorder=3)
+            ax.annotate(name, (recalls[i], precisions[i]), xytext=(3, 3), textcoords='offset points', fontsize=6)
         
-        ax.bar(x - width, train_auprc, width, label='Training', color=SCI_COLORS['train'], alpha=0.9)
-        ax.bar(x, val_auprc, width, label='Validation', color=SCI_COLORS['val'], alpha=0.9, edgecolor='black', linewidth=0.5)
-        ax.bar(x + width, test_auprc, width, label='Test', color=SCI_COLORS['test'], alpha=0.9)
+        ax.set_xlabel('Recall (Sensitivity)')
+        ax.set_ylabel('Precision (PPV)')
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1.05)
+        ax.set_title('(a) Precision-Recall Trade-off')
+        ax.plot([0, 1], [1, 0], 'k--', alpha=0.3, label='Random')
+        ax.legend(fontsize=6)
         
-        ax.set_xlabel('Model')
-        ax.set_ylabel('auPRC')
-        ax.set_xticks(x)
-        ax.set_xticklabels(model_names, rotation=45, ha='right', fontsize=7)
-        ax.legend(loc='upper right', frameon=True, fancybox=False, edgecolor='black')
-        ax.set_ylim(0, 1)
+        ax = axes[1]
+        fprs = [1 - m.test_metrics.Recall for m in sorted_models]
+        tprs = [m.test_metrics.Precision for m in sorted_models]
+        
+        for i, name in enumerate(model_names):
+            ax.scatter(fprs[i], tprs[i], c=[colors_scatter[i % 8]], s=60, edgecolors='black', linewidth=0.5, zorder=3)
+            ax.annotate(name, (fprs[i], tprs[i]), xytext=(3, 3), textcoords='offset points', fontsize=6)
+        
+        ax.set_xlabel('False Positive Rate (1 - Specificity)')
+        ax.set_ylabel('True Positive Rate (Precision)')
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1.05)
+        ax.set_title('(b) ROC-like Trade-off')
+        ax.plot([0, 1], [0, 1], 'k--', alpha=0.3, label='Random')
+        ax.legend(fontsize=6)
         
         plt.tight_layout()
-        plt.savefig(output_dir / 'dataset_comparison.png', dpi=300, bbox_inches='tight')
-        plt.savefig(output_dir / 'dataset_comparison.pdf', bbox_inches='tight')
+        plt.savefig(output_dir / 'gene_level_tradeoff.png', dpi=300, bbox_inches='tight')
+        plt.savefig(output_dir / 'gene_level_tradeoff.pdf', bbox_inches='tight')
         plt.close()
-        print(f"Saved: {output_dir / 'dataset_comparison.png'}")
+        print(f"Saved: {output_dir / 'gene_level_tradeoff.png'}")
         
-        # 4. 雷达图 - 多维度性能对比
+        # 4. Precision-Recall and ROC Trade-off (Sample-Level)
+        if sample_evaluated:
+            fig, axes = plt.subplots(1, 2, figsize=(7, 3))
+            fig.suptitle('Sample-Level Trade-off Analysis', fontsize=10)
+            
+            ax = axes[0]
+            precisions = [m.sample_test_metrics.Precision for m in sorted_sample]
+            recalls = [m.sample_test_metrics.Recall for m in sorted_sample]
+            
+            for i, name in enumerate(sample_names):
+                ax.scatter(recalls[i], precisions[i], c=[colors_scatter[i % 8]], s=60, edgecolors='black', linewidth=0.5, zorder=3)
+                ax.annotate(name, (recalls[i], precisions[i]), xytext=(3, 3), textcoords='offset points', fontsize=6)
+            
+            ax.set_xlabel('Recall (Sensitivity)')
+            ax.set_ylabel('Precision (PPV)')
+            ax.set_xlim(0.6, 1.02)
+            ax.set_ylim(0.9, 1.02)
+            ax.set_title('(a) Precision-Recall Trade-off')
+            ax.plot([0, 1], [1, 0], 'k--', alpha=0.3)
+            
+            ax = axes[1]
+            fprs = [1 - m.sample_test_metrics.Recall for m in sorted_sample]
+            tprs = [m.sample_test_metrics.Precision for m in sorted_sample]
+            
+            for i, name in enumerate(sample_names):
+                ax.scatter(fprs[i], tprs[i], c=[colors_scatter[i % 8]], s=60, edgecolors='black', linewidth=0.5, zorder=3)
+                ax.annotate(name, (fprs[i], tprs[i]), xytext=(3, 3), textcoords='offset points', fontsize=6)
+            
+            ax.set_xlabel('False Positive Rate (1 - Specificity)')
+            ax.set_ylabel('True Positive Rate (Precision)')
+            ax.set_xlim(0, 0.5)
+            ax.set_ylim(0.9, 1.02)
+            ax.set_title('(b) ROC-like Trade-off')
+            ax.plot([0, 1], [0, 1], 'k--', alpha=0.3)
+            
+            plt.tight_layout()
+            plt.savefig(output_dir / 'sample_level_tradeoff.png', dpi=300, bbox_inches='tight')
+            plt.savefig(output_dir / 'sample_level_tradeoff.pdf', bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {output_dir / 'sample_level_tradeoff.png'}")
+        
+        # 5. Multi-dimensional Performance Radar (Gene-Level and Sample-Level)
         from math import pi
         
-        fig, ax = plt.subplots(figsize=(3.5, 3.5), subplot_kw=dict(projection='polar'))
+        fig, axes = plt.subplots(1, 2, figsize=(7, 3.5), subplot_kw=dict(projection='polar'))
+        fig.suptitle('Multi-dimensional Performance Comparison', fontsize=10)
         
-        # 选择前5个模型
         top_models = sorted_models[:5]
         categories = ['auPRC', 'AUC', 'Precision', 'Recall', 'F1']
         N = len(categories)
-        
         angles = [n / float(N) * 2 * pi for n in range(N)]
         angles += angles[:1]
         
+        ax = axes[0]
         radar_color_keys = ['model1', 'model2', 'model3', 'model4', 'model5']
         
         for i, model in enumerate(top_models):
-            values = [
-                model.test_metrics.auPRC,
-                model.test_metrics.AUC,
-                model.test_metrics.Precision,
-                model.test_metrics.Recall,
-                model.test_metrics.F1
-            ]
+            values = [model.test_metrics.auPRC, model.test_metrics.AUC, 
+                     model.test_metrics.Precision, model.test_metrics.Recall, model.test_metrics.F1]
             values += values[:1]
-            
             color = SCI_COLORS[radar_color_keys[i]]
-            ax.plot(angles, values, 'o-', linewidth=1.5, label=model.name, color=color, markersize=4)
-            ax.fill(angles, values, alpha=0.15, color=color)
+            ax.plot(angles, values, 'o-', linewidth=1, label=model.name, color=color, markersize=3)
+            ax.fill(angles, values, alpha=0.1, color=color)
         
         ax.set_xticks(angles[:-1])
-        ax.set_xticklabels(categories, fontsize=7)
+        ax.set_xticklabels(categories, fontsize=6)
         ax.set_ylim(0, 1)
-        ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.0), fontsize=6, frameon=True, fancybox=False, edgecolor='black')
+        ax.set_title('(a) Gene-Level', fontsize=9, pad=10)
+        ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.0), fontsize=5, frameon=True, fancybox=False, edgecolor='black')
+        
+        if sample_evaluated:
+            ax = axes[1]
+            top_sample = sorted_sample[:5]
+            
+            for i, model in enumerate(top_sample):
+                values = [model.sample_test_metrics.auPRC, model.sample_test_metrics.AUC,
+                         model.sample_test_metrics.Precision, model.sample_test_metrics.Recall, model.sample_test_metrics.F1]
+                values += values[:1]
+                color = SCI_COLORS[radar_color_keys[i]]
+                ax.plot(angles, values, 'o-', linewidth=1, label=model.name, color=color, markersize=3)
+                ax.fill(angles, values, alpha=0.1, color=color)
+            
+            ax.set_xticks(angles[:-1])
+            ax.set_xticklabels(categories, fontsize=6)
+            ax.set_ylim(0, 1)
+            ax.set_title('(b) Sample-Level', fontsize=9, pad=10)
         
         plt.tight_layout()
-        plt.savefig(output_dir / 'radar_chart.png', dpi=300, bbox_inches='tight')
-        plt.savefig(output_dir / 'radar_chart.pdf', bbox_inches='tight')
+        plt.savefig(output_dir / 'performance_radar.png', dpi=300, bbox_inches='tight')
+        plt.savefig(output_dir / 'performance_radar.pdf', bbox_inches='tight')
         plt.close()
-        print(f"Saved: {output_dir / 'radar_chart.png'}")
+        print(f"Saved: {output_dir / 'performance_radar.png'}")
         
-        # 5. 模型排名热力图 - 适合 web 展示
+        # 6. 模型排名热力图 - 适合 web 展示
         fig, ax = plt.subplots(figsize=(7, 4))
         
         metrics_for_heatmap = ['auPRC', 'AUC', 'Precision', 'Recall', 'F1']
