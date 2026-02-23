@@ -6,6 +6,11 @@ gene_level:
     Recall: 0.7453571428571428
     auPRC: 0.8338771771986925
     threshold: 0.1640419065952301
+    TP: 2087
+    FP: 1142
+    FN: 713
+    TN: 751156
+    Specificity: 0.998482
   train:
     AUC: 0.9993299078648843
     F1: 0.8593041536603705
@@ -13,6 +18,11 @@ gene_level:
     Recall: 0.9299240556267877
     auPRC: 0.9518997967426284
     threshold: 0.1640419065952301
+    TP: 18857
+    FP: 4735
+    FN: 1421
+    TN: 5783138
+    Specificity: 0.999182
   val:
     AUC: 0.9914442865539961
     F1: 0.6816333745801662
@@ -20,6 +30,11 @@ gene_level:
     Recall: 0.7286470143613001
     auPRC: 0.6838339721482118
     threshold: 0.1640419065952301
+    TP: 1928
+    FP: 1083
+    FN: 718
+    TN: 712243
+    Specificity: 0.998482
 model_name: xgb_new
 sample_level:
   test:

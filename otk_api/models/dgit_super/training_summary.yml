@@ -6,6 +6,11 @@ gene_level:
     Recall: 0.5207142857142857
     auPRC: 0.7311438750862691
     threshold: 0.6797873973846436
+    TP: 1458
+    FP: 45
+    FN: 1342
+    TN: 752253
+    Specificity: 0.99994
   train:
     AUC: 0.9981049189638799
     F1: 0.7887480933943447
@@ -13,6 +18,11 @@ gene_level:
     Recall: 0.6630338297662491
     auPRC: 0.8897119543847817
     threshold: 0.6797873973846436
+    TP: 13445
+    FP: 367
+    FN: 6833
+    TN: 5787506
+    Specificity: 0.999937
   val:
     AUC: 0.9859757207349933
     F1: 0.8099389712292938
@@ -20,6 +30,11 @@ gene_level:
     Recall: 0.7021919879062736
     auPRC: 0.8271162004619239
     threshold: 0.6797873973846436
+    TP: 1858
+    FP: 84
+    FN: 788
+    TN: 713242
+    Specificity: 0.999882
 model_name: dgit_super
 sample_level:
   test:

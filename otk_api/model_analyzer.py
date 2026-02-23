@@ -863,17 +863,17 @@ class ModelAnalyzer:
             lines.append("*Figure 2: Sample-level performance for circular ecDNA detection. A sample is predicted as circular if any gene is predicted positive. Same five metrics as gene-level are shown.*")
             lines.append("")
         
-        lines.append("#### Figure 3: Trade-off Analysis (Test Set)")
+        lines.append("#### Figure 3: ROC Space and auROC vs auPRC (Test Set)")
         lines.append("")
         lines.append("![Gene-Level Trade-off](gene_level_tradeoff.png)")
         lines.append("")
-        lines.append("*Figure 3: Gene-level trade-off analysis on test set. (a) Precision-Recall trade-off: points closer to top-right indicate better balance. (b) F1 vs auPRC: shows relationship between two key metrics for imbalanced classification.*")
+        lines.append("*Figure 3: Gene-level trade-off analysis on test set. (a) ROC Space: FPR vs TPR, points closer to top-left indicate better performance. (b) auROC vs auPRC: comparison of two key metrics for imbalanced classification.*")
         lines.append("")
         
         if sample_evaluated:
             lines.append("![Sample-Level Trade-off](sample_level_tradeoff.png)")
             lines.append("")
-            lines.append("*Figure 4: Sample-level trade-off analysis on test set. (a) Precision-Recall trade-off. (b) Sensitivity-Specificity trade-off: points closer to top-right indicate better overall discrimination.*")
+            lines.append("*Figure 4: Sample-level trade-off analysis on test set. (a) ROC Space: FPR vs TPR. (b) auROC vs auPRC.*")
             lines.append("")
         
         lines.append("#### Figure 5: Multi-dimensional Performance Radar (Test Set)")
@@ -1236,7 +1236,7 @@ class ModelAnalyzer:
             plt.close()
             print(f"Saved: {output_dir / 'sample_level_performance.png'}")
         
-        # 3. Precision-Recall and F1-auPRC Trade-off (Gene-Level)
+        # 3. ROC Space and auROC vs auPRC (Gene-Level)
         try:
             from adjustText import adjust_text
             has_adjust_text = True
@@ -1246,48 +1246,48 @@ class ModelAnalyzer:
         fig, axes = plt.subplots(1, 2, figsize=(7, 3.5))
         
         ax = axes[0]
-        precisions = [m.test_metrics.Precision for m in sorted_models]
-        recalls = [m.test_metrics.Recall for m in sorted_models]
+        fprs = [1 - m.test_metrics.Specificity for m in sorted_models]
+        tprs = [m.test_metrics.Recall for m in sorted_models]
         colors_scatter = [SCI_COLORS[f'model{i+1}'] for i in range(min(n_models, 8))]
         
         for i, name in enumerate(model_names):
-            ax.scatter(recalls[i], precisions[i], c=[colors_scatter[i % 8]], s=80, edgecolors='black', linewidth=0.5, zorder=3)
+            ax.scatter(fprs[i], tprs[i], c=[colors_scatter[i % 8]], s=80, edgecolors='black', linewidth=0.5, zorder=3)
         
         texts = []
         for i, name in enumerate(model_names):
-            texts.append(ax.text(recalls[i], precisions[i], name, fontsize=6))
+            texts.append(ax.text(fprs[i], tprs[i], name, fontsize=6))
         
         if has_adjust_text:
             adjust_text(texts, arrowprops=dict(arrowstyle='-', color='gray', lw=0.5), fontsize=6)
         
-        ax.set_xlabel('Recall (Sensitivity)')
-        ax.set_ylabel('Precision (PPV)')
-        ax.set_xlim(0, 1.05)
-        ax.set_ylim(0, 1.05)
-        ax.set_title('(a) Precision-Recall Trade-off')
-        ax.plot([0, 1], [1, 0], 'k--', alpha=0.3, label='Random baseline')
-        ax.legend(fontsize=6, loc='lower left')
+        ax.set_xlabel('False Positive Rate (FPR)')
+        ax.set_ylabel('True Positive Rate (TPR)')
+        ax.set_xlim(0, 1.0)
+        ax.set_ylim(0, 1.0)
+        ax.set_title('(a) ROC Space')
+        ax.plot([0, 1], [0, 1], 'k--', alpha=0.3, label='Random baseline')
+        ax.legend(fontsize=6, loc='lower right')
         
         ax = axes[1]
-        f1_scores = [m.test_metrics.F1 for m in sorted_models]
+        aurocs = [m.test_metrics.AUC for m in sorted_models]
         auprcs = [m.test_metrics.auPRC for m in sorted_models]
         
         for i, name in enumerate(model_names):
-            ax.scatter(auprcs[i], f1_scores[i], c=[colors_scatter[i % 8]], s=80, edgecolors='black', linewidth=0.5, zorder=3)
+            ax.scatter(auprcs[i], aurocs[i], c=[colors_scatter[i % 8]], s=80, edgecolors='black', linewidth=0.5, zorder=3)
         
         texts = []
         for i, name in enumerate(model_names):
-            texts.append(ax.text(auprcs[i], f1_scores[i], name, fontsize=6))
+            texts.append(ax.text(auprcs[i], aurocs[i], name, fontsize=6))
         
         if has_adjust_text:
             adjust_text(texts, arrowprops=dict(arrowstyle='-', color='gray', lw=0.5), fontsize=6)
         
         ax.set_xlabel('auPRC')
-        ax.set_ylabel('F1-Score')
-        ax.set_xlim(0.6, 0.9)
-        ax.set_ylim(0.6, 0.9)
-        ax.set_title('(b) F1 vs auPRC')
-        ax.plot([0, 1], [0, 1], 'k--', alpha=0.3, label='F1 = auPRC')
+        ax.set_ylabel('auROC')
+        ax.set_xlim(0, 1.0)
+        ax.set_ylim(0, 1.0)
+        ax.set_title('(b) auROC vs auPRC')
+        ax.plot([0, 1], [0, 1], 'k--', alpha=0.3, label='auROC = auPRC')
         ax.legend(fontsize=6, loc='lower right')
         
         plt.tight_layout(w_pad=1.5)
@@ -1296,53 +1296,53 @@ class ModelAnalyzer:
         plt.close()
         print(f"Saved: {output_dir / 'gene_level_tradeoff.png'}")
         
-        # 4. Precision-Recall and Sensitivity-Specificity Trade-off (Sample-Level)
+        # 4. ROC Space and auROC vs auPRC (Sample-Level)
         if sample_evaluated:
-            fig, axes = plt.subplots(1, 2, figsize=(6.5, 3.2))
+            fig, axes = plt.subplots(1, 2, figsize=(7, 3.5))
             
             ax = axes[0]
-            precisions = [m.sample_test_metrics.Precision for m in sorted_sample]
-            recalls = [m.sample_test_metrics.Recall for m in sorted_sample]
+            fprs = [1 - m.sample_test_metrics.Specificity for m in sorted_sample]
+            tprs = [m.sample_test_metrics.Recall for m in sorted_sample]
             
             for i, name in enumerate(sample_names):
-                ax.scatter(recalls[i], precisions[i], c=[colors_scatter[i % 8]], s=80, edgecolors='black', linewidth=0.5, zorder=3)
+                ax.scatter(fprs[i], tprs[i], c=[colors_scatter[i % 8]], s=80, edgecolors='black', linewidth=0.5, zorder=3)
             
             texts = []
             for i, name in enumerate(sample_names):
-                texts.append(ax.text(recalls[i], precisions[i], name, fontsize=6))
+                texts.append(ax.text(fprs[i], tprs[i], name, fontsize=6))
             
             if has_adjust_text:
                 adjust_text(texts, arrowprops=dict(arrowstyle='-', color='gray', lw=0.5), fontsize=6)
             
-            ax.set_xlabel('Recall (Sensitivity)')
-            ax.set_ylabel('Precision (PPV)')
-            ax.set_xlim(0.7, 1.0)
-            ax.set_ylim(0.98, 1.01)
-            ax.set_title('(a) Precision-Recall Trade-off')
-            ax.plot([0, 1], [1, 0], 'k--', alpha=0.3, label='Random baseline')
-            ax.legend(fontsize=6, loc='lower left')
+            ax.set_xlabel('False Positive Rate (FPR)')
+            ax.set_ylabel('True Positive Rate (TPR)')
+            ax.set_xlim(0, 1.0)
+            ax.set_ylim(0, 1.0)
+            ax.set_title('(a) ROC Space')
+            ax.plot([0, 1], [0, 1], 'k--', alpha=0.3, label='Random baseline')
+            ax.legend(fontsize=6, loc='lower right')
             
             ax = axes[1]
-            specificities = [m.sample_test_metrics.Specificity for m in sorted_sample]
-            sensitivities = [m.sample_test_metrics.Recall for m in sorted_sample]
+            aurocs = [m.sample_test_metrics.AUC for m in sorted_sample]
+            auprcs = [m.sample_test_metrics.auPRC for m in sorted_sample]
             
             for i, name in enumerate(sample_names):
-                ax.scatter(specificities[i], sensitivities[i], c=[colors_scatter[i % 8]], s=80, edgecolors='black', linewidth=0.5, zorder=3)
+                ax.scatter(auprcs[i], aurocs[i], c=[colors_scatter[i % 8]], s=80, edgecolors='black', linewidth=0.5, zorder=3)
             
             texts = []
             for i, name in enumerate(sample_names):
-                texts.append(ax.text(specificities[i], sensitivities[i], name, fontsize=6))
+                texts.append(ax.text(auprcs[i], aurocs[i], name, fontsize=6))
             
             if has_adjust_text:
                 adjust_text(texts, arrowprops=dict(arrowstyle='-', color='gray', lw=0.5), fontsize=6)
             
-            ax.set_xlabel('Specificity (TNR)')
-            ax.set_ylabel('Sensitivity (TPR)')
-            ax.set_xlim(0.98, 1.01)
-            ax.set_ylim(0.7, 1.0)
-            ax.set_title('(b) Sensitivity-Specificity Trade-off')
-            ax.plot([0, 1], [1, 0], 'k--', alpha=0.3, label='Random baseline')
-            ax.legend(fontsize=6, loc='lower left')
+            ax.set_xlabel('auPRC')
+            ax.set_ylabel('auROC')
+            ax.set_xlim(0, 1.0)
+            ax.set_ylim(0, 1.0)
+            ax.set_title('(b) auROC vs auPRC')
+            ax.plot([0, 1], [0, 1], 'k--', alpha=0.3, label='auROC = auPRC')
+            ax.legend(fontsize=6, loc='lower right')
             
             plt.tight_layout(w_pad=1.5)
             plt.savefig(output_dir / 'sample_level_tradeoff.png', dpi=300, bbox_inches='tight')

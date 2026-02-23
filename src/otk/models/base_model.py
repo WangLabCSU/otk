@@ -115,6 +115,12 @@ class BaseEcDNAModel(ABC):
         precision, recall, _ = precision_recall_curve(y, probs)
         auprc = auc(recall, precision)
         
+        # Calculate confusion matrix
+        tp = ((preds == 1) & (y == 1)).sum()
+        fp = ((preds == 1) & (y == 0)).sum()
+        fn = ((preds == 0) & (y == 1)).sum()
+        tn = ((preds == 0) & (y == 0)).sum()
+        
         # Calculate other metrics
         metrics = {
             'auPRC': float(auprc),
@@ -122,7 +128,11 @@ class BaseEcDNAModel(ABC):
             'Precision': float(precision_score(y, preds, zero_division=0)),
             'Recall': float(recall_score(y, preds, zero_division=0)),
             'F1': float(f1_score(y, preds, zero_division=0)),
-            'threshold': float(threshold if threshold is not None else self.optimal_threshold)
+            'threshold': float(threshold if threshold is not None else self.optimal_threshold),
+            'TP': int(tp),
+            'FP': int(fp),
+            'FN': int(fn),
+            'TN': int(tn)
         }
         
         return metrics

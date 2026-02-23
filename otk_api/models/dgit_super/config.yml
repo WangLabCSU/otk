@@ -76,11 +76,11 @@ model:
   variant: DGITSuper
   architecture:
     input_dim: 57
-    hidden_dim: 256
+    hidden_dim: 192
     num_heads: 8
-    num_transformer_layers: 2
-    num_cross_layers: 2
+    num_layers: 3
     dropout: 0.2
+    drop_path_rate: 0.1
   optimizer:
     type: AdamW
     lr: 0.001

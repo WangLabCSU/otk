@@ -6,6 +6,11 @@ gene_level:
     Recall: 0.5339285714285714
     auPRC: 0.8132190964647286
     threshold: 0.9316093921661377
+    TP: 1495
+    FP: 106
+    FN: 1305
+    TN: 752192
+    Specificity: 0.999859
   train:
     AUC: 0.9971955199251281
     F1: 0.7190796372833261
@@ -13,6 +18,11 @@ gene_level:
     Recall: 0.5748594535950291
     auPRC: 0.8807379084676029
     threshold: 0.9316093921661377
+    TP: 11601
+    FP: 487
+    FN: 8677
+    TN: 5787386
+    Specificity: 0.999916
   val:
     AUC: 0.9620609226747534
     F1: 0.8237885462555066
@@ -20,6 +30,11 @@ gene_level:
     Recall: 0.7067271352985639
     auPRC: 0.8121307714044432
     threshold: 0.9316093921661377
+    TP: 1870
+    FP: 24
+    FN: 776
+    TN: 713302
+    Specificity: 0.999966
 model_name: deep_residual
 sample_level:
   test:

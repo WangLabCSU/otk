@@ -6,6 +6,11 @@ gene_level:
     Recall: 0.48642857142857143
     auPRC: 0.7663270639123139
     threshold: 0.9602696895599365
+    TP: 1362
+    FP: 31
+    FN: 1438
+    TN: 752267
+    Specificity: 0.999959
   train:
     AUC: 0.9983205217162633
     F1: 0.82387453458197
@@ -13,6 +18,11 @@ gene_level:
     Recall: 0.7201893677877502
     auPRC: 0.9169914394320887
     threshold: 0.9602696895599365
+    TP: 14552
+    FP: 568
+    FN: 5726
+    TN: 5787305
+    Specificity: 0.999902
   val:
     AUC: 0.9529901245684071
     F1: 0.8203243243243243
@@ -20,6 +30,11 @@ gene_level:
     Recall: 0.716931216931217
     auPRC: 0.8005071992053675
     threshold: 0.9602696895599365
+    TP: 1897
+    FP: 82
+    FN: 749
+    TN: 713244
+    Specificity: 0.999885
 model_name: baseline_mlp
 sample_level:
   test:

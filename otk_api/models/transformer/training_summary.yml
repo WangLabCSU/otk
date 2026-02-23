@@ -6,6 +6,11 @@ gene_level:
     Recall: 0.5267857142857143
     auPRC: 0.6874642822459959
     threshold: 0.9431637525558472
+    TP: 1475
+    FP: 191
+    FN: 1325
+    TN: 752107
+    Specificity: 0.999746
   train:
     AUC: 0.9992512742864011
     F1: 0.8909746169203246
@@ -13,6 +18,11 @@ gene_level:
     Recall: 0.8473222211263438
     auPRC: 0.9503203721500539
     threshold: 0.9431637525558472
+    TP: 17134
+    FP: 1110
+    FN: 3144
+    TN: 5786763
+    Specificity: 0.999808
   val:
     AUC: 0.9934077625109796
     F1: 0.8342402678945166
@@ -20,6 +30,11 @@ gene_level:
     Recall: 0.7532123960695389
     auPRC: 0.8392501235264546
     threshold: 0.9431637525558472
+    TP: 1992
+    FP: 139
+    FN: 654
+    TN: 713187
+    Specificity: 0.999805
 model_name: transformer
 sample_level:
   test:
