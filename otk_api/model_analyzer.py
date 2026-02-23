@@ -911,6 +911,8 @@ class ModelAnalyzer:
         lines.append("")
         
         if sample_evaluated:
+            lines.append("#### Figure 4: Sample-Level ROC Space and auROC vs auPRC (Test Set)")
+            lines.append("")
             lines.append("![Sample-Level Trade-off](sample_level_tradeoff.png)")
             lines.append("")
             lines.append("*Figure 4: Sample-level trade-off analysis on test set. (a) ROC Space: FPR vs TPR, all models achieve perfect specificity (FPR=0). (b) auROC vs auPRC: comparison of two key metrics.*")
@@ -923,13 +925,21 @@ class ModelAnalyzer:
         lines.append("*Figure 5: Multi-dimensional performance comparison of top 5 models on test set. (a) Gene-level radar chart. (b) Sample-level radar chart. Larger area indicates better overall performance.*")
         lines.append("")
         
-        lines.append("#### Figure 6: Gene-Level Model Performance Heatmap")
+        lines.append("#### Figure 6: Gene-Level Model Performance Heatmap (Test Set)")
         lines.append("")
         lines.append("![Model Ranking Heatmap](model_ranking_heatmap.png)")
         lines.append("")
         lines.append("*Figure 6: Gene-level model performance heatmap on test set. Six metrics are compared: auPRC, AUC, Precision, Recall, F1, and Youden's J. Darker green indicates better performance.*")
         lines.append("")
-        
+
+        if sample_evaluated:
+            lines.append("#### Figure 7: Sample-Level Model Performance Heatmap (Test Set)")
+            lines.append("")
+            lines.append("![Sample-Level Model Ranking Heatmap](sample_level_heatmap.png)")
+            lines.append("")
+            lines.append("*Figure 7: Sample-level model performance heatmap on test set. Eight metrics are compared: auPRC, AUC, Accuracy, Precision, Recall, Specificity, Youden's J, and F1. Darker green indicates better performance.*")
+            lines.append("")
+
         lines.append("### Test Set Performance (Primary Evaluation)")
         lines.append("")
         lines.append("| Model | auPRC | AUC | Precision | Recall | Specificity | F1-Score |")
@@ -1172,11 +1182,12 @@ class ModelAnalyzer:
         lines.append("")
         lines.append("### Model Training")
         lines.append("")
-        lines.append("All models were trained using PyTorch with the following common practices:")
+        lines.append("Neural network models were trained using PyTorch, while XGBoost models were trained")
+        lines.append("using the XGBoost library. The following common practices were applied:")
         lines.append("")
-        lines.append("- Early stopping based on validation auPRC with patience of 5-35 epochs")
-        lines.append("- Learning rate scheduling (ReduceLROnPlateau or CosineAnnealingWarmRestarts)")
-        lines.append("- Gradient clipping for training stability")
+        lines.append("- Early stopping based on validation auPRC with patience of 5-50 epochs")
+        lines.append("- Learning rate scheduling (ReduceLROnPlateau or CosineAnnealingWarmRestarts for neural networks)")
+        lines.append("- Gradient clipping for neural network training stability")
         lines.append("- Model checkpointing to save best performing weights")
         lines.append("")
 
@@ -1521,14 +1532,58 @@ class ModelAnalyzer:
         
         cbar = plt.colorbar(im, ax=ax, shrink=0.8)
         cbar.set_label('Score', fontsize=8)
-        
+
         plt.tight_layout()
         plt.savefig(output_dir / 'model_ranking_heatmap.png', dpi=300, bbox_inches='tight')
         plt.savefig(output_dir / 'model_ranking_heatmap.pdf', bbox_inches='tight')
         plt.close()
         print(f"Saved: {output_dir / 'model_ranking_heatmap.png'}")
-        
-        # 6. 导出 Source Data (SCI 论文要求)
+
+        # 7. Sample-Level Model Ranking Heatmap (if sample-level data available)
+        if sample_evaluated:
+            fig, ax = plt.subplots(figsize=(10, 4))
+            fig.suptitle('Sample-Level Model Performance Heatmap (Test Set)', fontsize=10)
+
+            # Sample-level metrics include Accuracy which gene-level doesn't have
+            sample_metrics_for_heatmap = ['auPRC', 'AUC', 'Accuracy', 'Precision', 'Recall', 'Specificity', "Youden's J", 'F1']
+            sample_heatmap_data = []
+            for m in sorted_sample:
+                row = [
+                    m.sample_test_metrics.auPRC,
+                    m.sample_test_metrics.AUC,
+                    m.sample_test_metrics.Accuracy,
+                    m.sample_test_metrics.Precision,
+                    m.sample_test_metrics.Recall,
+                    m.sample_test_metrics.Specificity,
+                    m.sample_test_metrics.Youdens_J,
+                    m.sample_test_metrics.F1
+                ]
+                sample_heatmap_data.append(row)
+
+            sample_heatmap_array = np.array(sample_heatmap_data)
+            im = ax.imshow(sample_heatmap_array, cmap='RdYlGn', aspect='auto', vmin=0.5, vmax=1.0)
+
+            ax.set_xticks(np.arange(len(sample_metrics_for_heatmap)))
+            ax.set_xticklabels(sample_metrics_for_heatmap, fontsize=8)
+            ax.set_yticks(np.arange(len(sorted_sample)))
+            ax.set_yticklabels([m.name for m in sorted_sample], fontsize=7)
+
+            for i in range(len(sorted_sample)):
+                for j in range(len(sample_metrics_for_heatmap)):
+                    text = ax.text(j, i, f'{sample_heatmap_array[i, j]:.3f}',
+                                  ha='center', va='center', fontsize=6,
+                                  color='white' if sample_heatmap_array[i, j] < 0.75 else 'black')
+
+            cbar = plt.colorbar(im, ax=ax, shrink=0.8)
+            cbar.set_label('Score', fontsize=8)
+
+            plt.tight_layout()
+            plt.savefig(output_dir / 'sample_level_heatmap.png', dpi=300, bbox_inches='tight')
+            plt.savefig(output_dir / 'sample_level_heatmap.pdf', bbox_inches='tight')
+            plt.close()
+            print(f"Saved: {output_dir / 'sample_level_heatmap.png'}")
+
+        # 8. 导出 Source Data (SCI 论文要求)
         source_data_path = output_dir / 'source_data'
         source_data_path.mkdir(parents=True, exist_ok=True)
         
@@ -1543,18 +1598,21 @@ class ModelAnalyzer:
                 'Train_Precision': m.train_metrics.Precision,
                 'Train_Recall': m.train_metrics.Recall,
                 'Train_Specificity': m.train_metrics.Specificity,
+                'Train_Youdens_J': m.train_metrics.Youdens_J,
                 'Train_F1': m.train_metrics.F1,
                 'Val_auPRC': m.val_metrics.auPRC,
                 'Val_AUC': m.val_metrics.AUC,
                 'Val_Precision': m.val_metrics.Precision,
                 'Val_Recall': m.val_metrics.Recall,
                 'Val_Specificity': m.val_metrics.Specificity,
+                'Val_Youdens_J': m.val_metrics.Youdens_J,
                 'Val_F1': m.val_metrics.F1,
                 'Test_auPRC': m.test_metrics.auPRC,
                 'Test_AUC': m.test_metrics.AUC,
                 'Test_Precision': m.test_metrics.Precision,
                 'Test_Recall': m.test_metrics.Recall,
                 'Test_Specificity': m.test_metrics.Specificity,
+                'Test_Youdens_J': m.test_metrics.Youdens_J,
                 'Test_F1': m.test_metrics.F1,
             })
         pd.DataFrame(gene_table).to_csv(source_data_path / 'gene_level_performance.csv', index=False)
@@ -1566,20 +1624,29 @@ class ModelAnalyzer:
                 sample_table.append({
                     'Model': m.name,
                     'Train_auPRC': m.sample_train_metrics.auPRC,
+                    'Train_AUC': m.sample_train_metrics.AUC,
+                    'Train_Accuracy': m.sample_train_metrics.Accuracy,
                     'Train_Precision': m.sample_train_metrics.Precision,
                     'Train_Recall': m.sample_train_metrics.Recall,
-                    'Train_Accuracy': m.sample_train_metrics.Accuracy,
                     'Train_Specificity': m.sample_train_metrics.Specificity,
+                    'Train_Youdens_J': m.sample_train_metrics.Youdens_J,
+                    'Train_F1': m.sample_train_metrics.F1,
                     'Val_auPRC': m.sample_val_metrics.auPRC,
+                    'Val_AUC': m.sample_val_metrics.AUC,
+                    'Val_Accuracy': m.sample_val_metrics.Accuracy,
                     'Val_Precision': m.sample_val_metrics.Precision,
                     'Val_Recall': m.sample_val_metrics.Recall,
-                    'Val_Accuracy': m.sample_val_metrics.Accuracy,
                     'Val_Specificity': m.sample_val_metrics.Specificity,
+                    'Val_Youdens_J': m.sample_val_metrics.Youdens_J,
+                    'Val_F1': m.sample_val_metrics.F1,
                     'Test_auPRC': m.sample_test_metrics.auPRC,
+                    'Test_AUC': m.sample_test_metrics.AUC,
+                    'Test_Accuracy': m.sample_test_metrics.Accuracy,
                     'Test_Precision': m.sample_test_metrics.Precision,
                     'Test_Recall': m.sample_test_metrics.Recall,
-                    'Test_Accuracy': m.sample_test_metrics.Accuracy,
                     'Test_Specificity': m.sample_test_metrics.Specificity,
+                    'Test_Youdens_J': m.sample_test_metrics.Youdens_J,
+                    'Test_F1': m.sample_test_metrics.F1,
                 })
         if sample_table:
             pd.DataFrame(sample_table).to_csv(source_data_path / 'sample_level_performance.csv', index=False)

@@ -1,6 +1,6 @@
 # Model Performance Analysis Report
 
-**Generated**: 2026-02-23 12:18:03
+**Generated**: 2026-02-23 12:46:10
 **Total Models**: 7 trained models
 
 ## Abstract
@@ -81,6 +81,8 @@ performance metrics including auPRC, AUC, Precision, Recall, and F1-score.
 
 *Figure 3: Gene-level trade-off analysis on test set. (a) ROC Space: FPR vs TPR, points closer to top-left indicate better performance. (b) auROC vs auPRC: comparison of two key metrics for imbalanced classification.*
 
+#### Figure 4: Sample-Level ROC Space and auROC vs auPRC (Test Set)
+
 ![Sample-Level Trade-off](sample_level_tradeoff.png)
 
 *Figure 4: Sample-level trade-off analysis on test set. (a) ROC Space: FPR vs TPR, all models achieve perfect specificity (FPR=0). (b) auROC vs auPRC: comparison of two key metrics.*
@@ -91,11 +93,17 @@ performance metrics including auPRC, AUC, Precision, Recall, and F1-score.
 
 *Figure 5: Multi-dimensional performance comparison of top 5 models on test set. (a) Gene-level radar chart. (b) Sample-level radar chart. Larger area indicates better overall performance.*
 
-#### Figure 6: Gene-Level Model Performance Heatmap
+#### Figure 6: Gene-Level Model Performance Heatmap (Test Set)
 
 ![Model Ranking Heatmap](model_ranking_heatmap.png)
 
 *Figure 6: Gene-level model performance heatmap on test set. Six metrics are compared: auPRC, AUC, Precision, Recall, F1, and Youden's J. Darker green indicates better performance.*
+
+#### Figure 7: Sample-Level Model Performance Heatmap (Test Set)
+
+![Sample-Level Model Ranking Heatmap](sample_level_heatmap.png)
+
+*Figure 7: Sample-level model performance heatmap on test set. Eight metrics are compared: auPRC, AUC, Accuracy, Precision, Recall, Specificity, Youden's J, and F1. Darker green indicates better performance.*
 
 ### Test Set Performance (Primary Evaluation)
 
@@ -413,11 +421,12 @@ at the sample level (not gene level) to prevent data leakage.
 
 ### Model Training
 
-All models were trained using PyTorch with the following common practices:
+Neural network models were trained using PyTorch, while XGBoost models were trained
+using the XGBoost library. The following common practices were applied:
 
-- Early stopping based on validation auPRC with patience of 5-35 epochs
-- Learning rate scheduling (ReduceLROnPlateau or CosineAnnealingWarmRestarts)
-- Gradient clipping for training stability
+- Early stopping based on validation auPRC with patience of 5-50 epochs
+- Learning rate scheduling (ReduceLROnPlateau or CosineAnnealingWarmRestarts for neural networks)
+- Gradient clipping for neural network training stability
 - Model checkpointing to save best performing weights
 
 ## Limitations
