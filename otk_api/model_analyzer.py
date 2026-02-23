@@ -1384,7 +1384,7 @@ class ModelAnalyzer:
         fig.suptitle('Multi-dimensional Performance Comparison', fontsize=10)
         
         top_models = sorted_models[:5]
-        categories = ['auPRC', 'AUC', 'Precision', 'Recall', 'F1']
+        categories = ['auPRC', 'AUC', 'Precision', 'Recall', 'F1', "Youden's J"]
         N = len(categories)
         angles = [n / float(N) * 2 * pi for n in range(N)]
         angles += angles[:1]
@@ -1394,7 +1394,8 @@ class ModelAnalyzer:
         
         for i, model in enumerate(top_models):
             values = [model.test_metrics.auPRC, model.test_metrics.AUC, 
-                     model.test_metrics.Precision, model.test_metrics.Recall, model.test_metrics.F1]
+                     model.test_metrics.Precision, model.test_metrics.Recall, 
+                     model.test_metrics.F1, model.test_metrics.Youdens_J]
             values += values[:1]
             color = SCI_COLORS[radar_color_keys[i]]
             ax.plot(angles, values, 'o-', linewidth=1, label=model.name, color=color, markersize=3)
@@ -1412,7 +1413,8 @@ class ModelAnalyzer:
             
             for i, model in enumerate(top_sample):
                 values = [model.sample_test_metrics.auPRC, model.sample_test_metrics.AUC,
-                         model.sample_test_metrics.Precision, model.sample_test_metrics.Recall, model.sample_test_metrics.F1]
+                         model.sample_test_metrics.Precision, model.sample_test_metrics.Recall, 
+                         model.sample_test_metrics.F1, model.sample_test_metrics.Youdens_J]
                 values += values[:1]
                 color = SCI_COLORS[radar_color_keys[i]]
                 ax.plot(angles, values, 'o-', linewidth=1, label=model.name, color=color, markersize=3)
@@ -1430,9 +1432,9 @@ class ModelAnalyzer:
         print(f"Saved: {output_dir / 'performance_radar.png'}")
         
         # 6. 模型排名热力图 - 适合 web 展示
-        fig, ax = plt.subplots(figsize=(7, 4))
+        fig, ax = plt.subplots(figsize=(8, 4))
         
-        metrics_for_heatmap = ['auPRC', 'AUC', 'Precision', 'Recall', 'F1']
+        metrics_for_heatmap = ['auPRC', 'AUC', 'Precision', 'Recall', 'F1', "Youden's J"]
         heatmap_data = []
         for m in sorted_models:
             row = [
@@ -1440,7 +1442,8 @@ class ModelAnalyzer:
                 m.test_metrics.AUC,
                 m.test_metrics.Precision,
                 m.test_metrics.Recall,
-                m.test_metrics.F1
+                m.test_metrics.F1,
+                m.test_metrics.Youdens_J
             ]
             heatmap_data.append(row)
         
