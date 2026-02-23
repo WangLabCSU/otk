@@ -1,6 +1,6 @@
 # Model Performance Analysis Report
 
-**Generated**: 2026-02-23 08:28:54
+**Generated**: 2026-02-23 11:13:14
 **Total Models**: 8 trained models
 
 ## Abstract
@@ -69,23 +69,23 @@ performance metrics including auPRC, AUC, Precision, Recall, and F1-score.
 
 ![Gene-Level Performance](gene_level_performance.png)
 
-*Figure 1: Gene-level performance comparison across training, validation, and test sets. Five metrics are shown: (a) auPRC - primary metric for imbalanced classification, (b) AUC - overall discriminative ability, (c) Precision - positive predictive value, (d) Recall - sensitivity, (e) F1-Score - harmonic mean of precision and recall.*
+*Figure 1: Gene-level performance comparison across training, validation, and test sets. Six metrics are shown: (a) auPRC - primary metric for imbalanced classification, (b) AUC - overall discriminative ability, (c) Precision - positive predictive value, (d) Recall - sensitivity, (e) F1-Score - harmonic mean of precision and recall, (f) Youden's J - optimal threshold selection metric (Sensitivity + Specificity - 1).*
 
 #### Figure 2: Sample-Level Performance on Test Set
 
 ![Sample-Level Performance](sample_level_performance.png)
 
-*Figure 2: Sample-level performance for circular ecDNA detection. A sample is predicted as circular if any gene is predicted positive. Same five metrics as gene-level are shown.*
+*Figure 2: Sample-level performance for circular ecDNA detection. A sample is predicted as circular if any gene is predicted positive. Same six metrics as gene-level are shown.*
 
-#### Figure 3: Trade-off Analysis (Test Set)
+#### Figure 3: ROC Space and auROC vs auPRC (Test Set)
 
 ![Gene-Level Trade-off](gene_level_tradeoff.png)
 
-*Figure 3: Gene-level trade-off analysis on test set. (a) Precision-Recall trade-off: points closer to top-right indicate better balance. (b) F1 vs auPRC: shows relationship between two key metrics for imbalanced classification.*
+*Figure 3: Gene-level trade-off analysis on test set. (a) ROC Space: FPR vs TPR, points closer to top-left indicate better performance. (b) auROC vs auPRC: comparison of two key metrics for imbalanced classification.*
 
 ![Sample-Level Trade-off](sample_level_tradeoff.png)
 
-*Figure 4: Sample-level trade-off analysis on test set. (a) Precision-Recall trade-off. (b) Sensitivity-Specificity trade-off: points closer to top-right indicate better overall discrimination.*
+*Figure 4: Sample-level trade-off analysis on test set. (a) ROC Space: FPR vs TPR. (b) auROC vs auPRC.*
 
 #### Figure 5: Multi-dimensional Performance Radar (Test Set)
 
@@ -93,24 +93,24 @@ performance metrics including auPRC, AUC, Precision, Recall, and F1-score.
 
 *Figure 5: Multi-dimensional performance comparison of top 5 models on test set. (a) Gene-level radar chart. (b) Sample-level radar chart. Larger area indicates better overall performance.*
 
-#### Figure 6: Model Ranking Heatmap (Test Set)
+#### Figure 6: Gene-Level Model Performance Heatmap
 
 ![Model Ranking Heatmap](model_ranking_heatmap.png)
 
-*Figure 6: Heatmap visualization of model performance on test set across multiple metrics. Darker green indicates better performance.*
+*Figure 6: Gene-level model performance heatmap on test set. Six metrics are compared: auPRC, AUC, Precision, Recall, F1, and Youden's J. Darker green indicates better performance.*
 
 ### Test Set Performance (Primary Evaluation)
 
 | Model | auPRC | AUC | Precision | Recall | Specificity | F1-Score |
 |-------|-------|-----|-----------|--------|-------------|----------|
-| xgb_new | **0.8339** | 0.9980 | 0.6463 | 0.7454 | 0.0000 | 0.6923 |
-| deep_residual | **0.8132** | 0.9953 | 0.9338 | 0.5339 | 0.0000 | 0.6794 |
-| xgb_tuned | **0.8065** | 0.9970 | 0.7900 | 0.7982 | 0.0000 | 0.7941 |
-| optimized_residual | **0.7906** | 0.9962 | 0.8058 | 0.6300 | 0.0000 | 0.7072 |
-| baseline_mlp | **0.7663** | 0.9910 | 0.9777 | 0.4864 | 0.0000 | 0.6497 |
-| dgit_super | **0.7311** | 0.9894 | 0.9701 | 0.5207 | 0.0000 | 0.6777 |
-| xgb_paper | **0.7138** | 0.9566 | 0.8620 | 0.7186 | 0.0000 | 0.7838 |
-| transformer | **0.6875** | 0.9922 | 0.8854 | 0.5268 | 0.0000 | 0.6605 |
+| xgb_new | **0.8339** | 0.9980 | 0.6463 | 0.7454 | 0.9985 | 0.6923 |
+| deep_residual | **0.8132** | 0.9953 | 0.9338 | 0.5339 | 0.9999 | 0.6794 |
+| xgb_tuned | **0.8065** | 0.9970 | 0.7900 | 0.7982 | 0.9992 | 0.7941 |
+| optimized_residual | **0.7906** | 0.9962 | 0.8058 | 0.6300 | 0.9994 | 0.7072 |
+| baseline_mlp | **0.7663** | 0.9910 | 0.9777 | 0.4864 | 1.0000 | 0.6497 |
+| dgit_super | **0.7311** | 0.9894 | 0.9701 | 0.5207 | 0.9999 | 0.6777 |
+| xgb_paper | **0.7138** | 0.9566 | 0.8620 | 0.7186 | 0.9996 | 0.7838 |
+| transformer | **0.6875** | 0.9922 | 0.8854 | 0.5268 | 0.9997 | 0.6605 |
 
 ### Complete Performance Comparison
 
@@ -118,40 +118,40 @@ performance metrics including auPRC, AUC, Precision, Recall, and F1-score.
 
 | Model | auPRC | AUC | Precision | Recall | Specificity | F1-Score |
 |-------|-------|-----|-----------|--------|-------------|----------|
-| baseline_mlp | 0.9170 | 0.9983 | 0.9624 | 0.7202 | 0.0000 | 0.8239 |
-| deep_residual | 0.8807 | 0.9972 | 0.9599 | 0.5749 | 0.0000 | 0.7191 |
-| dgit_super | 0.8897 | 0.9981 | 0.9733 | 0.6630 | 0.0000 | 0.7887 |
-| optimized_residual | 0.9098 | 0.9984 | 0.9219 | 0.8112 | 0.0000 | 0.8630 |
-| transformer | 0.9503 | 0.9993 | 0.9394 | 0.8473 | 0.0000 | 0.8910 |
-| xgb_new | 0.9519 | 0.9993 | 0.7987 | 0.9299 | 0.0000 | 0.8593 |
-| xgb_paper | 0.8660 | 0.9957 | 0.9171 | 0.7357 | 0.0000 | 0.8164 |
-| xgb_tuned | 0.9685 | 0.9998 | 0.8137 | 0.9594 | 0.0000 | 0.8806 |
+| baseline_mlp | 0.9170 | 0.9983 | 0.9624 | 0.7202 | 0.9999 | 0.8239 |
+| deep_residual | 0.8807 | 0.9972 | 0.9599 | 0.5749 | 0.9999 | 0.7191 |
+| dgit_super | 0.8897 | 0.9981 | 0.9733 | 0.6630 | 0.9999 | 0.7887 |
+| optimized_residual | 0.9098 | 0.9984 | 0.9219 | 0.8112 | 0.9998 | 0.8630 |
+| transformer | 0.9503 | 0.9993 | 0.9394 | 0.8473 | 0.9998 | 0.8910 |
+| xgb_new | 0.9519 | 0.9993 | 0.7987 | 0.9299 | 0.9992 | 0.8593 |
+| xgb_paper | 0.8660 | 0.9957 | 0.9171 | 0.7357 | 0.9998 | 0.8164 |
+| xgb_tuned | 0.9685 | 0.9998 | 0.8137 | 0.9594 | 0.9992 | 0.8806 |
 
 #### Validation Set Performance
 
 | Model | auPRC | AUC | Precision | Recall | Specificity | F1-Score |
 |-------|-------|-----|-----------|--------|-------------|----------|
-| baseline_mlp | 0.8005 | 0.9530 | 0.9586 | 0.7169 | 0.0000 | 0.8203 |
-| deep_residual | 0.8121 | 0.9621 | 0.9873 | 0.7067 | 0.0000 | 0.8238 |
-| dgit_super | 0.8271 | 0.9860 | 0.9567 | 0.7022 | 0.0000 | 0.8099 |
-| optimized_residual | 0.8283 | 0.9741 | 0.8955 | 0.7672 | 0.0000 | 0.8264 |
-| transformer | 0.8393 | 0.9934 | 0.9348 | 0.7532 | 0.0000 | 0.8342 |
-| xgb_new | 0.6838 | 0.9914 | 0.6403 | 0.7286 | 0.0000 | 0.6816 |
-| xgb_paper | 0.6395 | 0.9905 | 0.6803 | 0.6497 | 0.0000 | 0.6646 |
-| xgb_tuned | 0.9684 | 0.9997 | 0.8154 | 0.9580 | 0.0000 | 0.8810 |
+| baseline_mlp | 0.8005 | 0.9530 | 0.9586 | 0.7169 | 0.9999 | 0.8203 |
+| deep_residual | 0.8121 | 0.9621 | 0.9873 | 0.7067 | 1.0000 | 0.8238 |
+| dgit_super | 0.8271 | 0.9860 | 0.9567 | 0.7022 | 0.9999 | 0.8099 |
+| optimized_residual | 0.8283 | 0.9741 | 0.8955 | 0.7672 | 0.9997 | 0.8264 |
+| transformer | 0.8393 | 0.9934 | 0.9348 | 0.7532 | 0.9998 | 0.8342 |
+| xgb_new | 0.6838 | 0.9914 | 0.6403 | 0.7286 | 0.9985 | 0.6816 |
+| xgb_paper | 0.6395 | 0.9905 | 0.6803 | 0.6497 | 0.9989 | 0.6646 |
+| xgb_tuned | 0.9684 | 0.9997 | 0.8154 | 0.9580 | 0.9992 | 0.8810 |
 
 #### Test Set Performance
 
 | Model | auPRC | AUC | Precision | Recall | Specificity | F1-Score |
 |-------|-------|-----|-----------|--------|-------------|----------|
-| baseline_mlp | 0.7663 | 0.9910 | 0.9777 | 0.4864 | 0.0000 | 0.6497 |
-| deep_residual | 0.8132 | 0.9953 | 0.9338 | 0.5339 | 0.0000 | 0.6794 |
-| dgit_super | 0.7311 | 0.9894 | 0.9701 | 0.5207 | 0.0000 | 0.6777 |
-| optimized_residual | 0.7906 | 0.9962 | 0.8058 | 0.6300 | 0.0000 | 0.7072 |
-| transformer | 0.6875 | 0.9922 | 0.8854 | 0.5268 | 0.0000 | 0.6605 |
-| xgb_new | 0.8339 | 0.9980 | 0.6463 | 0.7454 | 0.0000 | 0.6923 |
-| xgb_paper | 0.7138 | 0.9566 | 0.8620 | 0.7186 | 0.0000 | 0.7838 |
-| xgb_tuned | 0.8065 | 0.9970 | 0.7900 | 0.7982 | 0.0000 | 0.7941 |
+| baseline_mlp | 0.7663 | 0.9910 | 0.9777 | 0.4864 | 1.0000 | 0.6497 |
+| deep_residual | 0.8132 | 0.9953 | 0.9338 | 0.5339 | 0.9999 | 0.6794 |
+| dgit_super | 0.7311 | 0.9894 | 0.9701 | 0.5207 | 0.9999 | 0.6777 |
+| optimized_residual | 0.7906 | 0.9962 | 0.8058 | 0.6300 | 0.9994 | 0.7072 |
+| transformer | 0.6875 | 0.9922 | 0.8854 | 0.5268 | 0.9997 | 0.6605 |
+| xgb_new | 0.8339 | 0.9980 | 0.6463 | 0.7454 | 0.9985 | 0.6923 |
+| xgb_paper | 0.7138 | 0.9566 | 0.8620 | 0.7186 | 0.9996 | 0.7838 |
+| xgb_tuned | 0.8065 | 0.9970 | 0.7900 | 0.7982 | 0.9992 | 0.7941 |
 
 ## Sample-Level Performance (Circular Detection)
 

@@ -927,11 +927,11 @@ class DGITSuperModel(BaseEcDNAModel):
         input_dim = X_train_arr.shape[1]
         
         arch_config = self.config.get('model', {}).get('architecture', {})
-        hidden_dim = arch_config.get('hidden_dim', 256)
+        hidden_dim = arch_config.get('hidden_dim', 192)
         num_heads = arch_config.get('num_heads', 8)
-        num_transformer_layers = arch_config.get('num_transformer_layers', 2)
-        num_cross_layers = arch_config.get('num_cross_layers', 2)
+        num_layers = arch_config.get('num_layers', 3)
         dropout = arch_config.get('dropout', 0.2)
+        drop_path_rate = arch_config.get('drop_path_rate', 0.1)
         
         loss_config = self.config.get('model', {}).get('loss_function', {})
         pos_weight = loss_config.get('pos_weight', 10.0)
@@ -945,9 +945,9 @@ class DGITSuperModel(BaseEcDNAModel):
             input_dim, 
             hidden_dim=hidden_dim,
             num_heads=num_heads,
-            num_transformer_layers=num_transformer_layers,
-            num_cross_layers=num_cross_layers,
-            dropout=dropout
+            num_layers=num_layers,
+            dropout=dropout,
+            drop_path_rate=drop_path_rate
         ).to(self.device)
         
         train_dataset = TensorDataset(
@@ -971,8 +971,8 @@ class DGITSuperModel(BaseEcDNAModel):
         max_patience = 20
         n_epochs = 150
         
-        logger.info(f"Starting DGITSuper V8 (Transformer + Multi-Task) training: {n_epochs} epochs")
-        logger.info(f"Architecture: hidden_dim={hidden_dim}, num_heads={num_heads}, transformer_layers={num_transformer_layers}, cross_layers={num_cross_layers}, dropout={dropout}")
+        logger.info(f"Starting DGITSuper V14 (FT-Transformer + Multi-Task) training: {n_epochs} epochs")
+        logger.info(f"Architecture: hidden_dim={hidden_dim}, num_heads={num_heads}, num_layers={num_layers}, dropout={dropout}, drop_path_rate={drop_path_rate}")
         logger.info(f"Multi-task: sample_weight={sample_weight}, label_smoothing={label_smoothing}, mixup={use_mixup}")
         start_time = time.time()
         
@@ -1188,108 +1188,171 @@ class MultiHeadSelfAttention(nn.Module):
         return self.proj(out)
 
 
-class DGITSuperNet(nn.Module):
-    """DGIT Super Network V8 - Transformer + Multi-Task Learning
-    
-    Key design principles:
-    1. Transformer Encoder - learns global feature interactions
-    2. Feature Cross Layer - mimics tree-based feature splits
-    3. Multi-task heads - Gene-level + Sample-level prediction
-    4. Strong regularization - prevents overfitting
-    """
-    def __init__(self, input_dim: int, hidden_dim: int = 256, num_heads: int = 8, 
-                 num_transformer_layers: int = 2, num_cross_layers: int = 2,
-                 dropout: float = 0.2):
+class DropPath(nn.Module):
+    """Stochastic Depth - randomly drop entire residual branches"""
+    def __init__(self, drop_prob: float = 0.0):
         super().__init__()
+        self.drop_prob = drop_prob
         
-        # Input embedding
-        self.input_embed = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
-            nn.LayerNorm(hidden_dim),
+    def forward(self, x):
+        if self.drop_prob == 0.0 or not self.training:
+            return x
+        keep_prob = 1 - self.drop_prob
+        shape = (x.size(0),) + (1,) * (x.ndim - 1)
+        random_tensor = keep_prob + torch.rand(shape, dtype=x.dtype, device=x.device)
+        random_tensor.floor_()
+        return x.div(keep_prob) * random_tensor
+
+
+class FeatureTokenizer(nn.Module):
+    """Feature Tokenizer for Tabular Data
+    
+    Converts continuous features to tokens for transformer processing.
+    Each feature is projected to hidden_dim, creating a sequence of tokens.
+    """
+    def __init__(self, num_features: int, hidden_dim: int):
+        super().__init__()
+        self.weight = nn.Parameter(torch.randn(num_features, hidden_dim) * 0.02)
+        self.bias = nn.Parameter(torch.zeros(num_features, hidden_dim))
+        
+    def forward(self, x):
+        # x: [batch, num_features]
+        # Output: [batch, num_features, hidden_dim]
+        return x.unsqueeze(-1) * self.weight.unsqueeze(0) + self.bias.unsqueeze(0)
+
+
+class TransformerBlock(nn.Module):
+    """Transformer Block with Pre-LN and Stochastic Depth"""
+    def __init__(self, hidden_dim: int, num_heads: int, ffn_dim: int, 
+                 dropout: float, drop_path_rate: float = 0.0):
+        super().__init__()
+        self.norm1 = nn.LayerNorm(hidden_dim)
+        self.attn = nn.MultiheadAttention(hidden_dim, num_heads, dropout=dropout, batch_first=True)
+        self.norm2 = nn.LayerNorm(hidden_dim)
+        self.ffn = nn.Sequential(
+            nn.Linear(hidden_dim, ffn_dim),
             nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(ffn_dim, hidden_dim),
             nn.Dropout(dropout)
         )
+        self.drop_path = DropPath(drop_path_rate) if drop_path_rate > 0 else nn.Identity()
         
-        # Transformer Encoder for global feature interactions
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=hidden_dim,
-            nhead=num_heads,
-            dim_feedforward=hidden_dim * 4,
-            dropout=dropout,
-            activation='gelu',
-            batch_first=True,
-            norm_first=True
-        )
-        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_transformer_layers, enable_nested_tensor=False)
+    def forward(self, x):
+        # Pre-LN Attention
+        residual = x
+        x = self.norm1(x)
+        x, _ = self.attn(x, x, x, need_weights=False)
+        x = self.drop_path(x) + residual
         
-        # Feature Cross Layers (DCN-style)
-        self.cross_layers = nn.ModuleList([
-            nn.Linear(hidden_dim, hidden_dim, bias=False) 
-            for _ in range(num_cross_layers)
+        # Pre-LN FFN
+        residual = x
+        x = self.norm2(x)
+        x = self.ffn(x)
+        x = self.drop_path(x) + residual
+        
+        return x
+
+
+class DGITSuperNet(nn.Module):
+    """DGIT Super Network V14 - FT-Transformer + Multi-Task Learning
+    
+    Key innovations:
+    1. Feature Tokenizer - converts each feature to a token
+    2. CLS Token - aggregates global information for prediction
+    3. Multi-Head Attention - learns feature interactions
+    4. Stochastic Depth - prevents overfitting
+    5. Multi-task heads - Gene-level + Sample-level prediction
+    
+    Reference: "Revisiting Deep Learning Models for Tabular Data" (2024)
+    """
+    def __init__(self, input_dim: int, hidden_dim: int = 192, num_heads: int = 8,
+                 num_layers: int = 3, dropout: float = 0.2, drop_path_rate: float = 0.1):
+        super().__init__()
+        
+        self.input_dim = input_dim
+        self.hidden_dim = hidden_dim
+        
+        # Feature Tokenizer - converts each feature to a token
+        self.tokenizer = FeatureTokenizer(input_dim, hidden_dim)
+        
+        # CLS Token - for global aggregation
+        self.cls_token = nn.Parameter(torch.randn(1, 1, hidden_dim) * 0.02)
+        
+        # Positional embedding (learnable)
+        self.pos_embedding = nn.Parameter(torch.randn(1, input_dim + 1, hidden_dim) * 0.02)
+        
+        # Transformer blocks with stochastic depth
+        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, num_layers)]
+        self.blocks = nn.ModuleList([
+            TransformerBlock(hidden_dim, num_heads, hidden_dim * 4, dropout, dpr[i])
+            for i in range(num_layers)
         ])
-        self.cross_bias = nn.ParameterList([
-            nn.Parameter(torch.zeros(hidden_dim))
-            for _ in range(num_cross_layers)
-        ])
+        
+        # Final LayerNorm
+        self.norm = nn.LayerNorm(hidden_dim)
         
         # Gene-level prediction head
         self.gene_head = nn.Sequential(
-            nn.Linear(hidden_dim * 2, hidden_dim),
-            nn.LayerNorm(hidden_dim),
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.LayerNorm(hidden_dim // 2),
             nn.GELU(),
             nn.Dropout(dropout),
-            nn.Linear(hidden_dim, 64),
-            nn.LayerNorm(64),
-            nn.GELU(),
-            nn.Dropout(dropout * 0.5),
-            nn.Linear(64, 1)
+            nn.Linear(hidden_dim // 2, 1)
         )
         
-        # Sample-level prediction head (auxiliary task)
+        # Sample-level prediction head
         self.sample_head = nn.Sequential(
-            nn.Linear(hidden_dim * 2, hidden_dim),
-            nn.LayerNorm(hidden_dim),
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.LayerNorm(hidden_dim // 2),
             nn.GELU(),
             nn.Dropout(dropout),
-            nn.Linear(hidden_dim, 1)
+            nn.Linear(hidden_dim // 2, 1)
         )
         
         self._init_weights()
     
     def _init_weights(self):
-        for module in self.modules():
-            if isinstance(module, nn.Linear):
-                nn.init.xavier_uniform_(module.weight, gain=0.5)
-                if module.bias is not None:
-                    nn.init.zeros_(module.bias)
-            elif isinstance(module, nn.LayerNorm):
-                nn.init.ones_(module.weight)
-                nn.init.zeros_(module.bias)
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight, gain=0.5)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.LayerNorm):
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
     
     def forward(self, x, return_sample_pred=False):
         x = torch.clamp(x, min=-100, max=100)
         x = torch.nan_to_num(x, nan=0.0, posinf=100.0, neginf=-100.0)
         
-        # Embed
-        h = self.input_embed(x)
+        batch_size = x.size(0)
         
-        # Transformer (treat features as sequence)
-        h_seq = h.unsqueeze(1)  # [batch, 1, hidden]
-        h_trans = self.transformer(h_seq).squeeze(1)  # [batch, hidden]
+        # Feature Tokenization: [batch, num_features] -> [batch, num_features, hidden_dim]
+        tokens = self.tokenizer(x)
         
-        # Feature Cross
-        cross = h
-        for layer, bias in zip(self.cross_layers, self.cross_bias):
-            cross = h * layer(cross) + bias + cross
+        # Add CLS token: [batch, num_features+1, hidden_dim]
+        cls_tokens = self.cls_token.expand(batch_size, -1, -1)
+        tokens = torch.cat([cls_tokens, tokens], dim=1)
         
-        # Combine Transformer and Cross features
-        combined = torch.cat([h_trans, cross], dim=-1)  # [batch, hidden*2]
+        # Add positional embedding
+        tokens = tokens + self.pos_embedding
+        
+        # Transformer blocks
+        for block in self.blocks:
+            tokens = block(tokens)
+        
+        # Final norm
+        tokens = self.norm(tokens)
+        
+        # Extract CLS token representation for prediction
+        cls_output = tokens[:, 0, :]  # [batch, hidden_dim]
         
         # Gene-level prediction
-        gene_out = self.gene_head(combined)
+        gene_out = self.gene_head(cls_output)
         
         if return_sample_pred:
-            sample_out = self.sample_head(combined)
+            sample_out = self.sample_head(cls_output)
             return gene_out, sample_out
         
         return gene_out

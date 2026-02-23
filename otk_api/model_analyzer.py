@@ -1270,7 +1270,7 @@ class ModelAnalyzer:
         except ImportError:
             has_adjust_text = False
         
-        fig, axes = plt.subplots(1, 2, figsize=(6.5, 3.2))
+        fig, axes = plt.subplots(1, 2, figsize=(7, 3.5))
         
         ax = axes[0]
         precisions = [m.test_metrics.Precision for m in sorted_models]
@@ -1278,50 +1278,46 @@ class ModelAnalyzer:
         colors_scatter = [SCI_COLORS[f'model{i+1}'] for i in range(min(n_models, 8))]
         
         for i, name in enumerate(model_names):
-            ax.scatter(recalls[i], precisions[i], c=[colors_scatter[i % 8]], s=60, edgecolors='black', linewidth=0.5, zorder=3)
+            ax.scatter(recalls[i], precisions[i], c=[colors_scatter[i % 8]], s=80, edgecolors='black', linewidth=0.5, zorder=3)
         
         texts = []
         for i, name in enumerate(model_names):
-            texts.append(ax.text(recalls[i], precisions[i], name, fontsize=5))
+            texts.append(ax.text(recalls[i], precisions[i], name, fontsize=6))
         
         if has_adjust_text:
-            adjust_text(texts, arrowprops=dict(arrowstyle='-', color='gray', lw=0.3), 
-                       fontsize=5, force_text=(0.3, 0.3), expand_text=(1.2, 1.2))
+            adjust_text(texts, arrowprops=dict(arrowstyle='-', color='gray', lw=0.5), fontsize=6)
         
-        ax.set_xlabel('Recall (Sensitivity)', fontsize=8)
-        ax.set_ylabel('Precision (PPV)', fontsize=8)
+        ax.set_xlabel('Recall (Sensitivity)')
+        ax.set_ylabel('Precision (PPV)')
         ax.set_xlim(0, 1.0)
         ax.set_ylim(0, 1.0)
-        ax.set_title('(a) Precision-Recall Trade-off', fontsize=9)
+        ax.set_title('(a) Precision-Recall Trade-off')
         ax.plot([0, 1], [1, 0], 'k--', alpha=0.3, label='Random baseline')
-        ax.legend(fontsize=5, loc='lower left')
-        ax.tick_params(axis='both', labelsize=7)
+        ax.legend(fontsize=6, loc='lower left')
         
         ax = axes[1]
         f1_scores = [m.test_metrics.F1 for m in sorted_models]
         auprcs = [m.test_metrics.auPRC for m in sorted_models]
         
         for i, name in enumerate(model_names):
-            ax.scatter(auprcs[i], f1_scores[i], c=[colors_scatter[i % 8]], s=60, edgecolors='black', linewidth=0.5, zorder=3)
+            ax.scatter(auprcs[i], f1_scores[i], c=[colors_scatter[i % 8]], s=80, edgecolors='black', linewidth=0.5, zorder=3)
         
         texts = []
         for i, name in enumerate(model_names):
-            texts.append(ax.text(auprcs[i], f1_scores[i], name, fontsize=5))
+            texts.append(ax.text(auprcs[i], f1_scores[i], name, fontsize=6))
         
         if has_adjust_text:
-            adjust_text(texts, arrowprops=dict(arrowstyle='-', color='gray', lw=0.3), 
-                       fontsize=5, force_text=(0.3, 0.3), expand_text=(1.2, 1.2))
+            adjust_text(texts, arrowprops=dict(arrowstyle='-', color='gray', lw=0.5), fontsize=6)
         
-        ax.set_xlabel('auPRC', fontsize=8)
-        ax.set_ylabel('F1-Score', fontsize=8)
+        ax.set_xlabel('auPRC')
+        ax.set_ylabel('F1-Score')
         ax.set_xlim(0, 1.0)
         ax.set_ylim(0, 1.0)
-        ax.set_title('(b) F1 vs auPRC', fontsize=9)
+        ax.set_title('(b) F1 vs auPRC')
         ax.plot([0, 1], [0, 1], 'k--', alpha=0.3, label='F1 = auPRC')
-        ax.legend(fontsize=5, loc='lower right')
-        ax.tick_params(axis='both', labelsize=7)
+        ax.legend(fontsize=6, loc='lower right')
         
-        plt.tight_layout(w_pad=0.5)
+        plt.tight_layout(w_pad=1.5)
         plt.savefig(output_dir / 'gene_level_tradeoff.png', dpi=300, bbox_inches='tight')
         plt.savefig(output_dir / 'gene_level_tradeoff.pdf', bbox_inches='tight')
         plt.close()
@@ -1329,57 +1325,53 @@ class ModelAnalyzer:
         
         # 4. ROC Space and auROC vs auPRC (Sample-Level)
         if sample_evaluated:
-            fig, axes = plt.subplots(1, 2, figsize=(6.5, 3.2))
+            fig, axes = plt.subplots(1, 2, figsize=(7, 3.5))
             
             ax = axes[0]
             fprs = [1 - m.sample_test_metrics.Specificity for m in sorted_sample]
             tprs = [m.sample_test_metrics.Recall for m in sorted_sample]
             
             for i, name in enumerate(sample_names):
-                ax.scatter(fprs[i], tprs[i], c=[colors_scatter[i % 8]], s=60, edgecolors='black', linewidth=0.5, zorder=3)
+                ax.scatter(fprs[i], tprs[i], c=[colors_scatter[i % 8]], s=80, edgecolors='black', linewidth=0.5, zorder=3)
             
             texts = []
             for i, name in enumerate(sample_names):
-                texts.append(ax.text(fprs[i], tprs[i], name, fontsize=5))
+                texts.append(ax.text(fprs[i], tprs[i], name, fontsize=6))
             
             if has_adjust_text:
-                adjust_text(texts, arrowprops=dict(arrowstyle='-', color='gray', lw=0.3), 
-                           fontsize=5, force_text=(0.3, 0.3), expand_text=(1.2, 1.2))
+                adjust_text(texts, arrowprops=dict(arrowstyle='-', color='gray', lw=0.5), fontsize=6)
             
-            ax.set_xlabel('False Positive Rate (FPR)', fontsize=8)
-            ax.set_ylabel('True Positive Rate (TPR)', fontsize=8)
+            ax.set_xlabel('False Positive Rate (FPR)')
+            ax.set_ylabel('True Positive Rate (TPR)')
             ax.set_xlim(0, 1.0)
             ax.set_ylim(0, 1.0)
-            ax.set_title('(a) ROC Space', fontsize=9)
+            ax.set_title('(a) ROC Space')
             ax.plot([0, 1], [0, 1], 'k--', alpha=0.3, label='Random baseline')
-            ax.legend(fontsize=5, loc='lower right')
-            ax.tick_params(axis='both', labelsize=7)
+            ax.legend(fontsize=6, loc='lower right')
             
             ax = axes[1]
             aurocs = [m.sample_test_metrics.AUC for m in sorted_sample]
             auprcs = [m.sample_test_metrics.auPRC for m in sorted_sample]
             
             for i, name in enumerate(sample_names):
-                ax.scatter(auprcs[i], aurocs[i], c=[colors_scatter[i % 8]], s=60, edgecolors='black', linewidth=0.5, zorder=3)
+                ax.scatter(auprcs[i], aurocs[i], c=[colors_scatter[i % 8]], s=80, edgecolors='black', linewidth=0.5, zorder=3)
             
             texts = []
             for i, name in enumerate(sample_names):
-                texts.append(ax.text(auprcs[i], aurocs[i], name, fontsize=5))
+                texts.append(ax.text(auprcs[i], aurocs[i], name, fontsize=6))
             
             if has_adjust_text:
-                adjust_text(texts, arrowprops=dict(arrowstyle='-', color='gray', lw=0.3), 
-                           fontsize=5, force_text=(0.3, 0.3), expand_text=(1.2, 1.2))
+                adjust_text(texts, arrowprops=dict(arrowstyle='-', color='gray', lw=0.5), fontsize=6)
             
-            ax.set_xlabel('auPRC', fontsize=8)
-            ax.set_ylabel('auROC', fontsize=8)
+            ax.set_xlabel('auPRC')
+            ax.set_ylabel('auROC')
             ax.set_xlim(0, 1.0)
             ax.set_ylim(0, 1.0)
-            ax.set_title('(b) auROC vs auPRC', fontsize=9)
+            ax.set_title('(b) auROC vs auPRC')
             ax.plot([0, 1], [0, 1], 'k--', alpha=0.3, label='auROC = auPRC')
-            ax.legend(fontsize=5, loc='lower right')
-            ax.tick_params(axis='both', labelsize=7)
+            ax.legend(fontsize=6, loc='lower right')
             
-            plt.tight_layout(w_pad=0.5)
+            plt.tight_layout(w_pad=1.5)
             plt.savefig(output_dir / 'sample_level_tradeoff.png', dpi=300, bbox_inches='tight')
             plt.savefig(output_dir / 'sample_level_tradeoff.pdf', bbox_inches='tight')
             plt.close()
