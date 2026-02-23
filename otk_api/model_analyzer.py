@@ -21,16 +21,49 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from sklearn.metrics import precision_recall_curve, auc, roc_auc_score, accuracy_score
 
-# 图表生成
+# 图表生成 - SCI 论文风格设置
 import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')  # 非交互式后端
-plt.rcParams['font.size'] = 10
-plt.rcParams['axes.labelsize'] = 11
-plt.rcParams['axes.titlesize'] = 12
-plt.rcParams['xtick.labelsize'] = 9
-plt.rcParams['ytick.labelsize'] = 9
-plt.rcParams['legend.fontsize'] = 9
+
+# SCI 论文图表设置
+plt.rcParams.update({
+    'font.family': 'sans-serif',
+    'font.sans-serif': ['Arial', 'DejaVu Sans', 'Helvetica'],
+    'font.size': 8,
+    'axes.labelsize': 9,
+    'axes.titlesize': 10,
+    'axes.titleweight': 'bold',
+    'axes.labelweight': 'bold',
+    'xtick.labelsize': 8,
+    'ytick.labelsize': 8,
+    'legend.fontsize': 7,
+    'legend.frameon': False,
+    'figure.dpi': 300,
+    'savefig.dpi': 300,
+    'savefig.bbox': 'tight',
+    'savefig.pad_inches': 0.05,
+    'axes.spines.top': False,
+    'axes.spines.right': False,
+    'axes.grid': True,
+    'grid.alpha': 0.3,
+    'grid.linestyle': '--',
+})
+
+# 色盲友好配色方案
+SCI_COLORS = {
+    'train': '#0072B2',    # 蓝色
+    'val': '#F0E442',      # 黄色
+    'test': '#CC79A7',     # 粉色
+    'model1': '#0072B2',   # 蓝
+    'model2': '#D55E00',   # 橙
+    'model3': '#009E73',   # 绿
+    'model4': '#CC79A7',   # 粉
+    'model5': '#F0E442',   # 黄
+    'model6': '#56B4E9',   # 天蓝
+    'model7': '#E69F00',   # 金
+    'model8': '#000000',   # 黑
+}
 
 
 @dataclass
@@ -1096,12 +1129,11 @@ class ModelAnalyzer:
             n_models = len(sorted_sample)
             
             if n_models > 0:
-                fig, axes = plt.subplots(2, 3, figsize=(14, 8))
-                fig.suptitle('Sample-Level Performance Across Datasets', fontsize=14, fontweight='bold', y=1.02)
+                # SCI 论文推荐尺寸: 单栏 3.5in, 双栏 7in
+                fig, axes = plt.subplots(2, 3, figsize=(7.5, 5))
                 
                 x = np.arange(n_models)
                 width = 0.25
-                colors = {'train': '#3498db', 'val': '#f39c12', 'test': '#e74c3c'}
                 
                 metrics_config = [
                     ('auPRC', 'auPRC', 0.7, 1.02),
@@ -1119,31 +1151,32 @@ class ModelAnalyzer:
                     val_vals = [getattr(m.sample_val_metrics, metric_key, 0) for m in sorted_sample]
                     test_vals = [getattr(m.sample_test_metrics, metric_key, 0) for m in sorted_sample]
                     
-                    ax.barh(x - width, train_vals, width, label='Train', color=colors['train'], alpha=0.8)
-                    ax.barh(x, val_vals, width, label='Val', color=colors['val'], alpha=0.8)
-                    ax.barh(x + width, test_vals, width, label='Test', color=colors['test'], alpha=0.8)
+                    ax.barh(x - width, train_vals, width, label='Train', color=SCI_COLORS['train'], alpha=0.9)
+                    ax.barh(x, val_vals, width, label='Val', color=SCI_COLORS['val'], alpha=0.9, edgecolor='black', linewidth=0.5)
+                    ax.barh(x + width, test_vals, width, label='Test', color=SCI_COLORS['test'], alpha=0.9)
                     
                     ax.set_yticks(x)
-                    ax.set_yticklabels(sample_names if idx % 3 == 0 else [], fontsize=8)
-                    ax.set_xlabel(metric_name, fontweight='bold', fontsize=9)
+                    ax.set_yticklabels(sample_names if idx % 3 == 0 else [], fontsize=7)
+                    ax.set_xlabel(metric_name)
                     ax.set_xlim(xmin, xmax)
-                    ax.grid(axis='x', alpha=0.3)
                     ax.invert_yaxis()
                     
                     subplot_label = chr(ord('a') + idx)
-                    ax.set_title(f'({subplot_label}) {metric_name}', fontweight='bold', fontsize=10)
+                    ax.set_title(f'({subplot_label}) {metric_name}')
                     
                     if idx == 0:
-                        ax.legend(loc='lower right', fontsize=8)
+                        ax.legend(loc='lower right', frameon=True, fancybox=False, edgecolor='black', framealpha=0.9)
                 
                 plt.tight_layout()
                 plt.savefig(output_dir / 'sample_level_performance.png', dpi=300, bbox_inches='tight')
                 plt.savefig(output_dir / 'sample_level_performance.pdf', bbox_inches='tight')
+                # 保存高分辨率版本用于印刷
+                plt.savefig(output_dir / 'sample_level_performance_hires.tiff', dpi=600, bbox_inches='tight')
                 plt.close()
                 print(f"Saved: {output_dir / 'sample_level_performance.png'}")
         
         # 3. Train/Val/Test 对比图
-        fig, ax = plt.subplots(figsize=(12, 6))
+        fig, ax = plt.subplots(figsize=(7, 3.5))
         
         x = np.arange(len(sorted_models))
         width = 0.25
@@ -1152,29 +1185,28 @@ class ModelAnalyzer:
         val_auprc = [m.val_metrics.auPRC for m in sorted_models]
         test_auprc = [m.test_metrics.auPRC for m in sorted_models]
         
-        ax.bar(x - width, train_auprc, width, label='Training', color='#3498db', alpha=0.8)
-        ax.bar(x, val_auprc, width, label='Validation', color='#f39c12', alpha=0.8)
-        ax.bar(x + width, test_auprc, width, label='Test', color='#e74c3c', alpha=0.8)
+        ax.bar(x - width, train_auprc, width, label='Training', color=SCI_COLORS['train'], alpha=0.9)
+        ax.bar(x, val_auprc, width, label='Validation', color=SCI_COLORS['val'], alpha=0.9, edgecolor='black', linewidth=0.5)
+        ax.bar(x + width, test_auprc, width, label='Test', color=SCI_COLORS['test'], alpha=0.9)
         
-        ax.set_xlabel('Model', fontweight='bold')
-        ax.set_ylabel('auPRC', fontweight='bold')
-        ax.set_title('Model Performance Across Datasets', fontsize=12, fontweight='bold')
+        ax.set_xlabel('Model')
+        ax.set_ylabel('auPRC')
         ax.set_xticks(x)
-        ax.set_xticklabels(model_names, rotation=45, ha='right')
-        ax.legend(loc='upper right')
-        ax.grid(axis='y', alpha=0.3)
+        ax.set_xticklabels(model_names, rotation=45, ha='right', fontsize=7)
+        ax.legend(loc='upper right', frameon=True, fancybox=False, edgecolor='black')
         ax.set_ylim(0, 1)
         
         plt.tight_layout()
         plt.savefig(output_dir / 'dataset_comparison.png', dpi=300, bbox_inches='tight')
         plt.savefig(output_dir / 'dataset_comparison.pdf', bbox_inches='tight')
+        plt.savefig(output_dir / 'dataset_comparison_hires.tiff', dpi=600, bbox_inches='tight')
         plt.close()
         print(f"Saved: {output_dir / 'dataset_comparison.png'}")
         
         # 4. 雷达图 - 多维度性能对比
         from math import pi
         
-        fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(projection='polar'))
+        fig, ax = plt.subplots(figsize=(3.5, 3.5), subplot_kw=dict(projection='polar'))
         
         # 选择前5个模型
         top_models = sorted_models[:5]
@@ -1184,7 +1216,7 @@ class ModelAnalyzer:
         angles = [n / float(N) * 2 * pi for n in range(N)]
         angles += angles[:1]
         
-        radar_colors = plt.cm.Set2(np.linspace(0, 1, len(top_models)))
+        radar_color_keys = ['model1', 'model2', 'model3', 'model4', 'model5']
         
         for i, model in enumerate(top_models):
             values = [
@@ -1196,20 +1228,19 @@ class ModelAnalyzer:
             ]
             values += values[:1]
             
-            ax.plot(angles, values, 'o-', linewidth=2, label=model.name, color=radar_colors[i])
-            ax.fill(angles, values, alpha=0.15, color=radar_colors[i])
+            color = SCI_COLORS[radar_color_keys[i]]
+            ax.plot(angles, values, 'o-', linewidth=1.5, label=model.name, color=color, markersize=4)
+            ax.fill(angles, values, alpha=0.15, color=color)
         
         ax.set_xticks(angles[:-1])
-        ax.set_xticklabels(categories, fontweight='bold')
+        ax.set_xticklabels(categories, fontsize=7)
         ax.set_ylim(0, 1)
-        ax.set_title('Multi-dimensional Performance Comparison\n(Top 5 Models)', 
-                    fontsize=12, fontweight='bold', pad=20)
-        ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.1))
-        ax.grid(True)
+        ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.0), fontsize=6, frameon=True, fancybox=False, edgecolor='black')
         
         plt.tight_layout()
         plt.savefig(output_dir / 'radar_chart.png', dpi=300, bbox_inches='tight')
         plt.savefig(output_dir / 'radar_chart.pdf', bbox_inches='tight')
+        plt.savefig(output_dir / 'radar_chart_hires.tiff', dpi=600, bbox_inches='tight')
         plt.close()
         print(f"Saved: {output_dir / 'radar_chart.png'}")
         

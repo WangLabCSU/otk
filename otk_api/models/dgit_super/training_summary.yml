@@ -1,29 +1,29 @@
 gene_level:
   test:
-    AUC: 0.9241461946310789
-    F1: 0.6319077366650648
-    Precision: 0.9654919236417033
-    Recall: 0.46964285714285714
-    auPRC: 0.7024897323151746
-    threshold: 0.8092040419578552
+    AUC: 0.9893973795243755
+    F1: 0.6776667441320009
+    Precision: 0.9700598802395209
+    Recall: 0.5207142857142857
+    auPRC: 0.7311438750862691
+    threshold: 0.6797873973846436
   train:
-    AUC: 0.9987171955455484
-    F1: 0.8334362890997922
-    Precision: 0.9677230046948356
-    Recall: 0.7318769109379624
-    auPRC: 0.9106083535186645
-    threshold: 0.8092040419578552
+    AUC: 0.9981049189638799
+    F1: 0.7887480933943447
+    Precision: 0.973287968727378
+    Recall: 0.6630338297662491
+    auPRC: 0.8897119543847817
+    threshold: 0.6797873973846436
   val:
-    AUC: 0.9864768416601158
-    F1: 0.8360831369187915
-    Precision: 0.9653636813458684
-    Recall: 0.737339380196523
-    auPRC: 0.8244208132317864
-    threshold: 0.8092040419578552
+    AUC: 0.9859757207349933
+    F1: 0.8099389712292938
+    Precision: 0.956745623069001
+    Recall: 0.7021919879062736
+    auPRC: 0.8271162004619239
+    threshold: 0.6797873973846436
 model_name: dgit_super
 sample_level:
   test:
-    AUC: 0.946236559139785
+    AUC: 0.960573476702509
     Accuracy: 0.8
     F1: 0.8518518518518519
     FN: 8
@@ -32,35 +32,35 @@ sample_level:
     Recall: 0.7419354838709677
     TN: 9
     TP: 23
-    auPRC: 0.986370356540295
+    auPRC: 0.9893996000339519
     positive_samples: 31
     predicted_positive: 23
     total_samples: 40
   train:
-    AUC: 1.0
-    Accuracy: 0.8928571428571429
-    F1: 0.9241379310344827
-    FN: 33
-    FP: 0
-    Precision: 1.0
-    Recall: 0.8589743589743589
-    TN: 74
-    TP: 201
-    auPRC: 0.9999999999999999
+    AUC: 0.9896049896049895
+    Accuracy: 0.8506493506493507
+    F1: 0.8915094339622642
+    FN: 45
+    FP: 1
+    Precision: 0.9947368421052631
+    Recall: 0.8076923076923077
+    TN: 73
+    TP: 189
+    auPRC: 0.9965076787992728
     positive_samples: 234
-    predicted_positive: 201
+    predicted_positive: 190
     total_samples: 308
   val:
-    AUC: 0.9080459770114943
-    Accuracy: 0.8421052631578947
-    F1: 0.888888888888889
-    FN: 5
+    AUC: 0.9310344827586207
+    Accuracy: 0.8157894736842105
+    F1: 0.8679245283018867
+    FN: 6
     FP: 1
-    Precision: 0.96
-    Recall: 0.8275862068965517
+    Precision: 0.9583333333333334
+    Recall: 0.7931034482758621
     TN: 8
-    TP: 24
-    auPRC: 0.9722489699013221
+    TP: 23
+    auPRC: 0.9787660668493423
     positive_samples: 29
-    predicted_positive: 25
+    predicted_positive: 24
     total_samples: 38
