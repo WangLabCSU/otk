@@ -593,6 +593,8 @@ class ModelAnalyzer:
                 rec = tp / (tp + fn) if (tp + fn) > 0 else 0.0
                 f1 = 2 * prec * rec / (prec + rec) if (prec + rec) > 0 else 0.0
                 acc = (tp + tn) / len(y_true)
+                specificity = tn / (tn + fp) if (tn + fp) > 0 else 0.0
+                youdens_j = rec + specificity - 1
                 
                 return SampleLevelMetrics(
                     auPRC=auprc,
@@ -600,11 +602,17 @@ class ModelAnalyzer:
                     Accuracy=acc,
                     Precision=prec,
                     Recall=rec,
+                    Specificity=specificity,
+                    Youdens_J=youdens_j,
                     F1=f1,
                     total_samples=len(y_true),
                     positive_samples=int(y_true.sum()),
                     predicted_positive=int(y_pred.sum()),
-                    true_positive=int(tp)
+                    true_positive=int(tp),
+                    TP=tp,
+                    TN=tn,
+                    FP=fp,
+                    FN=fn
                 )
             
             train_metrics = evaluate_split('train')
@@ -905,7 +913,7 @@ class ModelAnalyzer:
         if sample_evaluated:
             lines.append("![Sample-Level Trade-off](sample_level_tradeoff.png)")
             lines.append("")
-            lines.append("*Figure 4: Sample-level trade-off analysis on test set. (a) ROC Space: FPR vs TPR. (b) auROC vs auPRC.*")
+            lines.append("*Figure 4: Sample-level trade-off analysis on test set. (a) ROC Space: FPR vs TPR, all models achieve perfect specificity (FPR=0). (b) auROC vs auPRC: comparison of two key metrics.*")
             lines.append("")
         
         lines.append("#### Figure 5: Multi-dimensional Performance Radar (Test Set)")

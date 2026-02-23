@@ -1,7 +1,7 @@
 # Model Performance Analysis Report
 
-**Generated**: 2026-02-23 11:13:14
-**Total Models**: 8 trained models
+**Generated**: 2026-02-23 12:04:34
+**Total Models**: 7 trained models
 
 ## Abstract
 
@@ -32,7 +32,6 @@ performance metrics including auPRC, AUC, Precision, Recall, and F1-score.
 |-------|--------------|-------------------|---------------|-----------|
 | baseline_mlp | BaselineMLP | 57→128→64→1 | BCEWithLogitsLoss | Adam |
 | deep_residual | DeepResidual | 57→128(ResNet)→1 | BCEWithLogitsLoss | AdamW |
-| dgit_super | DGITSuper | 57→192→Transformer(3 layers)→1 | MultiTaskFocalLoss | AdamW |
 | optimized_residual | OptimizedResidual | 57→128(ResNet)→1 | BCEWithLogitsLoss | AdamW |
 | transformer | Transformer | 57→128(embed)→Transformer(3 layers)→1 | BCEWithLogitsLoss | AdamW |
 | xgb_new | XGBNew | Gradient Boosted Trees (57 features, max_depth=6) | LogLoss (optimizes auPRC) | Gradient Boosting |
@@ -47,7 +46,6 @@ performance metrics including auPRC, AUC, Precision, Recall, and F1-score.
 |-------|---------------|--------------|------------|
 | baseline_mlp | 0.001000 | 0.0001 | 4096 |
 | deep_residual | 0.001000 | 0.0100 | 4096 |
-| dgit_super | 0.001000 | 0.0100 | 4096 |
 | optimized_residual | 0.001000 | 0.0100 | 4096 |
 | transformer | 0.001000 | 0.0100 | 4096 |
 | xgb_tuned | 0.000000 | 0.0000 | 0 |
@@ -85,7 +83,7 @@ performance metrics including auPRC, AUC, Precision, Recall, and F1-score.
 
 ![Sample-Level Trade-off](sample_level_tradeoff.png)
 
-*Figure 4: Sample-level trade-off analysis on test set. (a) ROC Space: FPR vs TPR. (b) auROC vs auPRC.*
+*Figure 4: Sample-level trade-off analysis on test set. (a) ROC Space: FPR vs TPR, all models achieve perfect specificity (FPR=0). (b) auROC vs auPRC: comparison of two key metrics.*
 
 #### Figure 5: Multi-dimensional Performance Radar (Test Set)
 
@@ -108,7 +106,6 @@ performance metrics including auPRC, AUC, Precision, Recall, and F1-score.
 | xgb_tuned | **0.8065** | 0.9970 | 0.7900 | 0.7982 | 0.9992 | 0.7941 |
 | optimized_residual | **0.7906** | 0.9962 | 0.8058 | 0.6300 | 0.9994 | 0.7072 |
 | baseline_mlp | **0.7663** | 0.9910 | 0.9777 | 0.4864 | 1.0000 | 0.6497 |
-| dgit_super | **0.7311** | 0.9894 | 0.9701 | 0.5207 | 0.9999 | 0.6777 |
 | xgb_paper | **0.7138** | 0.9566 | 0.8620 | 0.7186 | 0.9996 | 0.7838 |
 | transformer | **0.6875** | 0.9922 | 0.8854 | 0.5268 | 0.9997 | 0.6605 |
 
@@ -120,7 +117,6 @@ performance metrics including auPRC, AUC, Precision, Recall, and F1-score.
 |-------|-------|-----|-----------|--------|-------------|----------|
 | baseline_mlp | 0.9170 | 0.9983 | 0.9624 | 0.7202 | 0.9999 | 0.8239 |
 | deep_residual | 0.8807 | 0.9972 | 0.9599 | 0.5749 | 0.9999 | 0.7191 |
-| dgit_super | 0.8897 | 0.9981 | 0.9733 | 0.6630 | 0.9999 | 0.7887 |
 | optimized_residual | 0.9098 | 0.9984 | 0.9219 | 0.8112 | 0.9998 | 0.8630 |
 | transformer | 0.9503 | 0.9993 | 0.9394 | 0.8473 | 0.9998 | 0.8910 |
 | xgb_new | 0.9519 | 0.9993 | 0.7987 | 0.9299 | 0.9992 | 0.8593 |
@@ -133,7 +129,6 @@ performance metrics including auPRC, AUC, Precision, Recall, and F1-score.
 |-------|-------|-----|-----------|--------|-------------|----------|
 | baseline_mlp | 0.8005 | 0.9530 | 0.9586 | 0.7169 | 0.9999 | 0.8203 |
 | deep_residual | 0.8121 | 0.9621 | 0.9873 | 0.7067 | 1.0000 | 0.8238 |
-| dgit_super | 0.8271 | 0.9860 | 0.9567 | 0.7022 | 0.9999 | 0.8099 |
 | optimized_residual | 0.8283 | 0.9741 | 0.8955 | 0.7672 | 0.9997 | 0.8264 |
 | transformer | 0.8393 | 0.9934 | 0.9348 | 0.7532 | 0.9998 | 0.8342 |
 | xgb_new | 0.6838 | 0.9914 | 0.6403 | 0.7286 | 0.9985 | 0.6816 |
@@ -146,7 +141,6 @@ performance metrics including auPRC, AUC, Precision, Recall, and F1-score.
 |-------|-------|-----|-----------|--------|-------------|----------|
 | baseline_mlp | 0.7663 | 0.9910 | 0.9777 | 0.4864 | 1.0000 | 0.6497 |
 | deep_residual | 0.8132 | 0.9953 | 0.9338 | 0.5339 | 0.9999 | 0.6794 |
-| dgit_super | 0.7311 | 0.9894 | 0.9701 | 0.5207 | 0.9999 | 0.6777 |
 | optimized_residual | 0.7906 | 0.9962 | 0.8058 | 0.6300 | 0.9994 | 0.7072 |
 | transformer | 0.6875 | 0.9922 | 0.8854 | 0.5268 | 0.9997 | 0.6605 |
 | xgb_new | 0.8339 | 0.9980 | 0.6463 | 0.7454 | 0.9985 | 0.6923 |
@@ -162,37 +156,37 @@ A sample is predicted as circular if any gene in the sample is predicted positiv
 
 | Model | auPRC | AUC | Accuracy | Precision | Recall | Specificity | F1 | Samples |
 |-------|-------|-----|----------|-----------|--------|-------------|-----|---------|
-| deep_residual | **1.0000** | 1.0000 | 0.8250 | 1.0000 | 0.7742 | 0.0000 | 0.8727 | 40 |
-| optimized_residual | **0.9990** | 0.9964 | 0.9250 | 1.0000 | 0.9032 | 0.0000 | 0.9492 | 40 |
-| xgb_tuned | **0.9990** | 0.9964 | 0.9750 | 1.0000 | 0.9677 | 0.0000 | 0.9836 | 40 |
-| xgb_new | **0.9979** | 0.9928 | 0.9500 | 1.0000 | 0.9355 | 0.0000 | 0.9667 | 40 |
-| xgb_paper | **0.9913** | 0.9677 | 0.9000 | 1.0000 | 0.8710 | 0.0000 | 0.9310 | 40 |
-| baseline_mlp | **0.9894** | 0.9642 | 0.8000 | 1.0000 | 0.7419 | 0.0000 | 0.8519 | 40 |
-| transformer | **0.9891** | 0.9606 | 0.8000 | 1.0000 | 0.7419 | 0.0000 | 0.8519 | 40 |
+| deep_residual | **1.0000** | 1.0000 | 0.8250 | 1.0000 | 0.7742 | 1.0000 | 0.8727 | 40 |
+| optimized_residual | **0.9990** | 0.9964 | 0.9250 | 1.0000 | 0.9032 | 1.0000 | 0.9492 | 40 |
+| xgb_tuned | **0.9990** | 0.9964 | 0.9750 | 1.0000 | 0.9677 | 1.0000 | 0.9836 | 40 |
+| xgb_new | **0.9979** | 0.9928 | 0.9500 | 1.0000 | 0.9355 | 1.0000 | 0.9667 | 40 |
+| xgb_paper | **0.9913** | 0.9677 | 0.9000 | 1.0000 | 0.8710 | 1.0000 | 0.9310 | 40 |
+| baseline_mlp | **0.9894** | 0.9642 | 0.8000 | 1.0000 | 0.7419 | 1.0000 | 0.8519 | 40 |
+| transformer | **0.9891** | 0.9606 | 0.8000 | 1.0000 | 0.7419 | 1.0000 | 0.8519 | 40 |
 
 ### Validation Set Sample-Level Performance
 
 | Model | auPRC | AUC | Accuracy | Precision | Recall | Specificity | F1 | Samples |
 |-------|-------|-----|----------|-----------|--------|-------------|-----|---------|
-| baseline_mlp | 0.9712 | 0.9004 | 0.8421 | 1.0000 | 0.7931 | 0.0000 | 0.8846 | 38 |
-| deep_residual | 0.9725 | 0.9042 | 0.8158 | 1.0000 | 0.7586 | 0.0000 | 0.8627 | 38 |
-| optimized_residual | 0.9856 | 0.9502 | 0.9211 | 0.9643 | 0.9310 | 0.0000 | 0.9474 | 38 |
-| transformer | 0.9742 | 0.9157 | 0.8684 | 0.9615 | 0.8621 | 0.0000 | 0.9091 | 38 |
-| xgb_new | 0.9587 | 0.8621 | 0.8158 | 0.8438 | 0.9310 | 0.0000 | 0.8852 | 38 |
-| xgb_paper | 0.9558 | 0.8621 | 0.8158 | 0.9231 | 0.8276 | 0.0000 | 0.8727 | 38 |
-| xgb_tuned | 0.9878 | 0.9540 | 0.8947 | 0.9310 | 0.9310 | 0.0000 | 0.9310 | 38 |
+| baseline_mlp | 0.9712 | 0.9004 | 0.8421 | 1.0000 | 0.7931 | 1.0000 | 0.8846 | 38 |
+| deep_residual | 0.9725 | 0.9042 | 0.8158 | 1.0000 | 0.7586 | 1.0000 | 0.8627 | 38 |
+| optimized_residual | 0.9856 | 0.9502 | 0.9211 | 0.9643 | 0.9310 | 0.8889 | 0.9474 | 38 |
+| transformer | 0.9742 | 0.9157 | 0.8684 | 0.9615 | 0.8621 | 0.8889 | 0.9091 | 38 |
+| xgb_new | 0.9587 | 0.8621 | 0.8158 | 0.8438 | 0.9310 | 0.4444 | 0.8852 | 38 |
+| xgb_paper | 0.9558 | 0.8621 | 0.8158 | 0.9231 | 0.8276 | 0.7778 | 0.8727 | 38 |
+| xgb_tuned | 0.9878 | 0.9540 | 0.8947 | 0.9310 | 0.9310 | 0.7778 | 0.9310 | 38 |
 
 ### Training Set Sample-Level Performance
 
 | Model | auPRC | AUC | Accuracy | Precision | Recall | Specificity | F1 | Samples |
 |-------|-------|-----|----------|-----------|--------|-------------|-----|---------|
-| baseline_mlp | 0.9918 | 0.9732 | 0.8766 | 1.0000 | 0.8376 | 0.0000 | 0.9116 | 308 |
-| deep_residual | 0.9896 | 0.9652 | 0.8506 | 0.9947 | 0.8077 | 0.0000 | 0.8915 | 308 |
-| optimized_residual | 0.9900 | 0.9659 | 0.8961 | 0.9810 | 0.8803 | 0.0000 | 0.9279 | 308 |
-| transformer | 0.9914 | 0.9715 | 0.8896 | 0.9808 | 0.8718 | 0.0000 | 0.9231 | 308 |
-| xgb_new | 0.9906 | 0.9670 | 0.8864 | 0.9198 | 0.9316 | 0.0000 | 0.9257 | 308 |
-| xgb_paper | 0.9808 | 0.9384 | 0.8701 | 0.9575 | 0.8675 | 0.0000 | 0.9103 | 308 |
-| xgb_tuned | 0.9935 | 0.9778 | 0.9156 | 0.9483 | 0.9402 | 0.0000 | 0.9442 | 308 |
+| baseline_mlp | 0.9918 | 0.9732 | 0.8766 | 1.0000 | 0.8376 | 1.0000 | 0.9116 | 308 |
+| deep_residual | 0.9896 | 0.9652 | 0.8506 | 0.9947 | 0.8077 | 0.9865 | 0.8915 | 308 |
+| optimized_residual | 0.9900 | 0.9659 | 0.8961 | 0.9810 | 0.8803 | 0.9459 | 0.9279 | 308 |
+| transformer | 0.9914 | 0.9715 | 0.8896 | 0.9808 | 0.8718 | 0.9459 | 0.9231 | 308 |
+| xgb_new | 0.9906 | 0.9670 | 0.8864 | 0.9198 | 0.9316 | 0.7432 | 0.9257 | 308 |
+| xgb_paper | 0.9808 | 0.9384 | 0.8701 | 0.9575 | 0.8675 | 0.8784 | 0.9103 | 308 |
+| xgb_tuned | 0.9935 | 0.9778 | 0.9156 | 0.9483 | 0.9402 | 0.8378 | 0.9442 | 308 |
 
 ### Overfitting Analysis
 
@@ -200,7 +194,6 @@ A sample is predicted as circular if any gene in the sample is predicted positiv
 |-------|---------------------|----------|---------------|------------|
 | baseline_mlp | 0.1165 | ⚠️ medium | 0.0039 | 0.0033 |
 | deep_residual | 0.0686 | ✅ low | -0.0274 | -0.1319 |
-| dgit_super | 0.0626 | ✅ low | 0.0165 | -0.0392 |
 | optimized_residual | 0.0815 | ⚠️ medium | 0.0265 | 0.0440 |
 | transformer | 0.1111 | ⚠️ medium | 0.0046 | 0.0941 |
 | xgb_new | 0.2681 | ❌ high | 0.1583 | 0.2013 |
@@ -271,22 +264,6 @@ While **auPRC** (Area under Precision-Recall Curve) is the primary optimization 
 - **Suitable For**: Deep feature learning
 
 - **Loss Function**: `BCEWithLogitsLoss`
-
-- **Optimizer**: `AdamW` (lr=0.001, weight_decay=0.01)
-
-### dgit_super
-
-- **Type**: `DGITSuper`
-
-- **Description**: DGITSuper Model
-
-- **Structure**: `57→192→Transformer(3 layers)→1`
-
-- **Key Features**: 
-
-- **Suitable For**: Custom model
-
-- **Loss Function**: `MultiTaskFocalLoss`
 
 - **Optimizer**: `AdamW` (lr=0.001, weight_decay=0.01)
 
@@ -399,7 +376,7 @@ specialized loss functions and techniques to handle this imbalance effectively.
 
 ## Conclusions
 
-Among the 8 models evaluated, **xgb_new** achieved the highest
+Among the 7 models evaluated, **xgb_new** achieved the highest
 test auPRC of **0.8339**, demonstrating superior performance
 for ecDNA prediction on this challenging imbalanced dataset.
 
