@@ -1170,8 +1170,6 @@ class ModelAnalyzer:
                 plt.tight_layout()
                 plt.savefig(output_dir / 'sample_level_performance.png', dpi=300, bbox_inches='tight')
                 plt.savefig(output_dir / 'sample_level_performance.pdf', bbox_inches='tight')
-                # 保存高分辨率版本用于印刷
-                plt.savefig(output_dir / 'sample_level_performance_hires.tiff', dpi=600, bbox_inches='tight')
                 plt.close()
                 print(f"Saved: {output_dir / 'sample_level_performance.png'}")
         
@@ -1199,7 +1197,6 @@ class ModelAnalyzer:
         plt.tight_layout()
         plt.savefig(output_dir / 'dataset_comparison.png', dpi=300, bbox_inches='tight')
         plt.savefig(output_dir / 'dataset_comparison.pdf', bbox_inches='tight')
-        plt.savefig(output_dir / 'dataset_comparison_hires.tiff', dpi=600, bbox_inches='tight')
         plt.close()
         print(f"Saved: {output_dir / 'dataset_comparison.png'}")
         
@@ -1240,9 +1237,115 @@ class ModelAnalyzer:
         plt.tight_layout()
         plt.savefig(output_dir / 'radar_chart.png', dpi=300, bbox_inches='tight')
         plt.savefig(output_dir / 'radar_chart.pdf', bbox_inches='tight')
-        plt.savefig(output_dir / 'radar_chart_hires.tiff', dpi=600, bbox_inches='tight')
         plt.close()
         print(f"Saved: {output_dir / 'radar_chart.png'}")
+        
+        # 5. 模型排名热力图 - 适合 web 展示
+        fig, ax = plt.subplots(figsize=(7, 4))
+        
+        metrics_for_heatmap = ['auPRC', 'AUC', 'Precision', 'Recall', 'F1']
+        heatmap_data = []
+        for m in sorted_models:
+            row = [
+                m.test_metrics.auPRC,
+                m.test_metrics.AUC,
+                m.test_metrics.Precision,
+                m.test_metrics.Recall,
+                m.test_metrics.F1
+            ]
+            heatmap_data.append(row)
+        
+        heatmap_array = np.array(heatmap_data)
+        im = ax.imshow(heatmap_array, cmap='RdYlGn', aspect='auto', vmin=0.5, vmax=1.0)
+        
+        ax.set_xticks(np.arange(len(metrics_for_heatmap)))
+        ax.set_xticklabels(metrics_for_heatmap, fontsize=8)
+        ax.set_yticks(np.arange(len(sorted_models)))
+        ax.set_yticklabels([m.name for m in sorted_models], fontsize=7)
+        
+        for i in range(len(sorted_models)):
+            for j in range(len(metrics_for_heatmap)):
+                text = ax.text(j, i, f'{heatmap_array[i, j]:.3f}',
+                              ha='center', va='center', fontsize=6,
+                              color='white' if heatmap_array[i, j] < 0.75 else 'black')
+        
+        cbar = plt.colorbar(im, ax=ax, shrink=0.8)
+        cbar.set_label('Score', fontsize=8)
+        
+        plt.tight_layout()
+        plt.savefig(output_dir / 'model_ranking_heatmap.png', dpi=300, bbox_inches='tight')
+        plt.savefig(output_dir / 'model_ranking_heatmap.pdf', bbox_inches='tight')
+        plt.close()
+        print(f"Saved: {output_dir / 'model_ranking_heatmap.png'}")
+        
+        # 6. 导出 Source Data (SCI 论文要求)
+        source_data_path = output_dir / 'source_data'
+        source_data_path.mkdir(parents=True, exist_ok=True)
+        
+        # Gene-level performance table
+        gene_table = []
+        for m in sorted_models:
+            gene_table.append({
+                'Model': m.name,
+                'Type': m.model_type,
+                'Train_auPRC': m.train_metrics.auPRC,
+                'Train_AUC': m.train_metrics.AUC,
+                'Train_Precision': m.train_metrics.Precision,
+                'Train_Recall': m.train_metrics.Recall,
+                'Train_F1': m.train_metrics.F1,
+                'Val_auPRC': m.val_metrics.auPRC,
+                'Val_AUC': m.val_metrics.AUC,
+                'Val_Precision': m.val_metrics.Precision,
+                'Val_Recall': m.val_metrics.Recall,
+                'Val_F1': m.val_metrics.F1,
+                'Test_auPRC': m.test_metrics.auPRC,
+                'Test_AUC': m.test_metrics.AUC,
+                'Test_Precision': m.test_metrics.Precision,
+                'Test_Recall': m.test_metrics.Recall,
+                'Test_F1': m.test_metrics.F1,
+            })
+        pd.DataFrame(gene_table).to_csv(source_data_path / 'gene_level_performance.csv', index=False)
+        
+        # Sample-level performance table
+        sample_table = []
+        for m in sorted_models:
+            if m.sample_test_metrics.auPRC > 0:
+                sample_table.append({
+                    'Model': m.name,
+                    'Train_auPRC': m.sample_train_metrics.auPRC,
+                    'Train_Precision': m.sample_train_metrics.Precision,
+                    'Train_Recall': m.sample_train_metrics.Recall,
+                    'Train_Accuracy': m.sample_train_metrics.Accuracy,
+                    'Val_auPRC': m.sample_val_metrics.auPRC,
+                    'Val_Precision': m.sample_val_metrics.Precision,
+                    'Val_Recall': m.sample_val_metrics.Recall,
+                    'Val_Accuracy': m.sample_val_metrics.Accuracy,
+                    'Test_auPRC': m.sample_test_metrics.auPRC,
+                    'Test_Precision': m.sample_test_metrics.Precision,
+                    'Test_Recall': m.sample_test_metrics.Recall,
+                    'Test_Accuracy': m.sample_test_metrics.Accuracy,
+                })
+        if sample_table:
+            pd.DataFrame(sample_table).to_csv(source_data_path / 'sample_level_performance.csv', index=False)
+        
+        # Dataset statistics
+        stats_table = []
+        for m in sorted_models:
+            stats_table.append({
+                'Model': m.name,
+                'Train_Samples': m.dataset_stats.train_samples,
+                'Train_Positive': m.dataset_stats.train_positive,
+                'Train_Positive_Rate': f"{m.dataset_stats.train_positive_rate:.2%}",
+                'Val_Samples': m.dataset_stats.val_samples,
+                'Val_Positive': m.dataset_stats.val_positive,
+                'Val_Positive_Rate': f"{m.dataset_stats.val_positive_rate:.2%}",
+                'Test_Samples': m.dataset_stats.test_samples,
+                'Test_Positive': m.dataset_stats.test_positive,
+                'Test_Positive_Rate': f"{m.dataset_stats.test_positive_rate:.2%}",
+            })
+        pd.DataFrame(stats_table).to_csv(source_data_path / 'dataset_statistics.csv', index=False)
+        
+        print(f"Saved: {source_data_path / '*.csv'} (Source Data for SCI paper)")
         
         print(f"\nAll plots saved to: {output_dir}")
     

@@ -1,0 +1,9 @@
+Model,Train_Samples,Train_Positive,Train_Positive_Rate,Val_Samples,Val_Positive,Val_Positive_Rate,Test_Samples,Test_Positive,Test_Positive_Rate
+xgb_new,308,234,75.97%,38,29,76.32%,40,31,77.50%
+deep_residual,308,234,75.97%,38,29,76.32%,40,31,77.50%
+xgb_tuned,308,234,75.97%,38,29,76.32%,40,31,77.50%
+optimized_residual,308,234,75.97%,38,29,76.32%,40,31,77.50%
+baseline_mlp,308,234,75.97%,38,29,76.32%,40,31,77.50%
+dgit_super,308,234,75.97%,38,29,76.32%,40,31,77.50%
+xgb_paper,308,234,75.97%,38,29,76.32%,40,31,77.50%
+transformer,308,234,75.97%,38,29,76.32%,40,31,77.50%
