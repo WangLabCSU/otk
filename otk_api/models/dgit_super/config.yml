@@ -67,32 +67,31 @@ training:
   batch_size: 4096
   epochs: 150
   early_stopping:
-    patience: 50
+    patience: 25
     min_delta: 0.001
 model:
   type: NeuralNetwork
-  variant: Transformer
+  variant: DGITSuper
   architecture:
     input_dim: 57
-    hidden_dim: 128
-    num_heads: 4
+    hidden_dim: 192
+    num_heads: 8
     num_layers: 3
-    dropout: 0.3
-    classifier:
-    - input_dim: 128
-      output_dim: 64
-      activation: GELU
-      dropout: 0.3
-    - input_dim: 64
-      output_dim: 1
-      activation: null
+    dropout: 0.2
+    drop_path_rate: 0.1
   optimizer:
     type: AdamW
     lr: 0.001
     weight_decay: 0.01
   loss_function:
-    type: BCEWithLogitsLoss
+    type: MultiTaskFocalLoss
     pos_weight: 10.0
+    focal_gamma: 2.0
+    sample_weight: 0.3
+    label_smoothing: 0.05
+    use_mixup: true
+    mixup_alpha: 0.2
   scheduler:
-    type: ReduceLROnPlateau
-    patience: 10
+    type: CosineAnnealingWarmRestarts
+    T_0: 20
+    T_mult: 2

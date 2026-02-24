@@ -69,8 +69,6 @@ training:
   early_stopping:
     patience: 50
     min_delta: 0.001
-prediction:
-  threshold: 0.5
 model:
   type: NeuralNetwork
   variant: BaselineMLP

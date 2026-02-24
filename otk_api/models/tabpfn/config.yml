@@ -69,8 +69,6 @@ model:
     n_estimators: 5
     max_samples_per_estimator: 5000
     device: auto
-prediction:
-  threshold: 0.5
 training:
   batch_size: 10000
   early_stopping:

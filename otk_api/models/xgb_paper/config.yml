@@ -93,8 +93,6 @@ model:
     - freq_BFB
     - freq_Circular
     - freq_HR
-prediction:
-  threshold: 0.5
 training:
   batch_size: 4096
   early_stopping:
