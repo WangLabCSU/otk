@@ -406,5 +406,89 @@ def analyze(model: str):
         click.echo(f"  Predicted Positive: {sample_test.get('predicted_positive', 'N/A')}")
 
 
+# Config command group
+@cli.group()
+def config():
+    """Configuration management commands."""
+    pass
+
+
+@config.command('generate')
+@click.option('--model', '-m', type=str, default=None,
+              help='Model name to generate config for (e.g., xgb_new, transformer)')
+@click.option('--all', '-a', 'generate_all', is_flag=True,
+              help='Generate configs for all available models')
+@click.option('--output', '-o', type=str, default='otk_api/models',
+              help='Output directory for generated configs')
+def config_generate(model: Optional[str], generate_all: bool, output: str):
+    """Generate config.yml files for models.
+    
+    Examples:
+        otk config generate --model xgb_new
+        otk config generate --all
+        otk config generate --model transformer --output custom/models
+    """
+    from otk.models.config_generator import save_config, MODEL_CONFIGS
+    
+    output_dir = Path(output)
+    
+    if generate_all:
+        all_models = list(MODEL_CONFIGS.keys())
+        click.echo(f"Generating configs for {len(all_models)} models...")
+        click.echo("="*60)
+        
+        success_count = 0
+        for model_name in all_models:
+            try:
+                model_output_dir = output_dir / model_name
+                save_config(model_name, model_output_dir)
+                success_count += 1
+                click.echo(f"  ✓ {model_name}")
+            except Exception as e:
+                click.echo(f"  ✗ {model_name}: {e}", err=True)
+        
+        click.echo("="*60)
+        click.echo(f"Generated {success_count}/{len(all_models)} configs successfully!")
+        click.echo(f"Output directory: {output_dir.absolute()}")
+    
+    elif model:
+        if model not in MODEL_CONFIGS:
+            available = ', '.join(MODEL_CONFIGS.keys())
+            click.echo(f"Error: Unknown model '{model}'", err=True)
+            click.echo(f"Available models: {available}", err=True)
+            sys.exit(1)
+        
+        try:
+            model_output_dir = output_dir / model
+            save_config(model, model_output_dir)
+            click.echo(f"✓ Config generated for '{model}'")
+            click.echo(f"  Location: {model_output_dir / 'config.yml'}")
+        except Exception as e:
+            click.echo(f"Error generating config: {e}", err=True)
+            sys.exit(1)
+    
+    else:
+        click.echo("Please specify --model or --all. Use --help for more information.")
+        sys.exit(1)
+
+
+@config.command('list')
+def config_list():
+    """List all available model configurations."""
+    from otk.models.config_generator import MODEL_CONFIGS
+    
+    click.echo("\nAvailable Model Configurations:")
+    click.echo("="*60)
+    
+    for model_name, config in MODEL_CONFIGS.items():
+        model_type = config.get('model', {}).get('type', 'Unknown')
+        variant = config.get('model', {}).get('variant', 'Unknown')
+        click.echo(f"  {model_name:<20} [{model_type}] {variant}")
+    
+    click.echo("="*60)
+    click.echo(f"Total: {len(MODEL_CONFIGS)} models")
+    click.echo("\nUse 'otk config generate --model <name>' to generate a config file.")
+
+
 if __name__ == '__main__':
     cli()
