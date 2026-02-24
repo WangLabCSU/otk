@@ -929,7 +929,7 @@ class ModelAnalyzer:
         lines.append("")
         lines.append("![Model Ranking Heatmap](model_ranking_heatmap.png)")
         lines.append("")
-        lines.append("*Figure 6: Gene-level model performance heatmap on test set. Six metrics are compared: auPRC, AUC, Precision, Recall, F1, and Youden's J. Darker green indicates better performance.*")
+        lines.append("*Figure 6: Gene-level model performance heatmap on test set. Seven metrics are compared: auPRC, AUC, Precision, Recall, Specificity, Youden's J, and F1. Darker green indicates better performance.*")
         lines.append("")
 
         if sample_evaluated:
@@ -1500,10 +1500,10 @@ class ModelAnalyzer:
         print(f"Saved: {output_dir / 'performance_radar.png'}")
         
         # 6. Gene-Level Model Ranking Heatmap
-        fig, ax = plt.subplots(figsize=(8, 4))
-        fig.suptitle('Gene-Level Model Performance Heatmap', fontsize=10)
-        
-        metrics_for_heatmap = ['auPRC', 'AUC', 'Precision', 'Recall', 'F1', "Youden's J"]
+        fig, ax = plt.subplots(figsize=(10, 4))
+        fig.suptitle('Gene-Level Model Performance Heatmap (Test Set)', fontsize=10)
+
+        metrics_for_heatmap = ['auPRC', 'AUC', 'Precision', 'Recall', 'Specificity', "Youden's J", 'F1']
         heatmap_data = []
         for m in sorted_models:
             row = [
@@ -1511,25 +1511,26 @@ class ModelAnalyzer:
                 m.test_metrics.AUC,
                 m.test_metrics.Precision,
                 m.test_metrics.Recall,
-                m.test_metrics.F1,
-                m.test_metrics.Youdens_J
+                m.test_metrics.Specificity,
+                m.test_metrics.Youdens_J,
+                m.test_metrics.F1
             ]
             heatmap_data.append(row)
-        
+
         heatmap_array = np.array(heatmap_data)
         im = ax.imshow(heatmap_array, cmap='RdYlGn', aspect='auto', vmin=0.5, vmax=1.0)
-        
+
         ax.set_xticks(np.arange(len(metrics_for_heatmap)))
         ax.set_xticklabels(metrics_for_heatmap, fontsize=8)
         ax.set_yticks(np.arange(len(sorted_models)))
         ax.set_yticklabels([m.name for m in sorted_models], fontsize=7)
-        
+
         for i in range(len(sorted_models)):
             for j in range(len(metrics_for_heatmap)):
                 text = ax.text(j, i, f'{heatmap_array[i, j]:.3f}',
                               ha='center', va='center', fontsize=6,
                               color='white' if heatmap_array[i, j] < 0.75 else 'black')
-        
+
         cbar = plt.colorbar(im, ax=ax, shrink=0.8)
         cbar.set_label('Score', fontsize=8)
 

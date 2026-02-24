@@ -1,6 +1,6 @@
 # Model Performance Analysis Report
 
-**Generated**: 2026-02-23 12:46:10
+**Generated**: 2026-02-23 21:57:58
 **Total Models**: 7 trained models
 
 ## Abstract
@@ -97,7 +97,7 @@ performance metrics including auPRC, AUC, Precision, Recall, and F1-score.
 
 ![Model Ranking Heatmap](model_ranking_heatmap.png)
 
-*Figure 6: Gene-level model performance heatmap on test set. Six metrics are compared: auPRC, AUC, Precision, Recall, F1, and Youden's J. Darker green indicates better performance.*
+*Figure 6: Gene-level model performance heatmap on test set. Seven metrics are compared: auPRC, AUC, Precision, Recall, Specificity, Youden's J, and F1. Darker green indicates better performance.*
 
 #### Figure 7: Sample-Level Model Performance Heatmap (Test Set)
 
