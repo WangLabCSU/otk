@@ -83,6 +83,7 @@ class DatasetStatistics:
 class PerformanceMetrics:
     auPRC: float = 0.0
     AUC: float = 0.0
+    Accuracy: float = 0.0
     F1: float = 0.0
     Precision: float = 0.0
     Recall: float = 0.0
@@ -346,14 +347,16 @@ class ModelAnalyzer:
         tn = metrics_dict.get('TN', 0)
         fp = metrics_dict.get('FP', 0)
         fn = metrics_dict.get('FN', 0)
-        
+
         specificity = tn / max(1, tn + fp) if (tn + fp) > 0 else 0.0
         sensitivity = tp / max(1, tp + fn) if (tp + fn) > 0 else metrics_dict.get('Recall', 0.0)
         youdens_j = sensitivity + specificity - 1
-        
+        accuracy = (tp + tn) / max(1, tp + tn + fp + fn)
+
         return PerformanceMetrics(
             auPRC=metrics_dict.get('auPRC', 0.0),
             AUC=metrics_dict.get('AUC', 0.0),
+            Accuracy=accuracy,
             F1=metrics_dict.get('F1', 0.0),
             Precision=metrics_dict.get('Precision', 0.0),
             Recall=metrics_dict.get('Recall', sensitivity),
@@ -929,7 +932,7 @@ class ModelAnalyzer:
         lines.append("")
         lines.append("![Model Ranking Heatmap](model_ranking_heatmap.png)")
         lines.append("")
-        lines.append("*Figure 6: Gene-level model performance heatmap on test set. Seven metrics are compared: auPRC, AUC, Precision, Recall, Specificity, Youden's J, and F1. Darker green indicates better performance.*")
+        lines.append("*Figure 6: Gene-level model performance heatmap on test set. Eight metrics are compared: auPRC, AUC, Accuracy, Precision, Recall, Specificity, Youden's J, and F1. Darker green indicates better performance.*")
         lines.append("")
 
         if sample_evaluated:
@@ -1500,15 +1503,16 @@ class ModelAnalyzer:
         print(f"Saved: {output_dir / 'performance_radar.png'}")
         
         # 6. Gene-Level Model Ranking Heatmap
-        fig, ax = plt.subplots(figsize=(10, 4))
+        fig, ax = plt.subplots(figsize=(11, 4))
         fig.suptitle('Gene-Level Model Performance Heatmap (Test Set)', fontsize=10)
 
-        metrics_for_heatmap = ['auPRC', 'AUC', 'Precision', 'Recall', 'Specificity', "Youden's J", 'F1']
+        metrics_for_heatmap = ['auPRC', 'AUC', 'Accuracy', 'Precision', 'Recall', 'Specificity', "Youden's J", 'F1']
         heatmap_data = []
         for m in sorted_models:
             row = [
                 m.test_metrics.auPRC,
                 m.test_metrics.AUC,
+                m.test_metrics.Accuracy,
                 m.test_metrics.Precision,
                 m.test_metrics.Recall,
                 m.test_metrics.Specificity,
