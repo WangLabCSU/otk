@@ -1,0 +1,78 @@
+gene_level:
+  test:
+    AUC: 0.9925848357774634
+    F1: 0.5743822491174987
+    FN: 1661
+    FP: 27
+    Precision: 0.9768439108061749
+    Recall: 0.4067857142857143
+    TN: 752271
+    TP: 1139
+    auPRC: 0.766199508685358
+    threshold: 0.8457961678504944
+  train:
+    AUC: 0.9977622150971495
+    F1: 0.7184922700617767
+    FN: 8822
+    FP: 155
+    Precision: 0.9866505899577986
+    Recall: 0.5649472334549759
+    TN: 5787718
+    TP: 11456
+    auPRC: 0.8770492276284741
+    threshold: 0.8457961678504944
+  val:
+    AUC: 0.9905924849304775
+    F1: 0.7991351351351351
+    FN: 798
+    FP: 131
+    Precision: 0.9338049519959576
+    Recall: 0.6984126984126984
+    TN: 713195
+    TP: 1848
+    auPRC: 0.8340061273960347
+    threshold: 0.8457961678504944
+model_name: dgit_super
+sample_level:
+  test:
+    AUC: 0.8853046594982079
+    Accuracy: 0.725
+    F1: 0.7843137254901961
+    FN: 11
+    FP: 0
+    Precision: 1.0
+    Recall: 0.6451612903225806
+    TN: 9
+    TP: 20
+    auPRC: 0.968572174532438
+    positive_samples: 31
+    predicted_positive: 20
+    total_samples: 40
+  train:
+    AUC: 1.0
+    Accuracy: 0.8051948051948052
+    F1: 0.8529411764705882
+    FN: 60
+    FP: 0
+    Precision: 1.0
+    Recall: 0.7435897435897436
+    TN: 74
+    TP: 174
+    auPRC: 0.9999999999999999
+    positive_samples: 234
+    predicted_positive: 174
+    total_samples: 308
+  val:
+    AUC: 0.8888888888888888
+    Accuracy: 0.7631578947368421
+    F1: 0.8163265306122449
+    FN: 9
+    FP: 0
+    Precision: 1.0
+    Recall: 0.6896551724137931
+    TN: 9
+    TP: 20
+    auPRC: 0.9679202182084197
+    positive_samples: 29
+    predicted_positive: 20
+    total_samples: 38
