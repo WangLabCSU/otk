@@ -90,6 +90,8 @@ class TabPFNModel(BaseEcDNAModel):
         import os
         # 设置 HuggingFace 中国镜像
         os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+        # 禁用 TabPFN 遥测功能
+        os.environ['TABPFN_DISABLE_TELEMETRY'] = '1'
         
         from tabpfn import TabPFNClassifier
         from tabpfn.constants import ModelVersion
