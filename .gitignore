@@ -165,4 +165,7 @@ logs/
 # OTK API model files - only exclude temporary files, track models
 otk_api/models/*/temp_*
 
+# Exclude specific large model files (>100MB GitHub limit)
+otk_api/models/tabpfn/best_model.pkl
+
 temp_config*

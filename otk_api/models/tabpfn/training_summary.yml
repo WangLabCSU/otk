@@ -1,0 +1,78 @@
+gene_level:
+  test:
+    AUC: 0.9971495808272026
+    F1: 0.7060876308646762
+    FN: 979
+    FP: 537
+    Precision: 0.772264631043257
+    Recall: 0.6503571428571429
+    TN: 751761
+    TP: 1821
+    auPRC: 0.8322898689070083
+    threshold: 0.4271833002567291
+  train:
+    AUC: 0.9952981236199476
+    F1: 0.774079754601227
+    FN: 5137
+    FP: 3701
+    Precision: 0.8035771149559495
+    Recall: 0.7466712693559523
+    TN: 5784172
+    TP: 15141
+    auPRC: 0.824585746904675
+    threshold: 0.4271833002567291
+  val:
+    AUC: 0.9951749554299041
+    F1: 0.7713617557114589
+    FN: 502
+    FP: 769
+    Precision: 0.7360109852385857
+    Recall: 0.8102796674225246
+    TN: 712557
+    TP: 2144
+    auPRC: 0.8228226855540066
+    threshold: 0.4271833002567291
+model_name: tabpfn
+sample_level:
+  test:
+    AUC: 0.9820788530465949
+    Accuracy: 0.9
+    F1: 0.9310344827586207
+    FN: 4
+    FP: 0
+    Precision: 1.0
+    Recall: 0.8709677419354839
+    TN: 9
+    TP: 27
+    auPRC: 0.9948719632001235
+    positive_samples: 31
+    predicted_positive: 27
+    total_samples: 40
+  train:
+    AUC: 0.9406906906906907
+    Accuracy: 0.8733766233766234
+    F1: 0.9157667386609071
+    FN: 22
+    FP: 17
+    Precision: 0.925764192139738
+    Recall: 0.905982905982906
+    TN: 57
+    TP: 212
+    auPRC: 0.9828012912053139
+    positive_samples: 234
+    predicted_positive: 229
+    total_samples: 308
+  val:
+    AUC: 0.9118773946360154
+    Accuracy: 0.868421052631579
+    F1: 0.9152542372881356
+    FN: 2
+    FP: 3
+    Precision: 0.9
+    Recall: 0.9310344827586207
+    TN: 6
+    TP: 27
+    auPRC: 0.973384446744362
+    positive_samples: 29
+    predicted_positive: 30
+    total_samples: 38
