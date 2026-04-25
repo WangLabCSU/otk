@@ -1,6 +1,8 @@
 # otk: ecDNA Analysis Toolkit
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![PyPI version](https://badge.fury.io/py/otk-ecdna.svg)](https://pypi.org/project/otk-ecdna/)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Python](https://img.shields.io/badge/Python-3.9+-green.svg)](https://www.python.org/)
 
 otk (ecDNA Analysis Toolkit) is a deep learning-based tool for analyzing extrachromosomal DNA (ecDNA), predicting whether genes are detected as ecDNA cargo genes at the gene level, and classifying focal amplification types at the sample level.
 
@@ -11,242 +13,235 @@ otk (ecDNA Analysis Toolkit) is a deep learning-based tool for analyzing extrach
 - Support for analysis from BAM files or processed copy number data
 - Efficient command-line interface
 - GPU acceleration support
+- Pre-trained models ready to use
+- RESTful API for web service deployment
 
-## Technology Stack
+## Installation
 
-- Python 3.8+
-- PyTorch 2.0+
-- NumPy
-- Pandas
-- scikit-learn
-- Click (command-line interface)
+### From PyPI (Recommended)
 
-## Installation Guide
+```bash
+pip install otk-ecdna
+```
+
+This installs the `otk` CLI command and all pre-trained models (except TabPFN which is ~275MB and needs separate download).
+
+### Download Large Models
+
+The TabPFN model (~275MB) is hosted on GitHub Release:
+
+```bash
+# List available large models
+otk download --list
+
+# Download TabPFN model
+otk download --model tabpfn
+```
 
 ### From Source
 
-1. Clone the repository:
-
 ```bash
 git clone https://github.com/WangLabCSU/otk.git
-cd otk
-```
-
-2. Install with pip:
-
-```bash
+cd otk/otk
 pip install -e .
 ```
 
-### Dependencies
-
-The following dependencies will be installed automatically:
-
-- pandas>=2.0
-- numpy>=1.24
-- torch>=2.0
-- scikit-learn>=1.3
-- tqdm>=4.65
-- click>=8.1
-- matplotlib>=3.7
-- seaborn>=0.12
-- pyyaml>=6.0
-
-## Usage
-
-otk provides two main command-line subcommands: `train` and `predict`.
-
-### Model Training
-
-Use the `otk train` command to train the model:
+## Quick Start
 
 ```bash
-otk train --config configs/model_config.yml --output models/ --gpu 0
+# Check installation
+otk --version
+
+# List available models
+otk models
+
+# Run prediction (example)
+otk predict --input data.csv --output predictions.csv --model xgb_new
+
+# Start API server
+otk api --port 8000
 ```
 
-Parameters:
-- `--config, -c`: Path to configuration file (default: configs/model_config.yml)
-- `--output, -o`: Output directory for trained models (default: models/)
-- `--gpu, -g`: GPU device ID to use (default: 0)
+## CLI Commands
 
-### Model Prediction
-
-Use the `otk predict` command for predictions:
+### Model Management
 
 ```bash
-otk predict --model models/best_model.pth --input data/test_data.csv --output predictions/ --gpu -1
+# List all available models with performance metrics
+otk models
+
+# Analyze a specific model
+otk analyze --model xgb_new
+
+# Generate model configuration
+otk config generate --model xgb_new
 ```
 
-Parameters:
-- `--model, -m`: Path to trained model (required)
-- `--input, -i`: Path to input data file (required)
-- `--output, -o`: Output directory for predictions (default: predictions/)
-- `--gpu, -g`: GPU device ID to use (default: -1, i.e., use CPU)
+### Training
+
+```bash
+# Train single model
+otk train --model xgb_new --gpu 0
+
+# Train neural network model
+otk train --model transformer --gpu 0
+
+# Train all models sequentially
+otk train --all --gpu 0
+
+# Train all models in parallel on multiple GPUs
+otk train --all --parallel --gpus 0,1,2,3
+
+# CPU-only training
+otk train --model xgb_new --gpu -1
+```
+
+### Prediction
+
+```bash
+# Basic prediction
+otk predict --input data.csv --output predictions.csv --model xgb_new
+
+# With GPU acceleration
+otk predict -i data.csv -o results/ -m transformer --gpu 0
+
+# With custom threshold
+otk predict -i data.csv -o predictions.csv -m xgb_new --threshold 0.5
+```
+
+### API Server
+
+```bash
+# Start API with default settings (base path /otk)
+otk api
+
+# Custom port
+otk api --port 8080
+
+# Serve at root (no base path)
+otk api --base-path ""
+
+# Development mode with auto-reload
+otk api --reload
+
+# Multiple workers
+otk api --workers 4
+```
+
+### Model Download
+
+```bash
+# List large models requiring download
+otk download --list
+
+# Download TabPFN model
+otk download --model tabpfn
+
+# Force re-download
+otk download --model tabpfn --force
+```
 
 ## Data Format
 
 ### Input Data Format
 
-Input data should be in CSV format with the following columns:
+Input data should be in CSV format. **Minimal required columns:**
 
-**Required identifier columns:**
-- `sample`: Tumor sample ID
-- `gene_id`: Gene ID
+| Column | Description |
+|--------|-------------|
+| `sample` | Tumor sample ID |
+| `gene_id` | Gene ID (e.g., ENSG00000284662) |
+| `segVal` | Total gene copy number |
 
-**Copy number features:**
-- `segVal`: Total gene copy number
-- `minor_cn`: Minor gene copy number
-- `intersect_ratio`: Proportion of overlap between copy number detection segment and gene region
+**Recommended columns (auto-filled with defaults if missing):**
 
-**Sample-level genomic features (same value for all genes in a sample):**
-- `purity`: Tumor purity estimate
-- `ploidy`: Tumor genome ploidy estimate
-- `AScore`: Aneuploidy score
-- `pLOH`: Proportion of genome with loss of heterozygosity (LOH)
-- `cna_burden`: Proportion of genome with copy number alterations
+| Column | Default | Description |
+|--------|---------|-------------|
+| `minor_cn` | 0 | Minor copy number |
+| `purity` | 0.8 | Tumor purity |
+| `ploidy` | 2.0 | Genome ploidy |
+| `AScore` | 10.0 | Aneuploidy score |
+| `pLOH` | 0.1 | LOH proportion |
+| `cna_burden` | 0.2 | CNA burden |
+| `CN1-CN19` | 0.05 | Copy number signatures |
+| `type` | - | Cancer type (converted to type_* columns) |
 
-**Copy number signature features:**
-- `CN1` to `CN19`: 19 copy number signature activity estimates
+### Output Format
 
-**Clinical features:**
-- `age`: Patient age
-- `gender`: Patient gender (0/1 encoded)
+| Column | Description |
+|--------|-------------|
+| `sample` | Sample ID |
+| `gene_id` | Gene ID |
+| `prediction_prob` | Probability of ecDNA (0-1) |
+| `prediction` | Binary classification (0/1) |
+| `sample_level_prediction_label` | Sample type: nofocal/noncircular/circular |
+| `sample_level_prediction` | Sample type code (0/1/2) |
 
-**Tumor type features (one-hot encoded, 24 cancer types):**
-- `type_BLCA`, `type_BRCA`, `type_CESC`, `type_COAD`, `type_DLBC`, `type_ESCA`, `type_GBM`, `type_HNSC`
-- `type_KICH`, `type_KIRC`, `type_KIRP`, `type_LGG`, `type_LIHC`, `type_LUAD`, `type_LUSC`, `type_OV`
-- `type_PRAD`, `type_READ`, `type_SARC`, `type_SKCM`, `type_STAD`, `type_THCA`, `type_UCEC`, `type_UVM`
+## Available Models
 
-**Gene frequency features:**
-- `freq_Linear`: Prior estimated frequency of gene in linear focal amplifications
-- `freq_BFB`: Prior estimated frequency of gene in breakage-fusion-bridge (BFB) events
-- `freq_Circular`: Prior estimated frequency of gene in circular focal amplifications (ecDNA)
-- `freq_HR`: Prior estimated frequency of gene in homologous recombination events
+| Model | Type | Test auPRC | Description |
+|-------|------|------------|-------------|
+| xgb_new | XGBoost | 0.8339 | Optimized with feature engineering |
+| tabpfn | TabPFN | 0.8323 | TabPFN ensemble (~275MB, needs download) |
+| deep_residual | Neural | 0.8132 | Deep residual network |
+| xgb_tuned | XGBoost | 0.8065 | Hyperparameter tuned |
+| optimized_residual | Neural | 0.7906 | Optimized residual network |
+| baseline_mlp | Neural | 0.7663 | Simple MLP baseline |
+| dgit_super | Neural | 0.7662 | Deep gated interaction transformer |
+| xgb_paper | XGBoost | 0.7138 | Paper reproduction (11 features) |
+| transformer | Neural | 0.6875 | Transformer architecture |
 
-**Target column (for training data):**
-- `y`: Binary label indicating whether the gene is detected as an ecDNA cargo gene (1) or not (0)
+All models use unified 80/10/10 data split with seed=2026 for reproducibility.
 
-### Output Data Format
+## API Service
 
-Prediction results are saved as a CSV file with the following columns:
-
-**Gene-level predictions:**
-- `sample`: Tumor sample ID
-- `gene_id`: Gene ID
-- `prediction_prob`: Probability of being an ecDNA cargo gene (0-1)
-- `prediction`: Binary classification result (0 = not ecDNA cargo, 1 = ecDNA cargo)
-
-**Sample-level predictions:**
-- `sample_level_prediction_label`: Sample-level focal amplification type classification:
-  - `nofocal`: No focal amplification detected
-  - `noncircular`: Non-circular focal amplification detected
-  - `circular`: Circular focal amplification (ecDNA) detected
-- `sample_level_prediction`: Numerical encoding of sample-level classification (0 = nofocal, 1 = noncircular, 2 = circular)
-
-Note: Sample-level classification follows these rules:
-1. If any gene in the sample is predicted as ecDNA cargo (`prediction` = 1), the sample is classified as `circular`
-2. If no ecDNA cargo genes but any gene has `segVal > ploidy + 2`, the sample is classified as `noncircular`
-3. Otherwise, the sample is classified as `nofocal`
-
-## Model Architecture
-
-otk supports multiple model architectures with unified interface:
-
-### Available Models
-
-| Model | Type | Description |
-|-------|------|-------------|
-| xgb_new | XGBoost | Optimized with feature engineering |
-| xgb_paper | XGBoost | Paper reproduction (11 features) |
-| baseline_mlp | Neural Network | Simple MLP baseline |
-| transformer | Neural Network | Transformer architecture |
-| deep_residual | Neural Network | Deep residual network |
-| optimized_residual | Neural Network | Optimized residual network |
-| dgit_super | Neural Network | Deep gated interaction transformer |
-| tabpfn | TabPFN | TabPFN ensemble |
-
-### Unified Interface
-
-All models inherit from `BaseEcDNAModel` and provide:
-- `fit(X_train, y_train, X_val, y_val)` - Training
-- `predict_proba(X)` - Probability prediction
-- `predict(X)` - Binary prediction
-- `save(path)` / `load(path)` - Persistence
-
-### Data Split
-
-All models use unified data split (80/10/10) with seed=2026 for reproducibility.
-
-## Training Script
-
-Use the unified training script:
+Start a RESTful API for web-based prediction:
 
 ```bash
-# Train single model
-python train_unified.py --model xgb_new
+# Start API (default base path /otk)
+otk api
 
-# Train all models
-python train_unified.py --all
+# Access points:
+# - API docs: http://localhost:8000/otk/docs
+# - Health: http://localhost:8000/otk/health
+# - Web UI: http://localhost:8000/otk/
 ```
 
-## Configuration File
+See [otk_api/README.md](otk_api/README.md) for full API documentation.
 
-Model configuration uses YAML format, with example configuration files located in `configs/`. You can modify parameters in the configuration files as needed, such as model architecture and training parameters.
+## Project Structure
 
-## Examples
-
-### Training Examples
-
-```bash
-# Train model with default configuration
-otk train
-
-# Train model with custom configuration file
-otk train --config my_config.yml
 ```
-
-### Prediction Examples
-
-```bash
-# Make predictions using a trained model
-otk predict --model models/best_model.pth --input test_data.csv
+otk/
+├── src/otk/           # Core library
+│   ├── data/          # Data handling
+│   ├── models/        # Model implementations
+│   ├── predict/       # Prediction utilities
+│   └── cli.py         # Command-line interface
+├── otk_api/           # FastAPI web service
+│   ├── api/           # API implementation
+│   ├── models/        # Pre-trained models
+│   └── static/        # Performance charts
+├── configs/           # Model configurations
+└── tests/             # Unit tests
 ```
-
-## Performance Metrics
-
-The following performance metrics are recorded during model training:
-
-- auPRC (Area under Precision-Recall Curve)
-- AUC (Area under ROC Curve)
-- F1 Score
-- Precision
-- Recall
-
-## Contribution Guide
-
-We welcome community contributions! If you have any questions or suggestions, please submit them through GitHub Issues.
-
-### Development Process
-
-1. Fork the repository
-2. Create a feature branch
-3. Implement features or fix bugs
-4. Run tests
-5. Submit a Pull Request
-
-## License
-
-This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
 
 ## Citation
 
-If you use otk in your research, please cite the following paper:
+If you use otk in your research, please cite:
 
+```bibtex
+Wang, S., et al. (2024). Machine learning-based extrachromosomal DNA 
+identification in large-scale cohorts reveals its clinical implications 
+in cancer. Nature Communications.
 ```
-Wang, S., Wu, C. Y., He, M. M., Yong, J. X., Chen, Y. X., Qian, L. M., ... & Zhao, Q. (2024). Machine learning-based extrachromosomal DNA identification in large-scale cohorts reveals its clinical implications in cancer. Nature Communications, 15(1), 1-17.
-```
+
+## License
+
+MIT License. See [LICENSE](LICENSE) file for details.
 
 ## Contact
 
-- Project homepage: https://github.com/WangLabCSU/otk
-- Email: wangshx@csu.edu.cn
+- **Homepage**: https://github.com/WangLabCSU/otk
+- **PyPI**: https://pypi.org/project/otk-ecdna/
+- **Email**: wangshx@csu.edu.cn

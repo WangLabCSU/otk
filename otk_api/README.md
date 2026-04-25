@@ -2,6 +2,8 @@
 
 High-performance Scientific Computing API for ecDNA (extrachromosomal DNA) Prediction Service based on the [OTK](https://github.com/WangLabCSU/otk) and [GCAP](https://github.com/shixiangwang/gcap) projects.
 
+[![PyPI version](https://badge.fury.io/py/otk-ecdna.svg)](https://pypi.org/project/otk-ecdna/)
+
 ## 🌐 Public API Address
 
 **Production API**: http://biotree.top:38123/otk/
@@ -21,42 +23,43 @@ High-performance Scientific Computing API for ecDNA (extrachromosomal DNA) Predi
 - **Job Record Management**: Task metadata retained permanently, results for 3 days
 - **Security**: Job IDs are masked in web interface for privacy
 
-## 🚀 Quick Start
+## 📦 Installation
 
-### Using the Public API
-
-You can immediately start using the public API without any installation:
+### From PyPI
 
 ```bash
-# Health check
-curl http://biotree.top:38123/otk/api/v1/health
-
-# Submit prediction (async)
-curl -X POST "http://biotree.top:38123/otk/api/v1/predict" \
-  -F "file=@your_data.csv"
-
-# Submit prediction (sync)
-curl -X POST "http://biotree.top:38123/otk/api/v1/predict-sync" \
-  -F "file=@your_data.csv"
+pip install otk-ecdna
 ```
 
-### Running Locally
+### Start API Server
 
-1. **Install Dependencies**
-   ```bash
-   cd otk/otk_api
-   pip install -r requirements.txt
-   ```
+```bash
+# Start with default settings (base path /otk)
+otk api
 
-2. **Start the API**
-   ```bash
-   cd otk/otk_api
-   ./start_api.sh
-   ```
+# Custom port
+otk api --port 8080
 
-3. **Access**
-   - API: http://localhost:8000/api/v1/
-   - Web Interface: http://localhost:8000/
+# Serve at root path
+otk api --base-path ""
+
+# Development mode with auto-reload
+otk api --reload
+
+# Multiple workers
+otk api --workers 4
+```
+
+### From Source
+
+```bash
+git clone https://github.com/WangLabCSU/otk.git
+cd otk/otk
+pip install -e .
+
+# Start API
+otk api
+```
 
 ## 📡 API Documentation
 
@@ -365,6 +368,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ---
 
-**Last Updated**: February 12, 2026
-**Version**: 1.1.0
+**Last Updated**: April 25, 2026
+**Version**: 1.0.2
+**PyPI**: https://pypi.org/project/otk-ecdna/
 **Maintainers**: Wang Lab @ CSU
