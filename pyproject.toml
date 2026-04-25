@@ -1,6 +1,6 @@
 [project]
 name = "otk-ecdna"
-version = "1.0.1"
+version = "1.0.2"
 description = "ecDNA Analysis Toolkit - Deep learning-based extrachromosomal DNA prediction"
 authors = [
     { name = "Shixiang Wang", email = "wangshx@csu.edu.cn" }

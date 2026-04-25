@@ -32,7 +32,7 @@ CLI usage:
     $ otk api --port 8000  # Start prediction API server
 """
 
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 __author__ = "Shixiang Wang"
 __email__ = "wangshx@csu.edu.cn"
 
