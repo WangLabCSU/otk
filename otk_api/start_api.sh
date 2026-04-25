@@ -29,16 +29,36 @@ export PYTHONPATH="${SCRIPT_DIR}/../src:${PYTHONPATH}"
 HOST=${API_HOST:-0.0.0.0}
 PORT=${API_PORT:-8000}
 
-# Set base path for reverse proxy (e.g., /otk)
-# This should match the path configured in the reverse proxy
-export OTK_BASE_PATH="${OTK_BASE_PATH:-}"
+# Set base path for reverse proxy (default: /otk for deployment)
+# Set OTK_BASE_PATH="" (empty) to serve at root path
+if [ -z "${OTK_BASE_PATH+x}" ]; then
+    # Variable not set at all, use default
+    export OTK_BASE_PATH="/otk"
+elif [ "$OTK_BASE_PATH" = "" ]; then
+    # Variable set to empty string, keep it empty (serve at root)
+    export OTK_BASE_PATH=""
+fi
 
 echo "Starting OTK Prediction API..."
 echo "Host: $HOST"
 echo "Port: $PORT"
-echo "Base Path: ${OTK_BASE_PATH:-/ (root)}"
+if [ -n "$OTK_BASE_PATH" ]; then
+    echo "Base Path: $OTK_BASE_PATH"
+else
+    echo "Base Path: / (root)"
+fi
 echo "Python: $PYTHON_CMD"
 echo "Python Path: ${PYTHONPATH}"
+echo ""
+
+# Show URL hint
+if [ -n "$OTK_BASE_PATH" ]; then
+    echo "API will be available at: http://${HOST}:${PORT}${OTK_BASE_PATH}/"
+    echo "API Documentation: http://${HOST}:${PORT}${OTK_BASE_PATH}/docs"
+else
+    echo "API will be available at: http://${HOST}:${PORT}/"
+    echo "API Documentation: http://${HOST}:${PORT}/docs"
+fi
 echo ""
 
 # Start the API server

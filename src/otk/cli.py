@@ -42,7 +42,7 @@ def get_device(gpu: int) -> str:
 
 
 @click.group()
-@click.version_option(version='0.1.0', prog_name='otk')
+@click.version_option(version='1.0.0', prog_name='otk')
 def cli():
     """OTK - ecDNA Analysis Toolkit
     
@@ -584,6 +584,85 @@ def download(model: Optional[str], force: bool, list_models: bool, info: bool):
     click.echo("  --model    Download a specific model")
     click.echo("  --info     Show download info")
     click.echo("\nExample: otk download --model tabpfn")
+
+
+@cli.command()
+@click.option('--host', '-h', default='0.0.0.0', help='Host to bind')
+@click.option('--port', '-p', default=8000, help='Port to bind')
+@click.option('--base-path', '-b', default='/otk',
+              help='Base path for reverse proxy (default: /otk, use "" for root)')
+@click.option('--reload', is_flag=True, help='Enable auto-reload for development')
+@click.option('--workers', '-w', default=1, help='Number of worker processes')
+def api(host: str, port: int, base_path: str, reload: bool, workers: int):
+    """Start OTK prediction API web service.
+
+    Examples:
+        otk api                           # Start with base path /otk
+        otk api --port 8080               # Custom port, base path /otk
+        otk api --base-path ""            # Serve at root (no base path)
+        otk api --base-path /myapp        # Custom base path
+        otk api --reload                  # Development mode with auto-reload
+    """
+    import subprocess
+
+    # Find the API module
+    api_dir = Path(__file__).parent.parent.parent / 'otk_api' / 'api'
+    main_file = api_dir / 'main.py'
+
+    if not main_file.exists():
+        click.echo(f"Error: API module not found at: {api_dir}", err=True)
+        click.echo("Make sure otk_api is installed correctly.", err=True)
+        sys.exit(1)
+
+    # Normalize base path (remove trailing slash)
+    base_path = base_path.rstrip('/') if base_path else ''
+
+    click.echo(f"\nStarting OTK Prediction API")
+    click.echo("="*60)
+    click.echo(f"  Host: {host}")
+    click.echo(f"  Port: {port}")
+    click.echo(f"  Base Path: {base_path if base_path else '/ (root)'}")
+    click.echo(f"  Reload: {reload}")
+    click.echo(f"  Workers: {workers}")
+    click.echo("="*60)
+
+    # Show correct URLs based on base path
+    if base_path:
+        click.echo(f"\nAPI Documentation: http://{host}:{port}{base_path}/docs")
+        click.echo(f"Health Check: http://{host}:{port}{base_path}/health")
+    else:
+        click.echo(f"\nAPI Documentation: http://{host}:{port}/docs")
+        click.echo(f"Health Check: http://{host}:{port}/health")
+    click.echo("\nPress Ctrl+C to stop the server.\n")
+
+    try:
+        # Use uvicorn to start the server
+        cmd = [
+            sys.executable, '-m', 'uvicorn',
+            'otk_api.api.main:app',
+            '--host', host,
+            '--port', str(port),
+        ]
+
+        if reload:
+            cmd.append('--reload')
+            cmd.append('--reload-dir')
+            cmd.append(str(Path(__file__).parent.parent.parent / 'otk_api'))
+
+        if workers > 1 and not reload:
+            cmd.extend(['--workers', str(workers)])
+
+        # Set base path via environment variable
+        env = os.environ.copy()
+        env['OTK_BASE_PATH'] = base_path
+
+        subprocess.run(cmd, env=env)
+
+    except KeyboardInterrupt:
+        click.echo("\n\nServer stopped.")
+    except Exception as e:
+        click.echo(f"\nError starting server: {e}", err=True)
+        sys.exit(1)
 
 
 if __name__ == '__main__':

@@ -26,8 +26,9 @@ from .i18n import get_text, SUPPORTED_LANGUAGES
 from .cleanup import start_cleanup_scheduler
 import markdown
 
-# Get base path from environment variable or use empty string (root)
-BASE_PATH = os.environ.get('OTK_BASE_PATH', '').rstrip('/')
+# Get base path from environment variable, default to /otk for deployment
+# Users can set OTK_BASE_PATH="" or use CLI --base-path "" to serve at root
+BASE_PATH = os.environ.get('OTK_BASE_PATH', '/otk').rstrip('/')
 
 def get_url(path: str) -> str:
     """Generate URL with base path prefix"""
@@ -1262,7 +1263,7 @@ async def models_page(lang: str = Query(default="en", description="Language code
     nav = get_nav_html(t, lang, "models")
     footer = get_footer_html(t, lang)
 
-    report_path = Path(__file__).parent.parent / "models" / "model_analysis_report.md"
+    report_path = Path(__file__).parent.parent / "static" / "model_analysis_report.md"
     try:
         with open(report_path, 'r', encoding='utf-8') as f:
             report_content = f.read()

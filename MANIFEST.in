@@ -1,0 +1,52 @@
+# OTK Package Manifest
+# Include all source packages
+include src/otk/**/*.py
+include src/otk/data/*.csv.gz
+include src/otk/data/*.csv
+include src/otk/data/*.json
+
+# Include otk_api package
+include otk_api/**/*.py
+include otk_api/__init__.py
+
+# Include static files (PNG, MD for web display, no PDF)
+include otk_api/static/*.png
+include otk_api/static/*.md
+
+# Include all models except tabpfn best_model.pkl (too large: ~275MB)
+include otk_api/models/xgb_new/*
+include otk_api/models/xgb_paper/*
+include otk_api/models/xgb_tuned/*
+include otk_api/models/baseline_mlp/*
+include otk_api/models/transformer/*
+include otk_api/models/deep_residual/*
+include otk_api/models/optimized_residual/*
+include otk_api/models/dgit_super/*
+include otk_api/models/source_data/*
+
+# Include tabpfn config but exclude large model file
+include otk_api/models/tabpfn/config.yml
+include otk_api/models/tabpfn/training_summary.yml
+exclude otk_api/models/tabpfn/best_model.pkl
+
+# Include other model analysis files (PNG and MD only, PDF kept in repo but excluded from package)
+include otk_api/models/*.md
+include otk_api/models/*.png
+exclude otk_api/models/*.pdf
+
+# Include README and docs
+include README.md
+include CLAUDE.md
+include LICENSE
+
+# Exclude unnecessary files
+global-exclude *.py[cod]
+global-exclude __pycache__
+global-exclude *.log
+global-exclude .DS_Store
+global-exclude *.egg-info
+exclude otk_api/uploads/*
+exclude otk_api/results/*
+exclude otk_api/logs/*
+exclude otk_api/*.db
+global-exclude *.pdf

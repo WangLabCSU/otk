@@ -160,12 +160,45 @@ Thumbs.db
 out/
 out_*
 output_*
-logs/
 
-# OTK API model files - only exclude temporary files, track models
+# Logs (keep directory structure but ignore log files)
+logs/*.log
+*.log
+!logs/.gitkeep
+
+# Training logs (generated during development)
+train_*.log
+*_v*.log
+
+# Temporary files and scripts (development artifacts)
+*.log
+temp_*
+temp_config*
+optimized_*.py
+xgb_hyperparam_search.py
+preprocess_data.py
+
+# OTK API specific
 otk_api/models/*/temp_*
+otk_api/results/
+otk_api/uploads/
+otk_api/logs/*.log
+otk_api/*.db
+otk_api/api.db
+otk_api/__pycache__/
+api.db
 
-# Exclude specific large model files (>100MB GitHub limit)
+# Exclude large model files (>100MB, download from GitHub Release)
 otk_api/models/tabpfn/best_model.pkl
 
-temp_config*
+# Keep these directories but ignore contents
+otk_api/results/
+otk_api/uploads/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+wheelhouse/

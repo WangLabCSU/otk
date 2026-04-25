@@ -46,10 +46,27 @@ otk config generate --all    # Generate configs for all models
 
 ### API Server
 ```bash
+# Using CLI (recommended)
+otk api                           # Start with base path /otk (default)
+otk api --port 8080               # Custom port, base path /otk
+otk api --base-path ""            # Serve at root (no base path)
+otk api --base-path /myapp        # Custom base path
+otk api --reload                  # Development mode with auto-reload
+
+# Using shell script (legacy)
 cd otk_api
-./start_api.sh                         # Start on default port 8000
-OTK_BASE_PATH=/otk ./start_api.sh      # Start with reverse proxy base path
+./start_api.sh                         # Start with base path /otk
+OTK_BASE_PATH="" ./start_api.sh        # Serve at root
 API_HOST=0.0.0.0 API_PORT=8080 ./start_api.sh  # Custom host/port
+```
+
+**Note**: Default base path is `/otk` for reverse proxy deployment (e.g., http://biotree.top:38123/otk). Local users can use `--base-path ""` to serve at root.
+
+### Model Download
+```bash
+otk download --list               # List large models requiring download
+otk download --model tabpfn       # Download TabPFN model (~275MB)
+otk download --model tabpfn --force  # Force re-download
 ```
 
 ### Testing
