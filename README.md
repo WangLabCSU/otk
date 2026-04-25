@@ -4,17 +4,20 @@
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Python](https://img.shields.io/badge/Python-3.9+-green.svg)](https://www.python.org/)
 
-otk (ecDNA Analysis Toolkit) is a deep learning-based tool for analyzing extrachromosomal DNA (ecDNA), predicting whether genes are detected as ecDNA cargo genes at the gene level, and classifying focal amplification types at the sample level.
+**otk** (ecDNA Analysis Toolkit) is a machine learning toolkit for predicting extrachromosomal DNA (ecDNA) cargo genes. It classifies genes at the gene level (ecDNA cargo vs. non-ecDNA) and identifies focal amplification types at the sample level (nofocal, noncircular, circular/ecDNA).
+
+Based on the paper: Wang, S., et al. (2024). Machine learning-based extrachromosomal DNA identification in large-scale cohorts reveals its clinical implications in cancer. Nature Communications.
 
 ## Core Features
 
-- Deep learning-based ecDNA cargo gene prediction
-- Sample-level focal amplification type classification
-- Support for analysis from BAM files or processed copy number data
-- Efficient command-line interface
+- Deep learning-based ecDNA cargo gene prediction at gene level
+- Sample-level focal amplification type classification (nofocal/noncircular/circular)
+- Multiple pre-trained models (XGBoost, Neural Networks, TabPFN)
+- Efficient command-line interface for training and prediction
 - GPU acceleration support
-- Pre-trained models ready to use
+- Pre-trained models ready to use after pip install
 - RESTful API for web service deployment
+- Chinese mirror support for large model downloads
 
 ## Installation
 
@@ -145,7 +148,9 @@ otk download --model tabpfn --force
 
 ### Input Data Format
 
-Input data should be in CSV format. **Minimal required columns:**
+Input data should be in CSV format.
+
+**Minimal required columns:**
 
 | Column | Description |
 |--------|-------------|
@@ -153,18 +158,37 @@ Input data should be in CSV format. **Minimal required columns:**
 | `gene_id` | Gene ID (e.g., ENSG00000284662) |
 | `segVal` | Total gene copy number |
 
-**Recommended columns (auto-filled with defaults if missing):**
+**Auto-filled columns (defaults applied if missing):**
 
 | Column | Default | Description |
 |--------|---------|-------------|
 | `minor_cn` | 0 | Minor copy number |
+| `intersect_ratio` | 1.0 | Segment-gene overlap ratio |
 | `purity` | 0.8 | Tumor purity |
 | `ploidy` | 2.0 | Genome ploidy |
 | `AScore` | 10.0 | Aneuploidy score |
 | `pLOH` | 0.1 | LOH proportion |
 | `cna_burden` | 0.2 | CNA burden |
-| `CN1-CN19` | 0.05 | Copy number signatures |
-| `type` | - | Cancer type (converted to type_* columns) |
+| `CN1-CN19` | 0.05 each | Copy number signatures |
+| `type` | - | Cancer type → auto-converts to `type_*` columns |
+
+**Automatically generated features (from gene_id matching):**
+
+| Column | Description |
+|--------|-------------|
+| `freq_Linear` | Prior frequency in linear amplifications |
+| `freq_BFB` | Prior frequency in BFB events |
+| `freq_Circular` | Prior frequency in ecDNA |
+| `freq_HR` | Prior frequency in HR events |
+
+**Training data requires:**
+
+| Column | Description |
+|--------|-------------|
+| `y` | Binary label (1=ecDNA cargo gene, 0=not) |
+
+**Supported cancer types (24):**
+BLCA, BRCA, CESC, COAD, DLBC, ESCA, GBM, HNSC, KICH, KIRC, KIRP, LGG, LIHC, LUAD, LUSC, OV, PRAD, READ, SARC, SKCM, STAD, THCA, UCEC, UVM
 
 ### Output Format
 
@@ -176,6 +200,11 @@ Input data should be in CSV format. **Minimal required columns:**
 | `prediction` | Binary classification (0/1) |
 | `sample_level_prediction_label` | Sample type: nofocal/noncircular/circular |
 | `sample_level_prediction` | Sample type code (0/1/2) |
+
+Sample classification rules:
+- `circular` (2): Any gene predicted as ecDNA cargo
+- `noncircular` (1): No ecDNA but segVal > ploidy + 2
+- `nofocal` (0): Otherwise
 
 ## Available Models
 
