@@ -21,6 +21,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'src'))
 
 import torch
 
+from otk import __version__
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -40,9 +42,11 @@ def get_models_dir() -> Path:
     # Try installed otk_api package
     try:
         import otk_api
-        installed_models = Path(otk_api.__file__).parent / 'models'
-        if installed_models.exists():
-            return installed_models
+        api_file = getattr(otk_api, '__file__', None)
+        if api_file:
+            installed_models = Path(api_file).parent / 'models'
+            if installed_models.exists():
+                return installed_models
     except ImportError:
         pass
 
@@ -67,7 +71,7 @@ def get_device(gpu: int) -> str:
 
 
 @click.group()
-@click.version_option(version='1.0.0', prog_name='otk')
+@click.version_option(version=__version__, prog_name='otk')
 def cli():
     """OTK - ecDNA Analysis Toolkit
     
@@ -539,7 +543,11 @@ def download(model: Optional[str], force: bool, list_models: bool, info: bool):
     # Import downloader
     try:
         import otk_api
-        download_dir = Path(otk_api.__file__).parent / 'download'
+        api_file = getattr(otk_api, '__file__', None)
+        if api_file:
+            download_dir = Path(api_file).parent / 'download'
+        else:
+            download_dir = Path(__file__).parent.parent.parent / 'otk_api' / 'download'
     except ImportError:
         download_dir = Path(__file__).parent.parent.parent / 'otk_api' / 'download'
 
@@ -647,7 +655,12 @@ def api(host: str, port: int, base_path: str, reload: bool, workers: int):
 
     # For pip installed package, just run uvicorn directly
     if api_installed:
-        main_file = Path(otk_api.api.main.__file__)
+        main_api_file = getattr(otk_api.api.main, '__file__', None)
+        if main_api_file:
+            main_file = Path(main_api_file)
+        else:
+            api_dir = Path(__file__).parent.parent.parent / 'otk_api' / 'api'
+            main_file = api_dir / 'main.py'
     else:
         # For local development, find the API module
         api_dir = Path(__file__).parent.parent.parent / 'otk_api' / 'api'
@@ -692,8 +705,10 @@ def api(host: str, port: int, base_path: str, reload: bool, workers: int):
             cmd.append('--reload')
             if api_installed:
                 import otk_api
-                cmd.append('--reload-dir')
-                cmd.append(str(Path(otk_api.__file__).parent))
+                api_file = getattr(otk_api, '__file__', None)
+                if api_file:
+                    cmd.append('--reload-dir')
+                    cmd.append(str(Path(api_file).parent))
             else:
                 cmd.append('--reload-dir')
                 cmd.append(str(Path(__file__).parent.parent.parent / 'otk_api'))
