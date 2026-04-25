@@ -476,18 +476,114 @@ def config_generate(model: Optional[str], generate_all: bool, output: str):
 def config_list():
     """List all available model configurations."""
     from otk.models.config_generator import MODEL_CONFIGS
-    
+
     click.echo("\nAvailable Model Configurations:")
     click.echo("="*60)
-    
+
     for model_name, config in MODEL_CONFIGS.items():
         model_type = config.get('model', {}).get('type', 'Unknown')
         variant = config.get('model', {}).get('variant', 'Unknown')
         click.echo(f"  {model_name:<20} [{model_type}] {variant}")
-    
+
     click.echo("="*60)
     click.echo(f"Total: {len(MODEL_CONFIGS)} models")
     click.echo("\nUse 'otk config generate --model <name>' to generate a config file.")
+
+
+@cli.command()
+@click.option('--model', '-m', type=str, default=None,
+              help='Model name to download (e.g., tabpfn)')
+@click.option('--force', '-f', is_flag=True,
+              help='Force re-download even if file exists')
+@click.option('--list', '-l', 'list_models', is_flag=True,
+              help='List all large models that can be downloaded')
+@click.option('--info', '-i', is_flag=True,
+              help='Show download info for a model')
+def download(model: Optional[str], force: bool, list_models: bool, info: bool):
+    """Download large model files from GitHub Release.
+
+    Large models (~275MB) are hosted on GitHub Release.
+    Chinese mirrors are supported for faster download.
+
+    Examples:
+        otk download --list
+        otk download --model tabpfn
+        otk download --model tabpfn --info
+        otk download --model tabpfn --force
+    """
+    # Import downloader
+    download_dir = Path(__file__).parent.parent.parent / 'otk_api' / 'download'
+    sys.path.insert(0, str(download_dir))
+
+    try:
+        from model_downloader import (
+            download_model, get_download_info, list_large_models,
+            LARGE_MODELS, DOWNLOAD_MIRRORS, GITHUB_REPO, GITHUB_RELEASE_TAG
+        )
+    except ImportError:
+        click.echo("Error: model_downloader module not found", err=True)
+        click.echo(f"Expected at: {download_dir}", err=True)
+        sys.exit(1)
+
+    if list_models:
+        click.echo("\nLarge Models (require download from GitHub Release):")
+        click.echo("="*60)
+
+        for name, config in LARGE_MODELS.items():
+            size_mb = config['size'] // 1024 // 1024
+            click.echo(f"  {name:<15} ~{size_mb}MB  {config['description']}")
+
+        click.echo("="*60)
+        click.echo(f"GitHub Release: {GITHUB_REPO}/{GITHUB_RELEASE_TAG}")
+        click.echo("\nChinese mirrors available:")
+        for mirror in DOWNLOAD_MIRRORS[1:]:
+            click.echo(f"  - {mirror}")
+        click.echo("\nUse: otk download --model <name>")
+        return
+
+    if info and model:
+        if model not in LARGE_MODELS:
+            click.echo(f"Model '{model}' is not a large model requiring download")
+            return
+
+        info_text = get_download_info(model)
+        click.echo(f"\n{info_text}")
+        return
+
+    if model:
+        if model not in LARGE_MODELS:
+            click.echo(f"Error: '{model}' is not a large model requiring download", err=True)
+            click.echo(f"Available large models: {', '.join(LARGE_MODELS.keys())}", err=True)
+            sys.exit(1)
+
+        config = LARGE_MODELS[model]
+        size_mb = config['size'] // 1024 // 1024
+
+        click.echo(f"\nDownloading {model} (~{size_mb}MB)")
+        click.echo("="*60)
+
+        try:
+            model_dir = Path(__file__).parent.parent.parent / 'otk_api' / 'models'
+            downloaded_path = download_model(model, base_dir=model_dir, force=force)
+            click.echo(f"\n✓ Download completed!")
+            click.echo(f"  Model: {model}")
+            click.echo(f"  Path: {downloaded_path}")
+
+        except RuntimeError as e:
+            click.echo(f"\n✗ Download failed: {e}", err=True)
+            click.echo("\nManual download options:", err=True)
+            click.echo(f"  1. Visit: https://github.com/{GITHUB_REPO}/releases/tag/{GITHUB_RELEASE_TAG}", err=True)
+            click.echo(f"  2. Place file at: otk_api/models/{model}/best_model.pkl", err=True)
+            sys.exit(1)
+
+        return
+
+    # No options specified
+    click.echo("Please specify an option:")
+    click.echo("  --list     List all large models")
+    click.echo("  --model    Download a specific model")
+    click.echo("  --info     Show download info")
+    click.echo("\nExample: otk download --model tabpfn")
 
 
 if __name__ == '__main__':

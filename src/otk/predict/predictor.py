@@ -5,7 +5,7 @@ Predictor for ecDNA Models
 Unified prediction interface for all model types:
 - XGBoost models (xgb_new, xgb_paper)
 - Neural network models (transformer, baseline_mlp, etc.)
-- TabPFN model
+- TabPFN model (with auto-download support for large file)
 """
 
 import torch
@@ -22,6 +22,64 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 RANDOM_SEED = 2026
+
+# Large models that may need downloading from GitHub Release
+LARGE_MODEL_NAMES = ['tabpfn']
+
+
+def _ensure_model_file(model_path: Path, auto_download: bool = True) -> Path:
+    """
+    Ensure model file exists, auto-download if needed for large models.
+
+    Args:
+        model_path: Expected model file path
+        auto_download: Whether to auto-download if missing
+
+    Returns:
+        Actual model file path
+    """
+    if model_path.exists():
+        return model_path
+
+    # Check if it's a large model that needs downloading
+    model_name = model_path.parent.name
+
+    if model_name in LARGE_MODEL_NAMES and auto_download:
+        logger.info(f"Large model {model_name} not found locally, attempting auto-download...")
+
+        try:
+            # Import downloader from otk_api/download
+            import sys
+            download_dir = model_path.parent.parent.parent / "download"
+            if download_dir.exists():
+                sys.path.insert(0, str(download_dir))
+
+            from model_downloader import ensure_model
+
+            # Download model
+            downloaded_path = ensure_model(model_name, base_dir=model_path.parent.parent)
+            logger.info(f"Model downloaded to: {downloaded_path}")
+            return downloaded_path
+
+        except ImportError:
+            logger.warning("model_downloader module not available")
+            if not auto_download:
+                raise FileNotFoundError(f"Model {model_name} not found at {model_path}")
+            # Try manual download instructions
+            raise FileNotFoundError(
+                f"Model {model_name} not found at {model_path}. "
+                f"This is a large model (~275MB) that needs to be downloaded. "
+                f"Please run: python otk_api/download/model_downloader.py --model {model_name}"
+            )
+        except Exception as e:
+            logger.error(f"Auto-download failed: {e}")
+            raise FileNotFoundError(
+                f"Model {model_name} download failed: {e}. "
+                f"Please download manually: python otk_api/download/model_downloader.py --model {model_name} --force"
+            )
+
+    # Not a large model or not auto-downloading
+    raise FileNotFoundError(f"Model not found: {model_path}")
 
 
 class PredictionDataset(Dataset):
@@ -63,14 +121,15 @@ class UnifiedPredictor:
         'gender': 0,
     }
     
-    def __init__(self, model_path, gpu=-1):
+    def __init__(self, model_path, gpu=-1, auto_download=True):
         self.model_path = Path(model_path)
         self.gpu = gpu
+        self.auto_download = auto_download
         self.optimal_threshold = 0.5
         self.model = None
         self.model_type = None
         self.config = None
-        
+
         # Set device
         if torch.cuda.is_available() and gpu >= 0:
             self.device = torch.device(f'cuda:{gpu}')
@@ -78,10 +137,13 @@ class UnifiedPredictor:
         else:
             self.device = torch.device('cpu')
             logger.info("Using CPU")
-        
+
+        # Ensure model file exists (auto-download for large models)
+        self.model_path = _ensure_model_file(self.model_path, auto_download)
+
         # Load model
         self._load_model()
-        
+
         # Load gene frequencies
         self.gene_freqs = self._load_gene_frequencies()
     

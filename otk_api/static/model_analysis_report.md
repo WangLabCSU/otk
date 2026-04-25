@@ -1,7 +1,7 @@
 # Model Performance Analysis Report
 
-**Generated**: 2026-02-23 22:46:14
-**Total Models**: 7 trained models
+**Generated**: 2026-04-24 21:06:23
+**Total Models**: 9 trained models
 
 ## Abstract
 
@@ -32,7 +32,9 @@ performance metrics including auPRC, AUC, Precision, Recall, and F1-score.
 |-------|--------------|-------------------|---------------|-----------|
 | baseline_mlp | BaselineMLP | 57→128→64→1 | BCEWithLogitsLoss | Adam |
 | deep_residual | DeepResidual | 57→128(ResNet)→1 | BCEWithLogitsLoss | AdamW |
+| dgit_super | DGITSuper | 57→192→Transformer(3 layers)→1 | MultiTaskFocalLoss | AdamW |
 | optimized_residual | OptimizedResidual | 57→128(ResNet)→1 | BCEWithLogitsLoss | AdamW |
+| tabpfn | Ensemble | 57→...→1 | Unknown | Unknown |
 | transformer | Transformer | 57→128(embed)→Transformer(3 layers)→1 | BCEWithLogitsLoss | AdamW |
 | xgb_new | XGBNew | Gradient Boosted Trees (57 features, max_depth=6) | LogLoss (optimizes auPRC) | Gradient Boosting |
 | xgb_paper | XGB11 | Gradient Boosted Trees (57 features, max_depth=4) | LogLoss (optimizes auPRC) | Gradient Boosting |
@@ -46,7 +48,9 @@ performance metrics including auPRC, AUC, Precision, Recall, and F1-score.
 |-------|---------------|--------------|------------|
 | baseline_mlp | 0.001000 | 0.0001 | 4096 |
 | deep_residual | 0.001000 | 0.0100 | 4096 |
+| dgit_super | 0.001000 | 0.0100 | 4096 |
 | optimized_residual | 0.001000 | 0.0100 | 4096 |
+| tabpfn | 0.000000 | 0.0000 | 10000 |
 | transformer | 0.001000 | 0.0100 | 4096 |
 | xgb_tuned | 0.036727 | 6.7108 | 0 |
 
@@ -110,10 +114,12 @@ performance metrics including auPRC, AUC, Precision, Recall, and F1-score.
 | Model | auPRC | AUC | Precision | Recall | Specificity | F1-Score |
 |-------|-------|-----|-----------|--------|-------------|----------|
 | xgb_new | **0.8339** | 0.9980 | 0.6463 | 0.7454 | 0.9985 | 0.6923 |
+| tabpfn | **0.8323** | 0.9971 | 0.7723 | 0.6504 | 0.9993 | 0.7061 |
 | deep_residual | **0.8132** | 0.9953 | 0.9338 | 0.5339 | 0.9999 | 0.6794 |
 | xgb_tuned | **0.8065** | 0.9970 | 0.7900 | 0.7982 | 0.9992 | 0.7941 |
 | optimized_residual | **0.7906** | 0.9962 | 0.8058 | 0.6300 | 0.9994 | 0.7072 |
 | baseline_mlp | **0.7663** | 0.9910 | 0.9777 | 0.4864 | 1.0000 | 0.6497 |
+| dgit_super | **0.7662** | 0.9926 | 0.9768 | 0.4068 | 1.0000 | 0.5744 |
 | xgb_paper | **0.7138** | 0.9566 | 0.8620 | 0.7186 | 0.9996 | 0.7838 |
 | transformer | **0.6875** | 0.9922 | 0.8854 | 0.5268 | 0.9997 | 0.6605 |
 
@@ -125,7 +131,9 @@ performance metrics including auPRC, AUC, Precision, Recall, and F1-score.
 |-------|-------|-----|-----------|--------|-------------|----------|
 | baseline_mlp | 0.9170 | 0.9983 | 0.9624 | 0.7202 | 0.9999 | 0.8239 |
 | deep_residual | 0.8807 | 0.9972 | 0.9599 | 0.5749 | 0.9999 | 0.7191 |
+| dgit_super | 0.8770 | 0.9978 | 0.9867 | 0.5649 | 1.0000 | 0.7185 |
 | optimized_residual | 0.9098 | 0.9984 | 0.9219 | 0.8112 | 0.9998 | 0.8630 |
+| tabpfn | 0.8246 | 0.9953 | 0.8036 | 0.7467 | 0.9994 | 0.7741 |
 | transformer | 0.9503 | 0.9993 | 0.9394 | 0.8473 | 0.9998 | 0.8910 |
 | xgb_new | 0.9519 | 0.9993 | 0.7987 | 0.9299 | 0.9992 | 0.8593 |
 | xgb_paper | 0.8660 | 0.9957 | 0.9171 | 0.7357 | 0.9998 | 0.8164 |
@@ -137,7 +145,9 @@ performance metrics including auPRC, AUC, Precision, Recall, and F1-score.
 |-------|-------|-----|-----------|--------|-------------|----------|
 | baseline_mlp | 0.8005 | 0.9530 | 0.9586 | 0.7169 | 0.9999 | 0.8203 |
 | deep_residual | 0.8121 | 0.9621 | 0.9873 | 0.7067 | 1.0000 | 0.8238 |
+| dgit_super | 0.8340 | 0.9906 | 0.9338 | 0.6984 | 0.9998 | 0.7991 |
 | optimized_residual | 0.8283 | 0.9741 | 0.8955 | 0.7672 | 0.9997 | 0.8264 |
+| tabpfn | 0.8228 | 0.9952 | 0.7360 | 0.8103 | 0.9989 | 0.7714 |
 | transformer | 0.8393 | 0.9934 | 0.9348 | 0.7532 | 0.9998 | 0.8342 |
 | xgb_new | 0.6838 | 0.9914 | 0.6403 | 0.7286 | 0.9985 | 0.6816 |
 | xgb_paper | 0.6395 | 0.9905 | 0.6803 | 0.6497 | 0.9989 | 0.6646 |
@@ -149,7 +159,9 @@ performance metrics including auPRC, AUC, Precision, Recall, and F1-score.
 |-------|-------|-----|-----------|--------|-------------|----------|
 | baseline_mlp | 0.7663 | 0.9910 | 0.9777 | 0.4864 | 1.0000 | 0.6497 |
 | deep_residual | 0.8132 | 0.9953 | 0.9338 | 0.5339 | 0.9999 | 0.6794 |
+| dgit_super | 0.7662 | 0.9926 | 0.9768 | 0.4068 | 1.0000 | 0.5744 |
 | optimized_residual | 0.7906 | 0.9962 | 0.8058 | 0.6300 | 0.9994 | 0.7072 |
+| tabpfn | 0.8323 | 0.9971 | 0.7723 | 0.6504 | 0.9993 | 0.7061 |
 | transformer | 0.6875 | 0.9922 | 0.8854 | 0.5268 | 0.9997 | 0.6605 |
 | xgb_new | 0.8339 | 0.9980 | 0.6463 | 0.7454 | 0.9985 | 0.6923 |
 | xgb_paper | 0.7138 | 0.9566 | 0.8620 | 0.7186 | 0.9996 | 0.7838 |
@@ -171,6 +183,7 @@ A sample is predicted as circular if any gene in the sample is predicted positiv
 | xgb_paper | **0.9913** | 0.9677 | 0.9000 | 1.0000 | 0.8710 | 1.0000 | 0.8710 | 0.9310 | 40 |
 | baseline_mlp | **0.9894** | 0.9642 | 0.8000 | 1.0000 | 0.7419 | 1.0000 | 0.7419 | 0.8519 | 40 |
 | transformer | **0.9891** | 0.9606 | 0.8000 | 1.0000 | 0.7419 | 1.0000 | 0.7419 | 0.8519 | 40 |
+| dgit_super | **0.9686** | 0.8853 | 0.7250 | 1.0000 | 0.6452 | 1.0000 | 0.6452 | 0.7843 | 40 |
 
 ### Validation Set Sample-Level Performance
 
@@ -178,6 +191,7 @@ A sample is predicted as circular if any gene in the sample is predicted positiv
 |-------|-------|-----|----------|-----------|--------|-------------|------------|-----|---------|
 | baseline_mlp | 0.9712 | 0.9004 | 0.8421 | 1.0000 | 0.7931 | 1.0000 | 0.7931 | 0.8846 | 38 |
 | deep_residual | 0.9725 | 0.9042 | 0.8158 | 1.0000 | 0.7586 | 1.0000 | 0.7586 | 0.8627 | 38 |
+| dgit_super | 0.9679 | 0.8889 | 0.7632 | 1.0000 | 0.6897 | 1.0000 | 0.6897 | 0.8163 | 38 |
 | optimized_residual | 0.9856 | 0.9502 | 0.9211 | 0.9643 | 0.9310 | 0.8889 | 0.8199 | 0.9474 | 38 |
 | transformer | 0.9742 | 0.9157 | 0.8684 | 0.9615 | 0.8621 | 0.8889 | 0.7510 | 0.9091 | 38 |
 | xgb_new | 0.9587 | 0.8621 | 0.8158 | 0.8438 | 0.9310 | 0.4444 | 0.3755 | 0.8852 | 38 |
@@ -190,6 +204,7 @@ A sample is predicted as circular if any gene in the sample is predicted positiv
 |-------|-------|-----|----------|-----------|--------|-------------|------------|-----|---------|
 | baseline_mlp | 0.9918 | 0.9732 | 0.8766 | 1.0000 | 0.8376 | 1.0000 | 0.8376 | 0.9116 | 308 |
 | deep_residual | 0.9896 | 0.9652 | 0.8506 | 0.9947 | 0.8077 | 0.9865 | 0.7942 | 0.8915 | 308 |
+| dgit_super | 1.0000 | 1.0000 | 0.8052 | 1.0000 | 0.7436 | 1.0000 | 0.7436 | 0.8529 | 308 |
 | optimized_residual | 0.9900 | 0.9659 | 0.8961 | 0.9810 | 0.8803 | 0.9459 | 0.8263 | 0.9279 | 308 |
 | transformer | 0.9914 | 0.9715 | 0.8896 | 0.9808 | 0.8718 | 0.9459 | 0.8177 | 0.9231 | 308 |
 | xgb_new | 0.9906 | 0.9670 | 0.8864 | 0.9198 | 0.9316 | 0.7432 | 0.6749 | 0.9257 | 308 |
@@ -202,7 +217,9 @@ A sample is predicted as circular if any gene in the sample is predicted positiv
 |-------|---------------------|----------|---------------|------------|
 | baseline_mlp | 0.1165 | ⚠️ medium | 0.0039 | 0.0033 |
 | deep_residual | 0.0686 | ✅ low | -0.0274 | -0.1319 |
+| dgit_super | 0.0430 | ✅ low | 0.0528 | -0.1335 |
 | optimized_residual | 0.0815 | ⚠️ medium | 0.0265 | 0.0440 |
+| tabpfn | 0.0018 | ✅ low | 0.0676 | -0.0636 |
 | transformer | 0.1111 | ⚠️ medium | 0.0046 | 0.0941 |
 | xgb_new | 0.2681 | ❌ high | 0.1583 | 0.2013 |
 | xgb_paper | 0.2265 | ❌ high | 0.2369 | 0.0860 |
@@ -275,6 +292,22 @@ While **auPRC** (Area under Precision-Recall Curve) is the primary optimization 
 
 - **Optimizer**: `AdamW` (lr=0.001, weight_decay=0.01)
 
+### dgit_super
+
+- **Type**: `DGITSuper`
+
+- **Description**: DGITSuper Model
+
+- **Structure**: `57→192→Transformer(3 layers)→1`
+
+- **Key Features**: 
+
+- **Suitable For**: Custom model
+
+- **Loss Function**: `MultiTaskFocalLoss`
+
+- **Optimizer**: `AdamW` (lr=0.001, weight_decay=0.01)
+
 ### optimized_residual
 
 - **Type**: `OptimizedResidual`
@@ -290,6 +323,22 @@ While **auPRC** (Area under Precision-Recall Curve) is the primary optimization 
 - **Loss Function**: `BCEWithLogitsLoss`
 
 - **Optimizer**: `AdamW` (lr=0.001, weight_decay=0.01)
+
+### tabpfn
+
+- **Type**: `Ensemble`
+
+- **Description**: Ensemble Model
+
+- **Structure**: `57→...→1`
+
+- **Key Features**: Multi-model fusion, Weighted voting
+
+- **Suitable For**: Robust prediction, reduced overfitting
+
+- **Loss Function**: `Unknown`
+
+- **Optimizer**: `Unknown` (lr=0.0, weight_decay=0.0)
 
 ### transformer
 
@@ -386,7 +435,7 @@ functions and techniques to handle the gene-level imbalance effectively.
 
 ## Conclusions
 
-Among the 7 models evaluated, **xgb_new** achieved the highest
+Among the 9 models evaluated, **xgb_new** achieved the highest
 gene-level test auPRC of **0.8339**, demonstrating superior performance
 for ecDNA prediction on this challenging imbalanced dataset.
 
@@ -399,7 +448,7 @@ for ecDNA prediction on this challenging imbalanced dataset.
 ### Model Architecture Insights
 
 - **XGBoost vs Neural Networks**: XGBoost models (best: xgb_new, auPRC: 0.8339)
-  outperformed neural network models (best: deep_residual, auPRC: 0.8132)
+  outperformed neural network models (best: tabpfn, auPRC: 0.8323)
   on gene-level prediction, likely due to better handling of tabular data and feature interactions.
 
 - **Sample-Level Detection**: All models achieved >98% sample-level auPRC, indicating
