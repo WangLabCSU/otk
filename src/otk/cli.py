@@ -30,6 +30,31 @@ logger = logging.getLogger(__name__)
 RANDOM_SEED = 2026
 
 
+def get_models_dir() -> Path:
+    """Get models directory from installed package or local development."""
+    # Priority: 1. Environment variable 2. Installed package 3. Local development
+    env_dir = os.environ.get('OTK_MODELS_DIR')
+    if env_dir:
+        return Path(env_dir)
+
+    # Try installed otk_api package
+    try:
+        import otk_api
+        installed_models = Path(otk_api.__file__).parent / 'models'
+        if installed_models.exists():
+            return installed_models
+    except ImportError:
+        pass
+
+    # Try local development path
+    local_models = Path(__file__).parent.parent.parent / 'otk_api' / 'models'
+    if local_models.exists():
+        return local_models
+
+    # Return a default path (may not exist)
+    return local_models
+
+
 def get_device(gpu: int) -> str:
     """Get device based on GPU parameter"""
     if gpu >= 0 and torch.cuda.is_available():
@@ -274,7 +299,7 @@ def predict(input_path: str, output_path: str, model: str,
         sys.exit(1)
     
     # Find model path
-    model_dir = Path(__file__).parent.parent.parent / 'otk_api' / 'models' / model
+    model_dir = get_models_dir() / model
     if not model_dir.exists():
         model_dir = Path(output_path).parent / 'models' / model
     
@@ -317,7 +342,7 @@ def predict(input_path: str, output_path: str, model: str,
 @cli.command()
 def models():
     """List available models."""
-    model_dir = Path(__file__).parent.parent.parent / 'otk_api' / 'models'
+    model_dir = get_models_dir()
     
     if not model_dir.exists():
         click.echo("No models directory found.")
@@ -358,7 +383,7 @@ def analyze(model: str):
     """Analyze a trained model's performance."""
     import yaml
     
-    model_dir = Path(__file__).parent.parent.parent / 'otk_api' / 'models' / model
+    model_dir = get_models_dir() / model
     
     if not model_dir.exists():
         click.echo(f"Error: Model not found: {model}", err=True)
@@ -512,8 +537,15 @@ def download(model: Optional[str], force: bool, list_models: bool, info: bool):
         otk download --model tabpfn --force
     """
     # Import downloader
-    download_dir = Path(__file__).parent.parent.parent / 'otk_api' / 'download'
-    sys.path.insert(0, str(download_dir))
+    try:
+        import otk_api
+        download_dir = Path(otk_api.__file__).parent / 'download'
+    except ImportError:
+        download_dir = Path(__file__).parent.parent.parent / 'otk_api' / 'download'
+
+    # Add download dir to path for importing model_downloader
+    if download_dir.exists():
+        sys.path.insert(0, str(download_dir))
 
     try:
         from model_downloader import (
@@ -563,7 +595,7 @@ def download(model: Optional[str], force: bool, list_models: bool, info: bool):
         click.echo("="*60)
 
         try:
-            model_dir = Path(__file__).parent.parent.parent / 'otk_api' / 'models'
+            model_dir = get_models_dir()
             downloaded_path = download_model(model, base_dir=model_dir, force=force)
             click.echo(f"\n✓ Download completed!")
             click.echo(f"  Model: {model}")
@@ -605,9 +637,21 @@ def api(host: str, port: int, base_path: str, reload: bool, workers: int):
     """
     import subprocess
 
-    # Find the API module
-    api_dir = Path(__file__).parent.parent.parent / 'otk_api' / 'api'
-    main_file = api_dir / 'main.py'
+    # Check if otk_api is installed
+    try:
+        import otk_api
+        import otk_api.api.main
+        api_installed = True
+    except ImportError:
+        api_installed = False
+
+    # For pip installed package, just run uvicorn directly
+    if api_installed:
+        main_file = Path(otk_api.api.main.__file__)
+    else:
+        # For local development, find the API module
+        api_dir = Path(__file__).parent.parent.parent / 'otk_api' / 'api'
+        main_file = api_dir / 'main.py'
 
     if not main_file.exists():
         click.echo(f"Error: API module not found at: {api_dir}", err=True)
@@ -646,8 +690,13 @@ def api(host: str, port: int, base_path: str, reload: bool, workers: int):
 
         if reload:
             cmd.append('--reload')
-            cmd.append('--reload-dir')
-            cmd.append(str(Path(__file__).parent.parent.parent / 'otk_api'))
+            if api_installed:
+                import otk_api
+                cmd.append('--reload-dir')
+                cmd.append(str(Path(otk_api.__file__).parent))
+            else:
+                cmd.append('--reload-dir')
+                cmd.append(str(Path(__file__).parent.parent.parent / 'otk_api'))
 
         if workers > 1 and not reload:
             cmd.extend(['--workers', str(workers)])
