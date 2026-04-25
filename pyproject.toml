@@ -1,5 +1,5 @@
 [project]
-name = "otk"
+name = "otk-ecdna"
 version = "1.0.0"
 description = "ecDNA Analysis Toolkit - Deep learning-based extrachromosomal DNA prediction"
 authors = [
