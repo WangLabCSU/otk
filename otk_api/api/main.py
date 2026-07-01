@@ -229,6 +229,15 @@ def get_footer_html(t, lang):
     </footer>
     '''
 
+def get_lang_switch_html(t, lang, page_url):
+    """Generate language switch + license link HTML"""
+    license_url = get_url("/web/license")
+    return f'''        <div class="lang-switch">
+            <a href="{license_url}?lang={lang}" style="margin: 0 8px; text-decoration: none; padding: 5px 10px; border-radius: 3px; background: #fff3e0; color: #e65100; font-weight: 600; border: 1px solid #ffcc80;">{t.get('nav_license', 'License')}</a>
+            <a href="{page_url}?lang=en" class="{'active' if lang == 'en' else ''}">English</a>
+            <a href="{page_url}?lang=zh" class="{'active' if lang == 'zh' else ''}">中文</a>
+        </div>'''
+
 @app.get("/", response_class=HTMLResponse)
 async def root(lang: str = Query(default="en", description="Language code")):
     t = get_text(lang)
@@ -263,10 +272,7 @@ async def root(lang: str = Query(default="en", description="Language code")):
         </style>
     </head>
     <body>
-        <div class="lang-switch">
-            <a href="{get_url('/')}?lang=en" class="{'active' if lang == 'en' else ''}">English</a>
-            <a href="{get_url('/')}?lang=zh" class="{'active' if lang == 'zh' else ''}">中文</a>
-        </div>
+{get_lang_switch_html(t, lang, get_url('/'))}
         <div class="title-row">
             <h1>OTK Prediction API</h1>
             <div class="project-links">
@@ -844,10 +850,7 @@ async def upload_page(lang: str = Query(default="en", description="Language code
         </style>
     </head>
     <body>
-        <div class="lang-switch">
-            <a href="{get_url('/web/upload')}?lang=en" class="{'active' if lang == 'en' else ''}">English</a>
-            <a href="{get_url('/web/upload')}?lang=zh" class="{'active' if lang == 'zh' else ''}">中文</a>
-        </div>
+{get_lang_switch_html(t, lang, get_url('/web/upload'))}
         <h1>{t['upload_title']}</h1>
         
         {nav}
@@ -1097,10 +1100,7 @@ async def jobs_page(lang: str = Query(default="en", description="Language code")
         </style>
     </head>
     <body>
-        <div class="lang-switch">
-            <a href="{get_url('/web/jobs')}?lang=en" class="{'active' if lang == 'en' else ''}">English</a>
-            <a href="{get_url('/web/jobs')}?lang=zh" class="{'active' if lang == 'zh' else ''}">中文</a>
-        </div>
+{get_lang_switch_html(t, lang, get_url('/web/jobs'))}
         <h1>{t['task_list_title']}</h1>
         
         {nav}
@@ -1206,10 +1206,7 @@ async def stats_page(lang: str = Query(default="en", description="Language code"
         </style>
     </head>
     <body>
-        <div class="lang-switch">
-            <a href="{get_url('/web/stats')}?lang=en" class="{'active' if lang == 'en' else ''}">English</a>
-            <a href="{get_url('/web/stats')}?lang=zh" class="{'active' if lang == 'zh' else ''}">中文</a>
-        </div>
+{get_lang_switch_html(t, lang, get_url('/web/stats'))}
         <h1>{t['stats_title']}</h1>
         
         {nav}
@@ -1343,10 +1340,7 @@ async def models_page(lang: str = Query(default="en", description="Language code
         </style>
     </head>
     <body>
-        <div class="lang-switch">
-            <a href="{get_url('/web/models')}?lang=en" class="{'active' if lang == 'en' else ''}">English</a>
-            <a href="{get_url('/web/models')}?lang=zh" class="{'active' if lang == 'zh' else ''}">中文</a>
-        </div>
+{get_lang_switch_html(t, lang, get_url('/web/models'))}
         <h1>{t['models_title']}</h1>
 
         {nav}
@@ -1405,10 +1399,7 @@ async def docs_page(lang: str = Query(default="en", description="Language code")
         </style>
     </head>
     <body>
-        <div class="lang-switch">
-            <a href="{get_url('/web/docs')}?lang=en" class="{'active' if lang == 'en' else ''}">English</a>
-            <a href="{get_url('/web/docs')}?lang=zh" class="{'active' if lang == 'zh' else ''}">中文</a>
-        </div>
+{get_lang_switch_html(t, lang, get_url('/web/docs'))}
         <h1>{t['docs_title']}</h1>
 
         {nav}
@@ -1416,6 +1407,51 @@ async def docs_page(lang: str = Query(default="en", description="Language code")
         <div class="docs-content">
             {html_content}
         </div>
+
+        {footer}
+    </body>
+    </html>
+    """
+
+@app.get("/web/license", response_class=HTMLResponse)
+async def license_page(lang: str = Query(default="en", description="Language code")):
+    """Render LICENSE file as HTML page"""
+    t = get_text(lang)
+    nav = get_nav_html(t, lang, "license")
+    footer = get_footer_html(t, lang)
+
+    license_path = Path(__file__).parent.parent.parent / "LICENSE"
+    try:
+        with open(license_path, 'r', encoding='utf-8') as f:
+            license_content = f.read()
+    except Exception as e:
+        license_content = f"Error loading license: {e}"
+
+    # Escape HTML special chars for safe rendering in <pre>
+    license_content = license_content.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>{t.get('nav_license', 'License')} - OTK API</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; max-width: 900px; margin: 50px auto; padding: 20px; line-height: 1.6; }}
+            h1 {{ color: #333; border-bottom: 2px solid #2196F3; padding-bottom: 10px; }}
+            pre {{ background: #fafafa; padding: 30px; border-radius: 5px; border: 1px solid #ddd; white-space: pre-wrap; word-wrap: break-word; font-size: 14px; line-height: 1.7; }}
+            .lang-switch {{ position: absolute; top: 20px; right: 20px; }}
+            .lang-switch a {{ margin: 0 5px; text-decoration: none; padding: 5px 10px; border-radius: 3px; }}
+            .lang-switch a.active {{ background: #2196F3; color: white; }}
+            .lang-switch a:not(.active) {{ background: #f0f0f0; color: #333; }}
+        </style>
+    </head>
+    <body>
+        {get_lang_switch_html(t, lang, get_url('/web/license'))}
+        <h1>{t.get('nav_license', 'License')}</h1>
+
+        {nav}
+
+        <pre>{license_content}</pre>
 
         {footer}
     </body>
