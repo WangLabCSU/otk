@@ -1,7 +1,7 @@
 # otk: ecDNA Analysis Toolkit
 
 [![PyPI version](https://badge.fury.io/py/otk-ecdna.svg)](https://pypi.org/project/otk-ecdna/)
-[![PyPI downloads](https://img.shields.io/pypi/dm/otk-ecdna.svg)](https://pypi.org/project/otk-ecdna/)
+[![PyPI downloads](https://static.pepy.tech/badge/otk-ecdna)](https://pepy.tech/projects/otk-ecdna)
 [![License](https://img.shields.io/badge/License-Academic%20Non--Commercial-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.9+-green.svg)](https://www.python.org/)
 
