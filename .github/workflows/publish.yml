@@ -7,9 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write   # Required to push version bump commits and move tags
-  id-token: write   # Required for trusted publishing
-  workflows: write  # Required for GITHUB_TOKEN to push commits containing workflow files
+  id-token: write  # Required for trusted publishing
 
 jobs:
   pypi-publish:
@@ -20,15 +18,10 @@ jobs:
       url: https://pypi.org/p/otk-ecdna
     permissions:
       id-token: write
-      contents: write
-      workflows: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -41,55 +34,22 @@ jobs:
           PKG_VERSION=$(grep '^version = ' pyproject.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
 
           if [ "$TAG_VERSION" = "$PKG_VERSION" ]; then
-            echo "✓ Tag v${TAG_VERSION} already matches package version"
+            echo "✓ Tag v${TAG_VERSION} matches package version"
             exit 0
           fi
 
-          echo "⟳ Syncing version: $PKG_VERSION → $TAG_VERSION"
+          echo "⟳ Syncing version in workspace: $PKG_VERSION → $TAG_VERSION"
+          echo "  (in-place only — repo sources are not modified)"
 
-          # pyproject.toml (primary)
           sed -i "s/^version = \".*\"/version = \"$TAG_VERSION\"/" pyproject.toml
-
-          # src/otk/__init__.py
           sed -i "s/__version__ = \".*\"/__version__ = \"$TAG_VERSION\"/" src/otk/__init__.py
-
-          # otk_api/__init__.py
           sed -i "s/__version__ = \".*\"/__version__ = \"$TAG_VERSION\"/" otk_api/__init__.py
-
-          # otk_api/README.md
           sed -i "s/\*\*Version\*\*: .*/**Version**: $TAG_VERSION/" otk_api/README.md
-
-          # otk_api/api/schemas.py
           sed -i "s/version: str = \".*\"/version: str = \"$TAG_VERSION\"/" otk_api/api/schemas.py
-
-          # otk_api/api/main.py
           sed -i "s/version=\".*\"/version=\"$TAG_VERSION\"/" otk_api/api/main.py
-
-          # setup.py (legacy, keep in sync)
           sed -i "s/version=\".*\"/version=\"$TAG_VERSION\"/" setup.py
 
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          git add \
-            pyproject.toml \
-            src/otk/__init__.py \
-            otk_api/__init__.py \
-            otk_api/README.md \
-            otk_api/api/schemas.py \
-            otk_api/api/main.py \
-            setup.py
-
-          git commit -m "chore: bump version to $TAG_VERSION"
-
-          DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
-          git push origin "HEAD:$DEFAULT_BRANCH"
-
-          # Move tag to the version-bump commit
-          git tag -f "v$TAG_VERSION"
-          git push -f origin "v$TAG_VERSION"
-
-          echo "✓ Version synced and tag moved to bumped commit"
+          echo "✓ Workspace version synced — package will be built as $TAG_VERSION"
 
       - name: Install build dependencies
         run: |
