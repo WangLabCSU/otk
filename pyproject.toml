@@ -5,7 +5,7 @@ description = "ecDNA Analysis Toolkit - Deep learning-based extrachromosomal DNA
 authors = [
     { name = "Shixiang Wang", email = "wangshx@csu.edu.cn" }
 ]
-license = { text = "MIT" }
+license = { text = "Non-Commercial Academic License" }
 readme = "README.md"
 requires-python = ">=3.9"
 keywords = ["ecDNA", "extrachromosomal DNA", "deep learning", "bioinformatics", "cancer"]
@@ -14,7 +14,7 @@ classifiers = [
     "Environment :: Console",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: Free for non-commercial use",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",

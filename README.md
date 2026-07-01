@@ -1,7 +1,8 @@
 # otk: ecDNA Analysis Toolkit
 
 [![PyPI version](https://badge.fury.io/py/otk-ecdna.svg)](https://pypi.org/project/otk-ecdna/)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![PyPI downloads](https://img.shields.io/pypi/dm/otk-ecdna.svg)](https://pypi.org/project/otk-ecdna/)
+[![License](https://img.shields.io/badge/License-Academic%20Non--Commercial-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.9+-green.svg)](https://www.python.org/)
 
 **otk** (ecDNA Analysis Toolkit) is a machine learning toolkit for predicting extrachromosomal DNA (ecDNA) cargo genes. It classifies genes at the gene level (ecDNA cargo vs. non-ecDNA) and identifies focal amplification types at the sample level (nofocal, noncircular, circular/ecDNA).
@@ -267,7 +268,21 @@ in cancer. Nature Communications.
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) file for details.
+This software and associated documentation files (the "Software") are protected by copyright. This Software is provided "as is" (at your own risk) for internal non-commercial academic research purposes only. Please read the [Non-Commercial Academic License](LICENSE) in detail before downloading a copy. By installing or using this Software, you agree to be bound by the terms and conditions of the Non-Commercial Academic License.
+
+All commercial use of the Software or any modification, manipulation or derivative of the Software, including but not limited to transfer, sale or licence to a commercial third party or use on behalf of a commercial third party (including but not limited to use as part of a service supplied to any third party for financial reward) is strictly prohibited and requires a commercial use licence.
+
+### Patent Protection
+
+**This software is protected by the P. R. China patent [202211067952.6](https://www.patentguru.com/cn/search?q=202211067952.6).** The following intellectual property is protected under patent law and is NOT covered by the academic non-commercial license — a separate commercial license is required for any use beyond personal academic research:
+
+- **Software design and architecture**: the overall software architecture design, including the command-line interface (CLI) tool, FastAPI-based prediction service, model management system, configuration generation system, unified data split mechanism, data preprocessing pipeline, training orchestration framework, and prediction utilities.
+- **Modeling methods**: all machine learning and deep learning pipelines for gene-level ecDNA cargo gene prediction and sample-level focal amplification (fCNA) classification, including feature engineering strategies, and all model architectures (XGBoost variants, Transformer, TabPFN ensemble, Deep Residual Networks, Optimized Residual Networks, Deep Gated Interaction Transformer, and MLP baseline models).
+- **Modeling features and approaches**: derived genomic features, copy number variation metrics (segment values, minor copy number, purity, ploidy, AScore, pLOH, CNA burden, intersect ratio), copy number signatures (CN1-CN19), cancer type encoding, and all computational extraction and transformation methods thereof.
+- **Model construction**: all model architectures, training methodologies, hyperparameter configurations, ensemble strategies, custom loss functions, optimization protocols, and model selection procedures.
+- **Model files**: all pre-trained model objects, serialized model binaries (.pkl, .pth), model parameters, model weights, training summaries, configuration files, and any derivative works thereof.
+
+For further information or to obtain a commercial license, please email <wangshx@csu.edu.cn> or <zhaoqi@sysucc.org.cn>.
 
 ## Contact
 
