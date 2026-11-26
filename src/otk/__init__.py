@@ -51,6 +51,7 @@ from .models import (
     create_neural_model,
 )
 from .predict import UnifiedPredictor, predict
+from .preprocessing import predict_input
 from .utils import RANDOM_SEED, set_random_seed
 
 __all__ = [
@@ -76,6 +77,7 @@ __all__ = [
     # Predict
     "UnifiedPredictor",
     "predict",
+    "predict_input",
     # Utils
     "set_random_seed",
     "RANDOM_SEED",

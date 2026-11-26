@@ -94,47 +94,6 @@ otk = "otk.cli:cli"
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-packages = ["otk", "otk.data", "otk.models", "otk.predict", "otk.utils", "otk_api", "otk_api.api"]
-package-dir = { "" = "src", "otk_api" = "otk_api" }
-
-[tool.setuptools.package-data]
-otk = [
-    "data/*.csv.gz",
-    "data/*.csv",
-    "data/*.json",
-]
-otk_api = [
-    "static/*.png",
-    "static/*.md",
-    "models/xgb_new/*.pkl",
-    "models/xgb_new/*.yml",
-    "models/xgb_new/*.csv",
-    "models/xgb_paper/*.pkl",
-    "models/xgb_paper/*.yml",
-    "models/xgb_paper/*.csv",
-    "models/xgb_tuned/*.pkl",
-    "models/xgb_tuned/*.yml",
-    "models/xgb_tuned/*.csv",
-    "models/baseline_mlp/*.pkl",
-    "models/baseline_mlp/*.yml",
-    "models/transformer/*.pkl",
-    "models/transformer/*.yml",
-    "models/deep_residual/*.pkl",
-    "models/deep_residual/*.yml",
-    "models/optimized_residual/*.pkl",
-    "models/optimized_residual/*.yml",
-    "models/dgit_super/*.pkl",
-    "models/dgit_super/*.yml",
-    "models/source_data/*.csv",
-    "models/tabpfn/config.yml",
-    "models/tabpfn/training_summary.yml",
-    "README.md",
-]
-
-[tool.setuptools.exclude-package-data]
-otk_api = ["*.pdf", "models/*.png", "models/*.md"]
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
