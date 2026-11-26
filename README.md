@@ -18,6 +18,9 @@ Based on the paper: Wang, S., et al. (2024). Machine learning-based extrachromos
 - Pre-trained models ready to use after pip install
 - RESTful API for web service deployment
 - Chinese mirror support for large model downloads
+- Copy-number preprocessing for ASCAT, FACETS, and Sequenza results
+
+See [Copy-number preprocessing](#copy-number-preprocessing) for supported inputs and preparation steps.
 
 ## Installation
 
@@ -45,7 +48,7 @@ otk download --model tabpfn
 
 ```bash
 git clone https://github.com/WangLabCSU/otk.git
-cd otk/otk
+cd otk
 pip install -e .
 ```
 
@@ -144,11 +147,204 @@ otk download --model tabpfn
 otk download --model tabpfn --force
 ```
 
+## Copy-number preprocessing
+
+OTK can prepare gene-level prediction inputs from copy-number results generated
+by the R packages [ASCAT](https://github.com/VanLoo-lab/ascat),
+[FACETS](https://github.com/mskcc/facets), and
+[Sequenza](https://cran.r-project.org/package=sequenza). Run the appropriate
+tool separately; OTK does not run the R analyses. ASCAT and FACETS results must
+be exported in the formats described below. Sequenza can produce the required
+files directly.
+
+Place the paired result files in one directory and pass that directory to OTK.
+Only one tool's result family may be present in a directory; files are discovered
+in that directory, not in its subdirectories. Multiple batches or samples of
+the same family may be included.
+
+| Tool | Segment file | Paired sample-parameter file |
+|------|--------------|------------------------------|
+| ASCAT | `<batch>_ascat_segments.csv` | `<batch>_ascat_pp.csv` |
+| FACETS | `<sample>_facets_segments.csv` | `<sample>_facets_pp.csv` |
+| Sequenza | `<sample>_segments.txt` | `<sample>_alternative_solutions.txt` |
+
+The two files in a pair must have exactly the same prefix and be in the same
+directory. Use a unique sample identifier across the input files.
+
+```bash
+otk predict \
+  --input results_dir \
+  --output predictions.csv \
+  --model xgb_new \
+  --gene-build hg38 \
+  --extra-info samples.csv \
+  --overlap 1.0
+```
+
+`--extra-info` is optional. `--gene-build` selects reference coordinates
+(`hg19`, `hg38`, or `mm10`) and defaults to `hg38`; it must match the genome
+assembly used by the upstream analysis. `--overlap` is the minimum
+fraction of a gene covered by a segment, from 0 to 1; the default of 1.0
+requires full gene coverage.
+
+The optional metadata CSV can contain one row per sample, with a `sample`
+column and any of `age`, `gender`, `type`, or one-hot `type_*` columns. Sample
+identifiers must match those in the results. For example:
+
+```csv
+sample,age,gender,type
+sample1,65,XX,LUAD
+sample2,59,XY,BRCA
+```
+
+OTK also accepts an already gene-level `.csv` or `.tsv` file instead of a
+results directory; it is passed through without segment-to-gene annotation.
+See [Input Data Format](#input-data-format) for the required columns and
+other format details.
+For a gene-level file or DataFrame, cancer type information belongs in the
+input itself: `extra_info` must not contain `type` or `type_*` columns.
+
+In Python, `predict_input` also accepts a pandas DataFrame, and `extra_info`
+can be a DataFrame or a CSV path:
+
+```python
+from otk import predict_input
+from otk_preprocess import run_preprocessing_workflow
+
+gene_data = run_preprocessing_workflow(
+    "results_dir", gene_build="hg38", extra_info="samples.csv", overlap=1.0
+)
+predictions = predict_input(
+    "results_dir", model="xgb_new", gene_build="hg38",
+    extra_info="samples.csv", overlap=1.0
+)
+```
+
+`run_preprocessing_workflow` returns gene-level input without running a model.
+
+### Prepare ASCAT files
+
+Follow the [ASCAT instructions](https://github.com/VanLoo-lab/ascat) to install
+the R package and prepare LogR and BAF inputs and suitable correction files
+for the assay and reference assembly. The following illustrates a matched
+tumor/normal analysis; replace the paths and sample sex with your own values:
+
+```r
+library(ascat)
+library(data.table)
+
+ascat_data <- ascat.loadData(
+  Tumor_LogR_file = "Tumor_LogR.txt",
+  Tumor_BAF_file = "Tumor_BAF.txt",
+  Germline_LogR_file = "Germline_LogR.txt",
+  Germline_BAF_file = "Germline_BAF.txt",
+  gender = "XX",
+  genomeVersion = "hg19"
+)
+ascat_data <- ascat.correctLogR(
+  ascat_data,
+  GCcontentfile = "GC_example.txt",
+  replictimingfile = "RT_example.txt"
+)
+ascat_data <- ascat.aspcf(ascat_data)
+ascat_output <- ascat.runAscat(ascat_data, gamma = 1, write_segments = TRUE)
+```
+
+Here `gamma = 1` is for high-throughput sequencing data. For targeted
+sequencing, consult ASCAT's guidance on `isTargetedSeq` and the segmentation
+penalty; provide a gender value for each sample in a batch. ASCAT can export
+separate segment files for each sample. For easier review of large batches, we
+recommend the following export: combine all sample segments in one CSV file and
+save their purity and ploidy in a paired CSV file.
+
+```r
+dir.create("ascat_results", showWarnings = FALSE)
+fwrite(as.data.table(ascat_output$segments),
+       "ascat_results/batch1_ascat_segments.csv")
+
+sample_ids <- names(ascat_output$purity)
+purity_ploidy <- data.table(
+  sample = sample_ids,
+  purity = as.numeric(ascat_output$purity[sample_ids]),
+  ploidy = as.numeric(ascat_output$ploidy[sample_ids])
+)
+fwrite(purity_ploidy, "ascat_results/batch1_ascat_pp.csv")
+```
+
+The segments CSV must have `sample`, `chr`, `startpos`, `endpos`, `nMajor`,
+and `nMinor` columns. The parameter CSV must have `sample`, `purity`, and
+`ploidy`. A pair may contain multiple samples, but both files must contain
+the same sample IDs; each sample must occur only once in the parameter file
+and in only one batch. Inspect failed ASCAT fits before exporting.
+
+### Prepare FACETS files
+
+Install FACETS and its required `pctGCdata` package as described in the
+[FACETS repository](https://github.com/mskcc/facets). The following example
+uses the `data.table` R package for CSV export. First generate a `snp-pileup`
+input according to the FACETS documentation, then analyze one tumor/normal
+pair:
+
+```r
+library(facets)
+library(pctGCdata)
+library(data.table)
+
+rcmat <- readSnpMatrix("sample1.snp_pileup.csv.gz")
+preprocessed <- preProcSample(rcmat, gbuild = "hg38")
+segmented <- procSample(preprocessed, cval = 300)
+fit <- emcncf(segmented)
+```
+
+Choose the genome build and FACETS parameters for your data. After reviewing
+the fit, export one pair of files per sample:
+
+```r
+dir.create("facets_results", showWarnings = FALSE)
+segments <- as.data.table(fit$cncf)[
+  , c("chrom", "start", "end", "tcn.em", "lcn.em"), with = FALSE
+]
+segments <- segments[end > start]
+fwrite(segments, "facets_results/sample1_facets_segments.csv")
+fwrite(data.table(purity = fit$purity, ploidy = fit$ploidy),
+       "facets_results/sample1_facets_pp.csv")
+```
+
+The segment file requires `chrom`, `start`, `end`, `tcn.em`, and `lcn.em`.
+The parameter file requires `purity` and `ploidy` and exactly one data row.
+OTK derives the sample ID from the filename prefix (`sample1` in this example).
+
+### Prepare Sequenza files
+
+Use the [Sequenza package documentation and vignette](https://cran.r-project.org/package=sequenza)
+to prepare a `.seqz` file, including the appropriate reference assembly and
+GC information. For example, after producing a `sample1.seqz.gz` file:
+
+```r
+library(sequenza)
+
+sequenza_data <- sequenza.extract("sample1.seqz.gz", assembly = "hg19")
+fit <- sequenza.fit(sequenza_data)
+dir.create("sequenza_results", showWarnings = FALSE)
+sequenza.results(
+  sequenza_data, cp.table = fit,
+  sample.id = "sample1", out.dir = "sequenza_results"
+)
+```
+
+Review the fit and adjust analysis parameters, including sample sex, as
+appropriate. `sequenza.results` generates the two tab-separated files OTK
+requires: `sample1_segments.txt` and `sample1_alternative_solutions.txt`.
+The former must contain `chromosome`, `start.pos`, `end.pos`, `CNt`, and `B`.
+OTK uses the  alternative-solutions file to get purity and ploidy, respectively. 
+The filename prefix is the sample ID.
+
 ## Data Format
 
 ### Input Data Format
 
-Input data should be in CSV format.
+Already gene-level input data should be in CSV or TSV format. For copy-number
+result directories, see [Copy-number preprocessing](#copy-number-preprocessing).
 
 **Minimal required columns:**
 
@@ -242,17 +438,22 @@ See [otk_api/README.md](otk_api/README.md) for full API documentation.
 
 ```
 otk/
-├── src/otk/           # Core library
-│   ├── data/          # Data handling
-│   ├── models/        # Model implementations
-│   ├── predict/       # Prediction utilities
-│   └── cli.py         # Command-line interface
-├── otk_api/           # FastAPI web service
-│   ├── api/           # API implementation
-│   ├── models/        # Pre-trained models
-│   └── static/        # Performance charts
-├── configs/           # Model configurations
-└── tests/             # Unit tests
+├── src/
+│   ├── otk/                # Core library
+│   │   ├── data/           # Data handling
+│   │   ├── models/         # Model implementations
+│   │   ├── predict/        # Prediction utilities
+│   │   └── cli.py          # Command-line interface
+│   └── otk_preprocess/     # Copy-number preprocessing
+│       ├── annotation/     # Gene annotation and reference data
+│       ├── readers/        # ASCAT, FACETS, Sequenza and generic readers
+│       └── workflow.py     # Input routing and preprocessing
+├── otk_api/                # FastAPI web service
+│   ├── api/                # API implementation
+│   ├── models/             # Pre-trained models
+│   └── static/             # Performance charts
+├── configs/                # Model configurations
+└── tests/                  # Unit tests
 ```
 
 ## Citation

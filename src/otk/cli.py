@@ -277,7 +277,7 @@ def train(model: Optional[str], train_all: bool, parallel: bool,
 
 @cli.command()
 @click.option('--input', '-i', 'input_path', type=str, required=True,
-              help='Input CSV file path')
+              help='Input CSV file or copy-number result directory')
 @click.option('--output', '-o', 'output_path', type=str, required=True,
               help='Output file or directory path')
 @click.option('--model', '-m', type=str, default='xgb_new',
@@ -286,43 +286,28 @@ def train(model: Optional[str], train_all: bool, parallel: bool,
               help='GPU device ID (default: -1 for CPU)')
 @click.option('--threshold', '-t', type=float, default=None,
               help='Prediction threshold (default: use model optimal threshold)')
+@click.option('--gene-build', type=click.Choice(['hg19', 'hg38', 'mm10']), default='hg38',
+                            show_default=True, help='Reference genome for gene annotation')
+@click.option('--extra-info', type=click.Path(exists=True, dir_okay=False, path_type=Path),
+                            default=None, help='Optional CSV with sample metadata')
+@click.option('--overlap', type=click.FloatRange(0, 1), default=1.0,
+                            show_default=True, help='Minimum fraction of a gene covered by a segment')
 def predict(input_path: str, output_path: str, model: str, 
-            gpu: int, threshold: Optional[float]):
+                        gpu: int, threshold: Optional[float], gene_build: str,
+                        extra_info: Optional[Path], overlap: float):
     """Run prediction using trained model.
     
     Examples:
         otk predict --input data.csv --output predictions.csv --model xgb_new
         otk predict -i data.csv -o results/ -m transformer --gpu 0
     """
-    from otk.predict.predictor import UnifiedPredictor
-    import pandas as pd
+    from otk.preprocessing import predict_input
     
     input_file = Path(input_path)
     if not input_file.exists():
         click.echo(f"Error: Input file not found: {input_path}", err=True)
         sys.exit(1)
     
-    # Find model path
-    model_dir = get_models_dir() / model
-    if not model_dir.exists():
-        model_dir = Path(output_path).parent / 'models' / model
-    
-    model_file = model_dir / 'best_model.pkl'
-    if not model_file.exists():
-        model_file = model_dir / 'best_model.pth'
-    
-    if not model_file.exists():
-        click.echo(f"Error: Model not found: {model}", err=True)
-        click.echo(f"Looked in: {model_dir}", err=True)
-        sys.exit(1)
-    
-    logger.info(f"Loading model from: {model_file}")
-    predictor = UnifiedPredictor(str(model_file), gpu=gpu)
-    
-    if threshold is not None:
-        predictor.optimal_threshold = threshold
-    
-    # Run prediction
     output_file = Path(output_path)
     if output_file.suffix == '':
         output_file = output_file / 'predictions.csv'
@@ -330,7 +315,11 @@ def predict(input_path: str, output_path: str, model: str,
     output_file.parent.mkdir(parents=True, exist_ok=True)
     
     logger.info(f"Running prediction on: {input_file}")
-    results = predictor.run(str(input_file), str(output_file))
+    try:
+        results = predict_input(input_file, output_file, model, gene_build, extra_info,
+                                overlap, gpu, threshold)
+    except (ValueError, TypeError, OSError) as exc:
+        raise click.ClickException(str(exc)) from exc
     
     logger.info(f"Predictions saved to: {output_file}")
     

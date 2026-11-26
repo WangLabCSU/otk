@@ -354,8 +354,7 @@ class UnifiedPredictor:
         # Find project root: otk/otk/otk_api -> otk/otk
         current = Path(__file__).resolve()
         # otk/predict/predictor.py -> otk/src/otk -> otk/src -> otk
-        project_root = current.parent.parent.parent.parent
-        gene_freq_path = project_root / 'src' / 'otk' / 'data' / 'gene_frequencies.csv'
+        gene_freq_path = current.parent.parent / 'data' / 'gene_frequencies.csv'
         
         if gene_freq_path.exists():
             gene_freqs = pd.read_csv(gene_freq_path)
