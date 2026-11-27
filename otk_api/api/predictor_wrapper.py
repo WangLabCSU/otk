@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 
@@ -5,7 +6,6 @@ api_dir = Path(__file__).parent
 otk_src_path = api_dir.parent.parent.parent / "src"
 sys.path.insert(0, str(otk_src_path))
 
-import torch
 import pandas as pd
 import numpy as np
 from typing import Dict, Any, Optional
@@ -15,6 +15,18 @@ import traceback
 
 from otk.predict.predictor import Predictor
 from .config import DEFAULT_COLUMN_VALUES
+
+
+def _torch():
+    """Import torch lazily.
+
+    The prediction wrapper only needs torch for CUDA cache/telemetry. Importing
+    it eagerly at module scope would load a second OpenMP (libomp) runtime
+    alongside xgboost and segfault the API server on macOS.
+    """
+    import torch
+
+    return torch
 
 # Setup logging with file handler
 logs_dir = api_dir.parent / "logs"
@@ -143,8 +155,113 @@ class PredictorWrapper:
     
     def cleanup(self):
         if self.device_type == "cuda":
-            torch.cuda.empty_cache()
+            _torch().cuda.empty_cache()
         logger.info("Predictor cleanup completed")
+
+
+def _run_prediction_in_subprocess(
+    job_id: str,
+    input_path: str,
+    output_dir: str,
+    model_path: str,
+    device_type: str,
+    gpu_id: Optional[int],
+) -> Optional[Dict[str, Any]]:
+    """Run a prediction job in a fresh interpreter, returning its result.
+
+    The API server is long-lived: if it served an XGBoost model and then a torch
+    model (or vice versa) in the same process, two OpenMP (libomp) runtimes
+    would end up loaded together and the process would hang/segfault on macOS.
+    Isolating every job in its own process guarantees a job only ever loads the
+    single backend its model needs.
+
+    Returns ``None`` only when the worker could not be launched at all (for
+    example an unavailable interpreter), so the caller can fall back to
+    in-process execution. A worker that starts but crashes returns an error
+    result instead.
+    """
+    import json
+    import subprocess
+    import tempfile
+
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as handle:
+        result_file = handle.name
+
+    cmd = [
+        sys.executable, "-m", "otk_api.api.predict_worker",
+        "--job-id", job_id,
+        "--input", str(input_path),
+        "--output-dir", str(output_dir),
+        "--model", str(model_path),
+        "--device-type", device_type,
+        "--result-file", result_file,
+    ]
+    if gpu_id is not None:
+        cmd.extend(["--gpu-id", str(gpu_id)])
+
+    env = os.environ.copy()
+    env.setdefault("OTK_MODELS_DIR", str(Path(model_path).parent.parent))
+
+    # Make ``otk_api`` (repo root) and ``otk`` (src layout) importable in the
+    # child regardless of the server's working directory.
+    repo_root = api_dir.parent.parent
+    python_path = [str(repo_root), str(repo_root / "src")]
+    if env.get("PYTHONPATH"):
+        python_path.append(env["PYTHONPATH"])
+    env["PYTHONPATH"] = os.pathsep.join(python_path)
+
+    try:
+        from .config import JOB_TIMEOUT
+    except Exception:
+        JOB_TIMEOUT = 7200
+
+    logger.info(f"Running prediction job in subprocess: {' '.join(cmd)}")
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=JOB_TIMEOUT)
+    except OSError as exc:
+        logger.warning(f"Could not launch prediction subprocess: {exc}")
+        try:
+            Path(result_file).unlink()
+        except OSError:
+            pass
+        return None
+    except subprocess.TimeoutExpired:
+        logger.error(f"Prediction subprocess for job {job_id} timed out after {JOB_TIMEOUT}s")
+        try:
+            Path(result_file).unlink()
+        except OSError:
+            pass
+        return {
+            "success": False,
+            "job_id": job_id,
+            "error": f"Prediction timed out after {JOB_TIMEOUT}s",
+        }
+
+    try:
+        payload = json.loads(Path(result_file).read_text())
+    except (OSError, json.JSONDecodeError):
+        logger.error(
+            f"Prediction subprocess did not produce a result file "
+            f"(exit {proc.returncode}).\nstdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+        )
+        return {
+            "success": False,
+            "job_id": job_id,
+            "error": f"Prediction subprocess failed (exit {proc.returncode})",
+            "error_trace": proc.stderr,
+        }
+    finally:
+        try:
+            Path(result_file).unlink()
+        except OSError:
+            pass
+
+    if not payload.get("success"):
+        logger.error(f"Prediction subprocess reported failure: {payload.get('error')}")
+        if payload.get("error_trace"):
+            logger.debug(payload["error_trace"])
+    return payload
+
 
 def run_prediction_job(
     job_id: str,
@@ -156,19 +273,34 @@ def run_prediction_job(
 ) -> Dict[str, Any]:
     """Run prediction job and return results"""
     job_start_time = time.time()
-    
+
     logger.info("=" * 60)
     logger.info(f"Starting prediction job {job_id}")
     logger.info(f"Input path: {input_path}")
     logger.info(f"Output directory: {output_dir}")
     logger.info(f"Model: {model_path}")
     logger.info(f"Device: {device_type}, GPU: {gpu_id}")
-    logger.info(f"PyTorch version: {torch.__version__}")
-    logger.info(f"CUDA available: {torch.cuda.is_available()}")
-    if torch.cuda.is_available():
-        logger.info(f"CUDA version: {torch.version.cuda}")
-        logger.info(f"GPU count: {torch.cuda.device_count()}")
     logger.info("=" * 60)
+
+    # Prefer an isolated subprocess: see _run_prediction_in_subprocess.
+    subprocess_result = _run_prediction_in_subprocess(
+        job_id, input_path, output_dir, model_path, device_type, gpu_id
+    )
+    if subprocess_result is not None:
+        subprocess_result["total_time"] = time.time() - job_start_time
+        if subprocess_result.get("success"):
+            logger.info(f"Job {job_id} completed successfully in a subprocess")
+        return subprocess_result
+
+    logger.warning("Falling back to in-process prediction execution")
+
+    if device_type == "cuda":
+        torch = _torch()
+        logger.info(f"PyTorch version: {torch.__version__}")
+        logger.info(f"CUDA available: {torch.cuda.is_available()}")
+        if torch.cuda.is_available():
+            logger.info(f"CUDA version: {torch.version.cuda}")
+            logger.info(f"GPU count: {torch.cuda.device_count()}")
     
     try:
         # Fill missing columns with default values before prediction

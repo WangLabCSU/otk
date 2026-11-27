@@ -19,8 +19,6 @@ from typing import Optional
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'src'))
 
-import torch
-
 from otk import __version__
 
 logging.basicConfig(
@@ -60,7 +58,14 @@ def get_models_dir() -> Path:
 
 
 def get_device(gpu: int) -> str:
-    """Get device based on GPU parameter"""
+    """Get device based on GPU parameter.
+
+    Torch is imported lazily: it is only needed for training/inference on
+    neural models. Importing it eagerly would load a second OpenMP (libomp)
+    runtime alongside xgboost in XGBoost-only commands and crash on macOS.
+    """
+    import torch
+
     if gpu >= 0 and torch.cuda.is_available():
         device = f'cuda:{gpu}'
         logger.info(f"Using GPU: {gpu} ({torch.cuda.get_device_name(gpu)})")
@@ -109,12 +114,30 @@ def train(model: Optional[str], train_all: bool, parallel: bool,
     """
     from otk.data.data_split import load_split
     from otk.models.base_model import ModelTrainer
-    from otk.models.xgb11_model import XGB11Model, XGBNewModel
-    from otk.models.neural_models import create_neural_model
-    from otk.models.tabpfn_model import TabPFNModel
-    import multiprocessing as mp
     import time
+
+    # Backend imports are deferred to the point of use so a run only loads one
+    # OpenMP runtime: importing both xgboost and torch in one process segfaults
+    # on macOS.
+    def _load_xgb_models():
+        from otk.models.xgb11_model import XGB11Model, XGBNewModel
+        return XGB11Model, XGBNewModel
+
+    def _load_neural_builder():
+        from otk.models.neural_models import create_neural_model
+        return create_neural_model
+
+    def _load_tabpfn_model():
+        from otk.models.tabpfn_model import TabPFNModel
+        return TabPFNModel
     
+    def _model_name_for(mtype, mname):
+        if mtype == 'xgb':
+            return f'xgb_{mname}'
+        if mtype == 'tabpfn':
+            return 'tabpfn'
+        return mname
+
     all_models = [
         ('xgb', 'new'),
         ('xgb', 'paper'),
@@ -126,49 +149,12 @@ def train(model: Optional[str], train_all: bool, parallel: bool,
         ('tabpfn', None),
     ]
     
-    def train_single_model(model_info: dict) -> dict:
-        """Train a single model (used for parallel execution)"""
-        model_type = model_info['type']
-        model_name = model_info['name']
-        device = model_info['device']
-        output_dir = model_info['output_dir']
-        
-        logger.info(f"Starting training: {model_name} on {device}")
-        start_time = time.time()
-        
-        try:
-            train_df, val_df, test_df = load_split()
-            
-            if model_type == 'xgb':
-                if model_name == 'xgb_paper':
-                    mdl = XGB11Model()
-                else:
-                    mdl = XGBNewModel()
-            elif model_type == 'tabpfn':
-                mdl = TabPFNModel(n_estimators=5, max_samples_per_estimator=5000, device=device)
-            else:
-                mdl = create_neural_model(model_name, device=device)
-            
-            trainer = ModelTrainer(mdl, output_dir, model_name)
-            results = trainer.train(train_df, val_df, test_df)
-            
-            elapsed = time.time() - start_time
-            logger.info(f"Completed {model_name} in {elapsed:.1f}s")
-            
-            return {'model': model_name, 'status': 'success', 'results': results, 'time': elapsed}
-        
-        except Exception as e:
-            elapsed = time.time() - start_time
-            logger.error(f"Failed to train {model_name}: {e}")
-            import traceback
-            traceback.print_exc()
-            return {'model': model_name, 'status': 'failed', 'error': str(e), 'time': elapsed}
-    
     def train_xgb_model(model_type: str, output_dir: str, device: str):
         """Train XGB model"""
         logger.info(f"Training XGB model: {model_type} on {device}")
         train_df, val_df, test_df = load_split()
-        
+
+        XGB11Model, XGBNewModel = _load_xgb_models()
         if model_type == 'paper':
             mdl = XGB11Model()
         else:
@@ -181,7 +167,8 @@ def train(model: Optional[str], train_all: bool, parallel: bool,
         """Train Neural Network model"""
         logger.info(f"Training Neural model: {model_name} on {device}")
         train_df, val_df, test_df = load_split()
-        
+
+        create_neural_model = _load_neural_builder()
         mdl = create_neural_model(model_name, device=device)
         trainer = ModelTrainer(mdl, f'{output}/{model_name}', model_name)
         return trainer.train(train_df, val_df, test_df)
@@ -190,55 +177,75 @@ def train(model: Optional[str], train_all: bool, parallel: bool,
         """Train TabPFN model"""
         logger.info(f"Training TabPFN model on {device}")
         train_df, val_df, test_df = load_split()
-        
+
+        TabPFNModel = _load_tabpfn_model()
         mdl = TabPFNModel(n_estimators=5, max_samples_per_estimator=5000, device=device)
         trainer = ModelTrainer(mdl, f'{output}/tabpfn', 'tabpfn')
         return trainer.train(train_df, val_df, test_df)
     
     def run_parallel_training(models, gpu_list, log_directory):
-        """Run parallel training on multiple GPUs"""
+        """Run parallel training on multiple GPUs.
+
+        Each model is trained in its own subprocess so xgboost and torch never
+        share an interpreter (two OpenMP runtimes in one process segfault on
+        macOS), even when the same worker would otherwise handle both kinds.
+        """
         logger.info(f"Starting parallel training on GPUs: {gpu_list}")
-        
+
         Path(log_directory).mkdir(parents=True, exist_ok=True)
-        
-        model_infos = []
-        for i, (mtype, mname) in enumerate(models):
-            gpu_id = gpu_list[i % len(gpu_list)]
+
+        import subprocess
+
+        concurrency = max(1, min(len(models), len(gpu_list) * 2))
+        logger.info(f"Running {len(models)} models with up to {concurrency} parallel subprocesses")
+
+        pending = list(enumerate(models))
+        running = []  # (index, name, device, Popen)
+        results = [None] * len(models)
+
+        def _launch(index, mtype, mname):
+            gpu_id = gpu_list[index % len(gpu_list)]
             device = f'cuda:{gpu_id}' if gpu_id >= 0 else 'cpu'
-            
-            if mtype == 'xgb':
-                out_dir = f'{output}/xgb_{mname}'
-                name = f'xgb_{mname}'
-            elif mtype == 'tabpfn':
-                out_dir = f'{output}/tabpfn'
-                name = 'tabpfn'
-            else:
-                out_dir = f'{output}/{mname}'
-                name = mname
-            
-            model_infos.append({
-                'type': mtype,
-                'name': name,
-                'device': device,
-                'output_dir': out_dir,
-            })
-        
-        n_processes = min(len(models), len(gpu_list) * 2)
-        logger.info(f"Running {len(models)} models with {n_processes} parallel processes")
-        
-        with mp.Pool(processes=n_processes) as pool:
-            results = pool.map(train_single_model, model_infos)
-        
+            model_name = _model_name_for(mtype, mname)
+            log_path = Path(log_directory) / f'{model_name}.log'
+            log_handle = open(log_path, 'w')
+            cmd = [sys.executable, '-m', 'otk.cli', 'train',
+                   '--model', model_name, '--gpu', str(gpu_id), '--output', output]
+            proc = subprocess.Popen(cmd, stdout=log_handle, stderr=subprocess.STDOUT)
+            logger.info(f"  [{model_name}] launched on {device} (pid {proc.pid}), log: {log_path}")
+            return (index, model_name, device, proc, log_handle)
+
+        while pending or running:
+            while pending and len(running) < concurrency:
+                index, (mtype, mname) = pending.pop(0)
+                running.append(_launch(index, mtype, mname))
+
+            still_running = []
+            for index, model_name, device, proc, log_handle in running:
+                rc = proc.poll()
+                if rc is None:
+                    still_running.append((index, model_name, device, proc, log_handle))
+                    continue
+                log_handle.close()
+                if rc == 0:
+                    results[index] = {'model': model_name, 'status': 'success'}
+                else:
+                    results[index] = {'model': model_name, 'status': 'failed',
+                                      'error': f'exit {rc}'}
+            running = still_running
+            if running:
+                time.sleep(1)
+
         logger.info("\n" + "="*60)
         logger.info("PARALLEL TRAINING SUMMARY")
         logger.info("="*60)
-        
+
         for r in results:
             if r['status'] == 'success':
-                logger.info(f"  {r['model']}: SUCCESS in {r['time']:.1f}s")
+                logger.info(f"  {r['model']}: SUCCESS")
             else:
                 logger.info(f"  {r['model']}: FAILED - {r.get('error', 'Unknown error')}")
-        
+
         return results
     
     # Execute training
@@ -247,28 +254,37 @@ def train(model: Optional[str], train_all: bool, parallel: bool,
         run_parallel_training(all_models, gpu_list, log_dir)
     
     elif train_all:
-        device = get_device(gpu)
+        # Train each model in its own subprocess so xgboost and torch never
+        # share a process (dual OpenMP runtimes segfault on macOS).
+        import subprocess
+
+        failures = []
         for mtype, mname in all_models:
-            try:
-                if mtype == 'xgb':
-                    train_xgb_model(mname, f'{output}/xgb_{mname}', device)
-                elif mtype == 'tabpfn':
-                    train_tabpfn_model(device)
-                else:
-                    train_neural_model(mname, device)
-            except Exception as e:
-                logger.error(f"Failed to train {mname or mtype}: {e}")
-                import traceback
-                traceback.print_exc()
+            model_name = _model_name_for(mtype, mname)
+            cmd = [sys.executable, '-m', 'otk.cli', 'train',
+                   '--model', model_name, '--gpu', str(gpu), '--output', output]
+            logger.info(f"Launching subprocess: {' '.join(cmd)}")
+            rc = subprocess.run(cmd).returncode
+            if rc != 0:
+                logger.error(f"Model {model_name} training failed (exit {rc})")
+                failures.append(model_name)
+
+        if failures:
+            click.echo(f"\nTraining failed for: {', '.join(failures)}", err=True)
+            sys.exit(1)
     
     elif model:
-        device = get_device(gpu)
         if model == 'tabpfn':
+            device = get_device(gpu)
             train_tabpfn_model(device)
         elif model.startswith('xgb_'):
+            # XGBoost does not use a torch device; resolving one would import
+            # torch and mix OpenMP runtimes (segfault on macOS).
+            device = 'cpu'
             model_type = model.split('_')[1]
             train_xgb_model(model_type, f'{output}/{model}', device)
         else:
+            device = get_device(gpu)
             train_neural_model(model, device)
     else:
         click.echo("Please specify --model or --all. Use --help for more information.")

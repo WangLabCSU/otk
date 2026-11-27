@@ -8,7 +8,6 @@ Unified prediction interface for all model types:
 - TabPFN model (with auto-download support for large file)
 """
 
-import torch
 import pandas as pd
 import numpy as np
 import os
@@ -16,8 +15,32 @@ import yaml
 import pickle
 import logging
 from tqdm import tqdm
-from torch.utils.data import Dataset, DataLoader
 from pathlib import Path
+
+# torch is imported lazily. On macOS both torch and xgboost bundle their own
+# OpenMP (libomp) runtime; loading two OpenMP runtimes into one process and
+# running heavy compute in both corrupts memory and segfaults. XGBoost and
+# TabPFN prediction must therefore never import torch, so it is resolved on
+# demand inside the neural-network code paths only.
+
+
+def _torch():
+    """Import and return the torch module on first neural-network use."""
+    import torch
+
+    return torch
+
+
+def _is_torch_archive(path: Path) -> bool:
+    """Return True when a ``.pkl`` is a ``torch.save`` zip archive.
+
+    ``torch.save`` writes a zip container (starting with ``b'PK'``), whereas a
+    plain pickle such as an XGBoost or TabPFN model starts with the pickle
+    protocol opcode ``b'\\x80'``. Sniffing the magic bytes lets XGBoost/TabPFN
+    models load without importing torch at all.
+    """
+    with open(path, "rb") as handle:
+        return handle.read(2) == b"PK"
 
 logger = logging.getLogger(__name__)
 
@@ -82,13 +105,22 @@ def _ensure_model_file(model_path: Path, auto_download: bool = True) -> Path:
     raise FileNotFoundError(f"Model not found: {model_path}")
 
 
-class PredictionDataset(Dataset):
+class PredictionDataset:
+    """Lightweight feature dataset used for neural inference.
+
+    This intentionally does not subclass ``torch.utils.data.Dataset``: the base
+    class would force an eager ``import torch`` at module import time, which on
+    macOS pulls a second OpenMP runtime into xgboost-only processes. The object
+    is duck-typed and works directly with ``DataLoader``.
+    """
+
     def __init__(self, features):
+        torch = _torch()
         self.features = torch.tensor(features, dtype=torch.float32)
-    
+
     def __len__(self):
         return len(self.features)
-    
+
     def __getitem__(self, idx):
         return self.features[idx]
 
@@ -129,14 +161,7 @@ class UnifiedPredictor:
         self.model = None
         self.model_type = None
         self.config = None
-
-        # Set device
-        if torch.cuda.is_available() and gpu >= 0:
-            self.device = torch.device(f'cuda:{gpu}')
-            logger.info(f"Using GPU: {gpu}")
-        else:
-            self.device = torch.device('cpu')
-            logger.info("Using CPU")
+        self._device = None
 
         # Ensure model file exists (auto-download for large models)
         self.model_path = _ensure_model_file(self.model_path, auto_download)
@@ -146,6 +171,24 @@ class UnifiedPredictor:
 
         # Load gene frequencies
         self.gene_freqs = self._load_gene_frequencies()
+
+    @property
+    def device(self):
+        """Resolve the torch device lazily.
+
+        XGBoost and TabPFN prediction never touch ``self.device``, so resolving
+        it on demand keeps torch (and its OpenMP runtime) out of those
+        processes entirely.
+        """
+        if self._device is None:
+            torch = _torch()
+            if torch.cuda.is_available() and self.gpu >= 0:
+                self._device = torch.device(f'cuda:{self.gpu}')
+                logger.info(f"Using GPU: {self.gpu}")
+            else:
+                self._device = torch.device('cpu')
+                logger.info("Using CPU")
+        return self._device
     
     def _load_model(self):
         """Load model based on file extension and path"""
@@ -163,7 +206,7 @@ class UnifiedPredictor:
             self.model_type = 'neural'
             self._load_neural_model()
         elif model_file.endswith('.pkl'):
-            # Could be XGBoost or TabPFN
+            # Could be XGBoost, TabPFN, or a neural checkpoint
             self._load_pickle_model()
         else:
             raise ValueError(f"Unknown model format: {model_file}")
@@ -217,73 +260,39 @@ class UnifiedPredictor:
     
     def _load_neural_model(self):
         """Load neural network model from checkpoint"""
+        torch = _torch()
         checkpoint = torch.load(self.model_path, map_location=self.device)
-        
+
         self.optimal_threshold = checkpoint.get('optimal_threshold', 0.5)
         if self.optimal_threshold is not None:
             self.optimal_threshold = float(self.optimal_threshold)
-        
+
         # Try to determine model architecture from config
         config = checkpoint.get('config', {})
         model_type = config.get('model', {}).get('architecture', {}).get('type', 'Baseline')
-        
+
         # Build model
         self.model = self._build_neural_model(model_type, config)
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.model.to(self.device)
         self.model.eval()
-        
+
         logger.info(f"Neural model loaded, type: {model_type}, threshold: {self.optimal_threshold:.4f}")
     
     def _load_pickle_model(self):
         """Load model from pickle file (auto-detect type)"""
-        import torch
-        
-        # Try torch.load first (for PyTorch models saved as .pkl)
-        try:
-            data = torch.load(self.model_path, map_location=self.device, weights_only=False)
-            
-            # Check if it's a neural network model
-            if isinstance(data, dict) and ('model_state' in data or 'model_state_dict' in data):
-                self.model_type = 'neural'
-                self.optimal_threshold = float(data.get('optimal_threshold', 0.5))
-                
-                # Load full config from config.yml
-                config_path = self.model_path.parent / 'config.yml'
-                if config_path.exists():
-                    with open(config_path, 'r') as f:
-                        full_config = yaml.safe_load(f)
-                else:
-                    full_config = data.get('config', {})
-                
-                # Get model type from config
-                model_type = full_config.get('model', {}).get('variant', 'BaselineMLP')
-                
-                # Build model architecture and load state dict
-                self.model = self._build_neural_model(model_type, full_config)
-                state_dict = data.get('model_state', data.get('model_state_dict'))
-                self.model.load_state_dict(state_dict)
-                self.model.to(self.device)
-                self.model.eval()
-                
-                logger.info(f"Loaded neural model from pickle (via torch.load), type: {model_type}")
-                return
-            elif isinstance(data, dict) and 'models' in data:
-                # TabPFN
-                self.model_type = 'tabpfn'
-                self.model = data['models']
-                self.optimal_threshold = float(data.get('optimal_threshold', 0.5))
-                logger.info(f"Loaded TabPFN model from pickle")
-                return
-        except Exception as e:
-            logger.warning(f"torch.load failed: {e}, trying pickle.load")
-            import traceback
-            logger.debug(f"torch.load traceback:\n{traceback.format_exc()}")
-        
-        # Fall back to pickle.load for XGBoost models
+        # ``.pkl`` files come in two flavours: a ``torch.save`` zip archive
+        # (neural checkpoints) and a plain pickle (XGBoost / TabPFN). Sniff the
+        # magic bytes so the plain-pickle path never imports torch, which would
+        # otherwise load a second OpenMP runtime alongside xgboost and corrupt
+        # memory on macOS.
+        if _is_torch_archive(self.model_path):
+            self._load_torch_pickle_model()
+            return
+
         with open(self.model_path, 'rb') as f:
             data = pickle.load(f)
-        
+
         if isinstance(data, dict):
             if 'models' in data and isinstance(data['models'], list):
                 # TabPFN
@@ -302,8 +311,41 @@ class UnifiedPredictor:
             # Assume XGBoost
             self.model_type = 'xgboost'
             self.model = data
-        
+
         logger.info(f"Loaded {self.model_type} model from pickle")
+
+    def _load_torch_pickle_model(self):
+        """Load a neural checkpoint stored as a ``torch.save`` ``.pkl`` archive."""
+        torch = _torch()
+        data = torch.load(self.model_path, map_location=self.device, weights_only=False)
+
+        if not (isinstance(data, dict) and ('model_state' in data or 'model_state_dict' in data)):
+            raise ValueError(
+                f"Expected a neural checkpoint with 'model_state'/'model_state_dict' in "
+                f"{self.model_path}, got keys: {list(data) if isinstance(data, dict) else type(data)}"
+            )
+
+        self.model_type = 'neural'
+        self.optimal_threshold = float(data.get('optimal_threshold', 0.5))
+
+        # Prefer config.yml (full feature/architecture config) over the
+        # checkpoint-embedded config, matching the historical behaviour.
+        config_path = self.model_path.parent / 'config.yml'
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                full_config = yaml.safe_load(f)
+        else:
+            full_config = data.get('config', {})
+
+        model_type = full_config.get('model', {}).get('variant', 'BaselineMLP')
+
+        self.model = self._build_neural_model(model_type, full_config)
+        state_dict = data.get('model_state', data.get('model_state_dict'))
+        self.model.load_state_dict(state_dict)
+        self.model.to(self.device)
+        self.model.eval()
+
+        logger.info(f"Loaded neural model from pickle (via torch.load), type: {model_type}")
     
     def _build_neural_model(self, model_type, config):
         """Build neural network model from config - returns the actual PyTorch model"""
@@ -536,10 +578,13 @@ class UnifiedPredictor:
                 return self.model.predict_proba(X)[:, 1]
         
         elif self.model_type == 'neural':
+            torch = _torch()
+            from torch.utils.data import DataLoader
+
             self.model.eval()
             dataset = PredictionDataset(X)
             dataloader = DataLoader(dataset, batch_size=4096, shuffle=False)
-            
+
             predictions = []
             with torch.no_grad():
                 for batch in dataloader:
@@ -548,7 +593,7 @@ class UnifiedPredictor:
                     if outputs.min() < 0 or outputs.max() > 1:
                         outputs = torch.sigmoid(outputs)
                     predictions.extend(outputs.cpu().numpy())
-            
+
             return np.array(predictions).flatten()
         
         else:

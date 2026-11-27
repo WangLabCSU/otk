@@ -95,8 +95,8 @@ def worker_thread():
                     model_path = resource_manager.get_available_models()[preferred_model]
                 else:
                     model_name, model_path = resource_manager.get_best_model()
-                
-                device_type, gpu_id = resource_manager.select_device()
+
+                device_type, gpu_id = resource_manager.select_device(model_path)
                 
                 job.model_used = model_name
                 job.device_used = f"{device_type}:{gpu_id}" if gpu_id is not None else device_type
@@ -543,7 +543,7 @@ async def predict_sync(
             model_path = available_models[default_model]
         
         # Select device
-        device_type, gpu_id = resource_manager.select_device()
+        device_type, gpu_id = resource_manager.select_device(model_path)
         
         # Create output directory
         output_dir = RESULTS_DIR / job_id

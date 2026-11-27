@@ -36,22 +36,37 @@ __version__ = "1.0.2"
 __author__ = "Shixiang Wang"
 __email__ = "wangshx@csu.edu.cn"
 
+import importlib
+
 from .data import get_data_splits, load_split
-from .models import (
-    BaseEcDNAModel,
-    BaselineMLPModel,
-    DeepResidualModel,
-    DGITSuperModel,
-    ModelTrainer,
-    OptimizedResidualModel,
-    TabPFNModel,
-    TransformerEcDNAModel,
-    XGB11Model,
-    XGBNewModel,
-    create_neural_model,
-)
+from .models import BaseEcDNAModel, ModelTrainer
 from .predict import UnifiedPredictor, predict
 from .utils import RANDOM_SEED, set_random_seed
+
+# Model classes are resolved lazily (PEP 562). On macOS both torch and xgboost
+# bundle their own OpenMP (libomp) runtime, and loading two OpenMP runtimes into
+# one process corrupts memory and segfaults torch model construction. Deferring
+# these re-exports means importing ``otk`` never loads a modelling backend, and
+# each workflow only loads the backend it actually uses.
+_LAZY_MODEL_ATTRS = {
+    "XGB11Model",
+    "XGBNewModel",
+    "BaselineMLPModel",
+    "TransformerEcDNAModel",
+    "DeepResidualModel",
+    "OptimizedResidualModel",
+    "DGITSuperModel",
+    "TabPFNModel",
+    "create_neural_model",
+}
+
+
+def __getattr__(name):
+    if name in _LAZY_MODEL_ATTRS:
+        value = getattr(importlib.import_module(".models", __name__), name)
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = [
     # Version info

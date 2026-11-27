@@ -1,4 +1,3 @@
-import torch
 import psutil
 from pathlib import Path
 from typing import Optional, Tuple, Dict, List
@@ -7,12 +6,47 @@ from .config import (
     PREFER_GPU, get_model_search_paths
 )
 
+
+def _torch():
+    """Import torch lazily.
+
+    Torch is only needed for GPU bookkeeping. Importing it eagerly at module
+    scope would load a second OpenMP (libomp) runtime alongside xgboost and
+    segfault the API server on macOS even for XGBoost-only deployments.
+    """
+    import torch
+
+    return torch
+
+
+def _is_torch_model(model_path: Optional[Path]) -> bool:
+    """Return True when ``model_path`` is a torch checkpoint.
+
+    ``torch.save`` writes a zip archive (``.pth`` or ``.pkl`` starting with
+    ``b'PK'``); XGBoost/TabPFN pickles start with the pickle opcode ``b'\\x80'``.
+    Only torch-backed models ever need the torch device, so non-torch models can
+    skip importing torch entirely.
+    """
+    if model_path is None:
+        return False
+    path = Path(model_path)
+    if path.suffix == ".pth":
+        return True
+    if path.suffix == ".pkl":
+        try:
+            with open(path, "rb") as handle:
+                return handle.read(2) == b"PK"
+        except OSError:
+            return False
+    return False
+
+
 class ResourceManager:
     def __init__(self):
         self._selected_model: Optional[str] = DEFAULT_MODEL
         self.available_models = self._scan_models()
         self.gpu_usage = {}
-        self._init_gpu_monitoring()
+        self._gpu_monitoring_initialized = False
     
     def _scan_models(self) -> Dict[str, Path]:
         """Scan for available models in configured directories"""
@@ -40,8 +74,12 @@ class ResourceManager:
         
         return models
     
-    def _init_gpu_monitoring(self):
-        """Initialize GPU usage tracking"""
+    def _ensure_gpu_monitoring(self):
+        """Initialize GPU usage tracking on first use (imports torch lazily)."""
+        if self._gpu_monitoring_initialized:
+            return
+        self._gpu_monitoring_initialized = True
+        torch = _torch()
         if torch.cuda.is_available():
             for i in range(torch.cuda.device_count()):
                 self.gpu_usage[i] = {
@@ -104,9 +142,22 @@ class ResourceManager:
             
         raise RuntimeError("No available models found")
     
-    def select_device(self) -> Tuple[str, Optional[int]]:
-        """Select the best available device (GPU or CPU)"""
-        if not PREFER_GPU or not torch.cuda.is_available():
+    def select_device(self, model_path: Optional[Path] = None) -> Tuple[str, Optional[int]]:
+        """Select the best available device (GPU or CPU).
+
+        ``model_path`` lets the manager avoid importing torch when the model is
+        not torch-backed (XGBoost/TabPFN): those models never use a torch
+        device, so keeping torch out of the process avoids the macOS OpenMP
+        segfault. When ``model_path`` is omitted, torch-only behaviour is kept.
+        """
+        if not PREFER_GPU:
+            return "cpu", None
+        if model_path is not None and not _is_torch_model(model_path):
+            return "cpu", None
+
+        self._ensure_gpu_monitoring()
+        torch = _torch()
+        if not torch.cuda.is_available():
             return "cpu", None
         
         best_gpu = None
@@ -149,13 +200,17 @@ class ResourceManager:
         if device_type == "cuda" and gpu_id is not None:
             if gpu_id in self.gpu_usage:
                 self.gpu_usage[gpu_id]["active_jobs"] = max(0, self.gpu_usage[gpu_id]["active_jobs"] - 1)
-                torch.cuda.empty_cache()
+                _torch().cuda.empty_cache()
     
     def get_system_stats(self) -> Dict:
         """Get current system statistics"""
         cpu_percent = psutil.cpu_percent(interval=0.1)
         memory = psutil.virtual_memory()
-        
+
+        # Prediction jobs run in subprocesses, so xgboost is never loaded in the
+        # server process and importing torch here cannot mix OpenMP runtimes.
+        torch = _torch()
+
         stats = {
             "cpu": {
                 "percent": cpu_percent,
@@ -178,7 +233,7 @@ class ResourceManager:
                 "priority": MODEL_PRIORITY,
             },
         }
-        
+
         if torch.cuda.is_available():
             for i in range(torch.cuda.device_count()):
                 try:
